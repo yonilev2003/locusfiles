@@ -127,9 +127,16 @@ A reproducible benchmark on public documents will replace these numbers.
 
 ## Limits
 
-- Retrieval is measured in English and Hebrew only (on the public test above and on my own folder). The
-  default model supports about 100 languages according to its model card; I have not yet measured the others.
-  Searching in one language over files in another is weaker than same-language search.
+- Languages. On the same public test in 12 other languages (Arabic, Russian, Chinese, Japanese, Spanish,
+  Hindi, German, French, Turkish, Korean, Thai, Swahili) the default model finds the right passage in the top
+  5 for 88% to 96% of questions (average 93%; the previous model averaged 40%). Its gap to English is under
+  10 points in 11 of the 12 (95% interval); Swahili is not: 9.2 points behind, interval 6.9 to 11.5. Those 12
+  runs used the full-precision file of the model; the smaller file that ships was checked on English and Hebrew
+  only, and on Locus's own code path it gave the same results within 0.4 points. `bge-m3` was within 10 points
+  in all 12.
+- Searching in one language over files in another is weaker. With the default model an English question finds
+  the right Hebrew passage in the top 5 for 83% of questions and a Hebrew question finds the right English
+  passage for 71% (same language: 97% and 90%). With `bge-m3`: 94% and 91%.
 - Assistants do not always call Locus by themselves. If yours answers from memory, say "search my files
   with Locus".
 - Not a replacement for a full desktop search app, and it does not read your email, calendar or the web.

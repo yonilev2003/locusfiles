@@ -26,7 +26,9 @@ same model were measured as equivalent, so that part needs no re-index.
   97.2% and 89.7%, a gap of 7.6 points (95% interval 5.5 to 9.6; under a 10-point margin chosen in advance, not
   under 5). It ships as the 118 MB int8 file of the same repository: against the fp32 file, recall@5 changed by at
   most 0.33 points on the same questions (no McNemar p below 0.37) and the English-Hebrew gap stayed under the
-  margin. First-run download 134 MB. Queries get the `query: ` prefix and passages the `passage: ` prefix the
+  margin. On Locus's own code path (prefixes, stripping, sorted batches, the int8 file) the same test gave English
+  96.9% and Hebrew 89.3% at recall@5 (gap 7.6). In 12 other languages the full-precision file averaged 93% at
+  recall@5 with a gap under 10 points in 11 (not Swahili). First-run download 134 MB. Queries get the `query: ` prefix and passages the `passage: ` prefix the
   model was trained with, text is stripped before embedding, and batches are sorted by length (fastembed pads each
   batch to its longest text).
 - **The `local` extra now runs on ONNX Runtime (through `fastembed`) instead of PyTorch.** Measured on
