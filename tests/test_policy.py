@@ -290,7 +290,7 @@ def test_iter_files_denied_root_yields_nothing(home, tmp_path):
     assert out == [] and seen == ["denied_secrets_dir"]
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="needs a non-root user")
+@pytest.mark.skipif(getattr(os, "geteuid", lambda: 1)() == 0, reason="needs a non-root user")
 def test_unreadable_folder_is_counted(home, tmp_path):
     _build_home(home)
     locked = home / "Documents"

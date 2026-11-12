@@ -42,7 +42,7 @@ def _two_folders(tmp_path: Path):
     return settings, embedder, store, root
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root can read a mode-0 folder")
+@pytest.mark.skipif(getattr(os, "geteuid", lambda: 1)() == 0, reason="root can read a mode-0 folder")
 def test_prune_skips_only_the_unreadable_subtree_and_says_so(tmp_path):
     settings, embedder, store, root = _two_folders(tmp_path)
     (root / "open" / "open.md").unlink()  # genuinely gone: prune must still remove it

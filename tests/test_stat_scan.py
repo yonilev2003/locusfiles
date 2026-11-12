@@ -143,7 +143,7 @@ def test_resuming_inside_a_folder_that_has_since_vanished_carries_on_after_it(me
 
 
 def test_a_folder_the_os_will_not_list_is_reported_and_the_walk_goes_on(messy, tmp_path):
-    if os.geteuid() == 0:
+    if getattr(os, "geteuid", lambda: 1)() == 0:
         pytest.skip("root can list anything")
     heard: list[str] = []
     locked = messy / "sub-two"
