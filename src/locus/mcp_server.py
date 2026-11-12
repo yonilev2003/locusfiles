@@ -135,9 +135,11 @@ mcp = MCPServer(
     "locus_mcp",
     instructions=_with_announce(
         "Locus searches the user's own files on this computer: documents, notes, PDFs, plans, drafts, "
-        "reports and code they wrote or saved. Use locus_search for questions about their own work, "
-        "projects, people, decisions or documents. Answer only from the returned text and cite the file "
-        "paths it came from. It is not for general knowledge, current events or the outside world.\n\n"
+        "reports and code they wrote or saved, in Hebrew or English. Use locus_search when a question "
+        "could be answered from that material: it says my, our or we (אני, שלי, שלנו), names one of their "
+        "projects, clients, people or documents, or asks what they decided, wrote or planned. Answer only "
+        "from the returned text and cite the file paths it came from. It is not for general knowledge, "
+        "current events or the outside world.\n\n"
         "Search with specific keywords, one topic per call. To narrow a search, use path_prefix or the "
         "date filters before raising top_k. One locus_search call carries the full text of about six "
         "chunks; lower-ranked results come back as path + chunk index only ('text not included'). To "
