@@ -25,7 +25,6 @@ counts as a "background service" under the 2026-10-25 incident note is the found
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import os
@@ -56,6 +55,8 @@ def shared_embedder_enabled(env: dict[str, str] | None = None, data_dir: Path | 
     """On when LOCUS_SHARED_EMBEDDER is 1/true/yes/on, or, when the variable is not set at all, when the file
     `<data_dir>/shared-embedder` exists (`touch` it to switch on, delete it to switch off: no AI-app config has to be
     edited). An explicit 0/false/no/off in the variable wins over the file."""
+    if fcntl is None:
+        return False
     value = (os.environ if env is None else env).get(ENV_ENABLE)
     if value is not None and value.strip():
         return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -76,6 +77,11 @@ def helper_device(env: dict[str, str] | None = None) -> str | None:
     value = ((os.environ if env is None else env).get(ENV_DEVICE) or "").strip().lower() or "cpu"
     return None if value == "auto" else value
 
+
+try:
+    import fcntl
+except ImportError:  # Windows: no flock and no AF_UNIX helper; the shared helper stays off there
+    fcntl = None  # type: ignore[assignment]
 
 SOCKET_PATH_MAX = 100  # bytes; macOS allows 104 for an AF_UNIX path including the terminator, Linux 108
 
