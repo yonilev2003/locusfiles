@@ -1,0 +1,43 @@
+name: Install problem or wrong answer
+description: Locus did not install, did not start, or returned the wrong file.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove personal file names, paths and document contents before pasting anything.
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and Python version
+      placeholder: macOS 15 / Ubuntu 24.04 / Windows 11, Python 3.12
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Claude Code, Claude Desktop, Cursor, other
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: How you installed Locus
+      placeholder: uv tool install "locusfiles[local]"
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `locus doctor`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: For a wrong answer, say what you asked, which file you expected and which file came back.
+    validations:
+      required: true
