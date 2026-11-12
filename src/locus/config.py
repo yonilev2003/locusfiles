@@ -108,8 +108,9 @@ def _normalize_ext(raw: str) -> str:
 # (tests/test_domain_cutover_parity.py).
 DEFAULT_API_BASE = "https://locusfiles.com"
 
-# The on-device model when LOCUS_LOCAL_MODEL is not set (English-only bge-small).
-DEFAULT_LOCAL_MODEL = "BAAI/bge-small-en-v1.5"
+# The on-device model when LOCUS_LOCAL_MODEL is not set: multilingual (about 100 languages), MIT, 512-token window.
+# Replaced the English-only BAAI/bge-small-en-v1.5 in 0.2.0 (which finds the right Hebrew passage for 13% of questions).
+DEFAULT_LOCAL_MODEL = "intfloat/multilingual-e5-small"
 
 # Paths under the API base. They are locus-web routes (locus-web/app/...), not configuration.
 EMBED_RELAY_PATH = "/api/embed-relay"

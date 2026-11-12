@@ -289,6 +289,11 @@ class ChromaStore:
                     f"Collection {self.collection!r} was built with embedder {existing!r} but the current "
                     f"embedder is {self.embedder_name!r}. Use a new LOCUS_COLLECTION or delete "
                     f"{self.data_dir / 'chroma'} and re-index. Never mix models in one collection."
+                    + (
+                        f" To keep this collection, set LOCUS_EMBEDDER=local and LOCUS_LOCAL_MODEL={existing[6:]}."
+                        if existing.startswith("local:")
+                        else ""
+                    )
                 )
             policy, recorded_now = self._recorded_input_type_policy(col)
             chunk_tokens, chunk_recorded_now = self._recorded_chunk_tokens(col)

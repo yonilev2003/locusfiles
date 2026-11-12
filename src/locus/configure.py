@@ -401,7 +401,7 @@ def run_setup(
         ):  # a lookup only: importing would load the model stack
             print(
                 "locus setup: note: on-device embeddings need the `local` extra "
-                "(about 460 MB installed, with the model). "
+                "(about 530 MB installed, with the model). "
                 'Install it with `uv tool install --reinstall --python 3.12 "locusfiles[local]"` (or pipx: '
                 '`pipx install --force "locusfiles[local]"`) before you index.',
                 file=stderr,

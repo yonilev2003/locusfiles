@@ -15,7 +15,7 @@ We recommend `uv`: you do not need Python installed first, because it installs i
 
 Pick the extra that matches how your files will be embedded:
 
-- On-device embeddings, no account (ONNX Runtime, about 460 MB installed with the model; PyTorch is optional):
+- On-device embeddings, no account (ONNX Runtime, about 530 MB installed with the model; PyTorch is optional):
   `uv tool install --python 3.12 "locusfiles[local]"` or `pipx install "locusfiles[local]"`
 - A Locus plan (managed embeddings, remote connection), no PyTorch:
   `uv tool install --python 3.12 "locusfiles[relay]"` or `pipx install "locusfiles[relay]"`

@@ -22,7 +22,7 @@ Either one puts `locus` in its own environment. `locusfiles` has been on PyPI si
 ```bash
 # Recommended: uv (install it first; skip if `uv --version` already works)
 curl -LsSf https://astral.sh/uv/install.sh | sh   # then open a new terminal, so `uv` is found
-# On-device embeddings, no account (ONNX Runtime: about 400 MB installed plus a 64 MB model on first use):
+# On-device embeddings, no account (ONNX Runtime: about 400 MB installed plus a 134 MB multilingual model on first use):
 uv tool install --python 3.12 "locusfiles[local]"
 # or a Locus plan (managed embeddings, remote connection), no on-device model:
 uv tool install --python 3.12 "locusfiles[relay]"

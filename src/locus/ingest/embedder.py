@@ -333,6 +333,21 @@ def uses_english_bge_query_instruction(model: str) -> bool:
     return _ENGLISH_BGE_MODEL.match(name) is not None
 
 
+# The e5 family was trained with "query: " on searches and "passage: " on documents; without them retrieval is worse.
+_E5_MODEL = re.compile(r"^(multilingual-)?e5-(small|base|large)(-v\d+)?$")
+
+
+def local_prefixes(model: str) -> tuple[str, str]:
+    """(query prefix, document prefix) the model was trained with. Matched on the last path segment, so a model
+    folder works too. bge-m3 and the other multilingual models take none."""
+    name = model.strip().rstrip("/").rsplit("/", 1)[-1].lower()
+    if _E5_MODEL.match(name):
+        return "query: ", "passage: "
+    if _ENGLISH_BGE_MODEL.match(name):
+        return LocalEmbedder._BGE_QUERY_PREFIX, ""
+    return "", ""
+
+
 LOCAL_BACKEND_ENV = "LOCUS_LOCAL_BACKEND"  # auto (default) | onnx | torch
 
 
@@ -364,11 +379,56 @@ def _onnx_cache_dir() -> str:
     return os.path.join(base, "locus", "onnx")
 
 
+# ONNX builds that fastembed does not list but whose files are published: registered when first loaded (no remote
+# code). multilingual-e5-small was measured on 2026-11-12 to match PyTorch (cosine >= 0.9999999) on 976 passages once
+# the text is stripped; fastembed adds no query/passage prefixes, so LocalEmbedder adds them (local_prefixes).
+_CUSTOM_ONNX: dict[str, dict[str, object]] = {
+    # The dynamic int8 file of the same repo (118 MB instead of 470 MB). Measured 2026-11-12 against fp32 on 900 paired
+    # English/Hebrew questions: recall@5 within 0.33 points (every McNemar p >= 0.37), mean cosine 0.9988.
+    "intfloat/multilingual-e5-small": {
+        "dim": 384,
+        "pooling": "MEAN",
+        "normalization": True,
+        "model_file": "onnx/model_qint8_avx512_vnni.onnx",
+    },
+}
+
+
+def _custom_spec(model: str) -> tuple[str, dict[str, object]] | None:
+    for name, spec in _CUSTOM_ONNX.items():
+        if name.lower() == model.lower():
+            return name, spec
+    return None
+
+
+def _register_custom_onnx(text_embedding: object, model: str) -> str:
+    """Register *model* with fastembed when it is one of _CUSTOM_ONNX; returns the name to load it by."""
+    found = _custom_spec(model)
+    if found is None:
+        return model
+    name, spec = found
+    from fastembed.common.model_description import ModelSource, PoolingType
+
+    try:
+        text_embedding.add_custom_model(  # type: ignore[attr-defined]
+            model=name,
+            pooling=PoolingType[str(spec["pooling"])],
+            normalization=bool(spec["normalization"]),
+            sources=ModelSource(hf=name),
+            dim=int(spec["dim"]),  # type: ignore[call-overload]
+            model_file=str(spec["model_file"]),
+            license="mit",
+        )
+    except ValueError:  # already registered in this process
+        pass
+    return name
+
+
 def local_backend(model: str) -> tuple[str, object | None]:
     """("onnx", TextEmbedding) when fastembed is installed and offers *model*, else ("torch", None).
 
     LOCUS_LOCAL_BACKEND=torch forces sentence-transformers; =onnx insists on fastembed. The ONNX route is the
-    default `local` extra (about 460 MB installed with its model); the torch route stays for models fastembed does not
+    default `local` extra (about 530 MB installed with its model); the torch route stays for models fastembed does not
     offer (bge-m3, multilingual-e5-small, a model folder) and needs the `local-torch` extra."""
     choice = (os.environ.get(LOCAL_BACKEND_ENV) or "auto").strip().lower()
     if choice not in ("auto", "onnx", "torch"):
@@ -390,6 +450,7 @@ def local_backend(model: str) -> tuple[str, object | None]:
         offered = {entry["model"].lower() for entry in TextEmbedding.list_supported_models()}
     except Exception:  # noqa: BLE001 - a fastembed without the listing: let the model load decide
         offered = {model.lower()}
+    offered |= {name.lower() for name in _CUSTOM_ONNX}
     if model.lower() in offered:
         return "onnx", TextEmbedding
     if choice == "onnx":
@@ -427,6 +488,7 @@ class _OnnxModel:
     `encode(...).tolist()` and `max_seq_length`."""
 
     def __init__(self, model: str, text_embedding: object) -> None:
+        model = _register_custom_onnx(text_embedding, model)
         cache_dir = _onnx_cache_dir()
         try:
             # Already downloaded: no request to huggingface.co. Only a missing model is fetched. fastembed logs a
@@ -445,7 +507,16 @@ class _OnnxModel:
 
         if not texts:
             return np.zeros((0, 0), dtype="float32")
-        vectors = np.asarray(list(self._model.embed(texts, batch_size=batch_size)), dtype="float32")
+        # strip(): a trailing space adds a lone "_" token on this route that PyTorch's tokenizer drops, which moved
+        # 40 of 1,800 vectors by up to 0.7% in the 2026-11-12 check. Sorting by length first: fastembed pads each batch
+        # to its longest text, so unsorted input took 1.8 times as long (24.6 s against 13.7 s for 976 passages).
+        clean = [t.strip() for t in texts]
+        order = sorted(range(len(clean)), key=lambda i: len(clean[i]))
+        sorted_vectors = np.asarray(
+            list(self._model.embed([clean[i] for i in order], batch_size=batch_size)), dtype="float32"
+        )
+        vectors = np.empty_like(sorted_vectors)
+        vectors[order] = sorted_vectors
         if normalize_embeddings:
             norms = np.linalg.norm(vectors, axis=1, keepdims=True)
             norms[norms == 0] = 1.0
@@ -459,6 +530,7 @@ class LocalEmbedder:
     download."""
 
     _BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+    _doc_prefix = ""  # set per model in __init__; a class default keeps objects built without __init__ working
 
     def __init__(self, model: str, device: str | None = None) -> None:
         # `device` None = sentence-transformers' own choice (MPS on Apple silicon); the shared helper passes "cpu".
@@ -477,7 +549,7 @@ class LocalEmbedder:
             raise LocalModelUnavailable(local_model_error(model, exc)) from exc
         self.model = model
         self.name = f"local:{model}"
-        self._query_prefix = self._BGE_QUERY_PREFIX if uses_english_bge_query_instruction(model) else ""
+        self._query_prefix, self._doc_prefix = local_prefixes(model)
         # The model's input window in tokens (sentence-transformers' max_seq_length), which decides the
         # default chunk size of a new collection (chunk_policy.py). None when the model does not say.
         window = getattr(self._model, "max_seq_length", None)
@@ -505,6 +577,8 @@ class LocalEmbedder:
             return SentenceTransformer(model, **kwargs)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        if self._doc_prefix:
+            texts = [self._doc_prefix + t for t in texts]
         with self._encode_lock:
             return self._model.encode(texts, normalize_embeddings=True, batch_size=32).tolist()
 

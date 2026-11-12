@@ -17,7 +17,7 @@ pasted in. Locus is **source-available** under FSL-1.1-ALv2, not open source (se
 ## Try it on the demo folder
 
 ```text
-$ uv tool install --python 3.12 "locusfiles[local]"   # about 460 MB on disk, no account, no API key
+$ uv tool install --python 3.12 "locusfiles[local]"   # about 530 MB on disk, no account, no API key
 $ locus index tests/fixtures/demo-vault               # from a clone of this repository
 seen=21 indexed=21 skipped=0 removed=0 chunks=22 errors=0
 
@@ -50,14 +50,16 @@ any FAIL line.
 if you already have Python 3.11 or newer. To run the server without installing it:
 `uvx --from "locusfiles[local]" locusfiles serve` (`locusfiles` is an alias of `locus`).
 
-The `local` extra runs the embedding model with ONNX Runtime: the whole environment is about 400 MB plus
-a 64 MB model that downloads on first use (the PyTorch route it replaces was 1.1 GB plus a 133 MB model).
-Measured on one Apple-silicon Mac with a fast network and a cold package cache: about 9 s to install,
-about 20 s for the first `locus doctor` including the model download, about 3 s to index the demo folder
+The `local` extra runs the embedding model with ONNX Runtime. The default model is
+`intfloat/multilingual-e5-small` (MIT licence, about 100 languages): the whole environment is about
+400 MB plus a 134 MB model that downloads on first use (the earlier PyTorch route was 1.1 GB plus a 133 MB
+model). Measured on one Apple-silicon Mac with a fast network and a cold package cache: about 15 s to install,
+about 33 s for the first `locus doctor` including the model download, about 4 s to index the demo folder
 and about 2.6 s per `locus query` from the command line. Slower networks take longer.
 
 PyTorch is optional: `locusfiles[local-torch]` is for models the default route lacks
-(`bge-m3`, `multilingual-e5`, model folders). To embed with your own provider key instead, use the
+(`bge-m3`, `multilingual-e5-base` and larger, model folders). `LOCUS_LOCAL_MODEL=BAAI/bge-m3` is the
+most accurate choice for Hebrew and mixed-language files, at a 2.3 GB download. To embed with your own provider key instead, use the
 `voyage` or `openai` extra and set `LOCUS_EMBEDDER`. `locus setup --local` picks the embedder and
 prints the `claude mcp add` line with your settings filled in.
 
@@ -108,15 +110,26 @@ maintainer's own tooling and not by an independent reader:
   citations (95% interval 72% to 100%).
 - Left to choose in a chat app: Locus was called on 4 of 10 questions; 5 of 10 were answered
   correctly (interval 24% to 76%). When it was called, 4 of 4; when it was not, 1 of 6.
-- Hebrew questions in chat: 1 of 5.
-- Offline retrieval, question as written: the right file ranked in the top 5 for 10 of 17 scored questions.
+- Hebrew questions in chat: 1 of 5. (These three chat numbers were measured with the previous default
+  model, which was English-only.)
+- Offline retrieval, question as written: the right file ranked in the top 5 for 10 of 17 scored questions
+  (also with the previous model).
+
+On a public test, paired English and Hebrew (Belebele: the same 900 questions in both languages, 488 passages
+each, scored as the right passage in the top 5), the previous model found the right passage for 95.0% of
+English and 12.9% of Hebrew questions. The current default finds it for 97.2% and 89.7%: a gap of 7.6 points
+(95% interval 5.5 to 9.6, resampling whole passages). That is under the 10-point margin I set in advance and
+not under 5 points; larger models do better (`bge-m3`: gap 3.3). It is short Wikipedia-style passages, not
+your files, and it measures search only, not whether the assistant calls Locus. I will publish the per-question
+results and the scripts with the benchmark write-up.
 
 A reproducible benchmark on public documents will replace these numbers.
 
 ## Limits
 
-- Retrieval is tuned and measured for English. The default embedding model is English-only; Hebrew is
-  experimental.
+- Retrieval is measured in English and Hebrew only (on the public test above and on my own folder). The
+  default model supports about 100 languages according to its model card; I have not yet measured the others.
+  Searching in one language over files in another is weaker than same-language search.
 - Assistants do not always call Locus by themselves. If yours answers from memory, say "search my files
   with Locus".
 - Not a replacement for a full desktop search app, and it does not read your email, calendar or the web.

@@ -12,23 +12,35 @@ still marked unreleased; if they are not published first, their changes ship in 
 an existing install with `uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your
 AI app.
 
-**Migration:** existing collections keep the same embedder name (`local:BAAI/bge-small-en-v1.5`), so no
-re-index is needed; the vectors from the two routes were measured as equivalent on the sample below.
+**Migration:** the default on-device model changed (see below), and a collection records the model it was
+built with, so an existing collection built with the old default stops with a message that names the fix.
+Either keep the old model (`LOCUS_EMBEDDER=local` and `LOCUS_LOCAL_MODEL=BAAI/bge-small-en-v1.5`, which keeps
+working) or re-index into a new collection (`LOCUS_COLLECTION=<new name>`). The two ONNX/PyTorch routes of the
+same model were measured as equivalent, so that part needs no re-index.
 
 ### Changed
 
+- **The default on-device model is now `intfloat/multilingual-e5-small`** (MIT, about 100 languages) instead of
+  the English-only `BAAI/bge-small-en-v1.5`. Why: on a public paired English/Hebrew test (900 questions) the old
+  model finds the right passage in the top 5 for 95.0% of English and 12.9% of Hebrew questions; the new one for
+  97.2% and 89.7%, a gap of 7.6 points (95% interval 5.5 to 9.6; under a 10-point margin chosen in advance, not
+  under 5). It ships as the 118 MB int8 file of the same repository: against the fp32 file, recall@5 changed by at
+  most 0.33 points on the same questions (no McNemar p below 0.37) and the English-Hebrew gap stayed under the
+  margin. First-run download 134 MB. Queries get the `query: ` prefix and passages the `passage: ` prefix the
+  model was trained with, text is stripped before embedding, and batches are sorted by length (fastembed pads each
+  batch to its longest text).
 - **The `local` extra now runs on ONNX Runtime (through `fastembed`) instead of PyTorch.** Measured on
-  one Mac (Apple silicon, fast network) on 2026-11-12, same model `BAAI/bge-small-en-v1.5`, one run each:
+  one Mac (Apple silicon, fast network, other jobs running) on 2026-11-12, one run each:
 
-  | | before (PyTorch) | now (ONNX Runtime) |
+  | | before (PyTorch, bge-small) | now (ONNX Runtime, multilingual-e5-small int8) |
   |---|---|---|
-  | whole environment (`locusfiles[local]`) | 1.1 GB, plus a 133 MB model | 399 MB, plus a 64 MB model |
-  | install, cold package cache | 58 s | about 9 s |
-  | first `locus doctor`, with the model download | 54 s | about 20 s |
-  | first index of the 21-file demo folder | 26 s | about 3.7 s |
+  | whole environment (`locusfiles[local]`) | 1.1 GB, plus a 133 MB model | 399 MB, plus a 134 MB model |
+  | install, cold package cache | 58 s | about 15 s |
+  | first `locus doctor`, with the model download | 54 s | about 33 s |
+  | first index of the 21-file demo folder | 26 s | about 4 s |
   | each `locus query` from the CLI | about 18.5 s (the model reloads per command) | about 2.6 s |
 
-  Parity of the two routes on 60 real passages and 22 queries (public documents, each document's own
+  Parity of the two routes for bge-small on 60 real passages and 22 queries (public documents, each document's own
   title as the query): cosine similarity within 2.3e-6 of 1 for every passage (worst angle 0.12 degrees), top-5 overlap 1.000, file-level recall@5 18 of 22
   for both. This is a small sample and a check that the two routes agree, not a quality claim.
 - **New extra `local-torch`** keeps the PyTorch route (`sentence-transformers`) for models the default

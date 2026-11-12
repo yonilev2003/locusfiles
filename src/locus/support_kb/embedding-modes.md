@@ -7,7 +7,7 @@ updated: 2026-10-02
 ---
 `LOCUS_EMBEDDER` decides where the text of your files is turned into vectors for search:
 
-- `local` (the default): an on-device model (bge-small, English-only). No account, no API key, no
+- `local` (the default): an on-device multilingual model (multilingual-e5-small, about 100 languages). No account, no API key, no
   cost. Needs the `local` extra. The first time it loads, the model is downloaded from Hugging Face.
 - `managed`: a Locus plan or trial. Set `LOCUS_API_KEY` from your dashboard. Needs the `relay` extra
   (no PyTorch).
