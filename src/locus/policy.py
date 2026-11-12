@@ -1,0 +1,286 @@
+"""Folder roots, the default deny-list and per-folder profiles (ADR-092 draft).
+
+Pure: nothing here reads the disk except `load_policy` (one TOML file), and nothing guesses the home
+directory: the caller passes it in, so tests run over a fake home. `Matcher.decide(path)` is the one
+place that says whether a path may be indexed and why not; the walker (`ingest/indexer.iter_files`),
+the dry run (`rootscan`) and later the freshness scan and `locus_read_file` confinement call it.
+
+The deny-list is code, always on: a policy file can add restrictions (`[deny] paths`, `excluded` folders)
+but cannot remove a default rule. Unknown keys are errors, never ignored: a typo in a restriction must
+not fail open.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import tomllib
+import unicodedata
+from dataclasses import dataclass
+from fnmatch import fnmatchcase
+from pathlib import Path
+
+PROFILES: tuple[str, ...] = ("trusted", "untrusted", "read-only", "excluded")
+DEFAULT_PROFILE = "trusted"
+
+# Reason names (stable: they appear in the dry-run report). The walker reports them as `denied_<name>`.
+DENY_REASONS: tuple[str, ...] = (
+    "secrets_dir",
+    "keychain",
+    "browser_profile",
+    "library",
+    "package_cache",
+    "evidence",
+    "secret_file",
+    "user_deny",
+    "profile_excluded",
+    "outside_roots",
+)
+DENIED_SKIP_REASONS: tuple[str, ...] = tuple(f"denied_{r}" for r in DENY_REASONS)
+
+# Folders below the home directory (case-insensitive: macOS volumes usually are).
+_SECRETS_DIRS = (
+    (".ssh",),
+    (".aws",),
+    (".gnupg",),
+    (".kube",),
+    (".docker",),
+    (".azure",),
+    (".config", "gcloud"),
+    (".config", "gh"),
+    (".config", "op"),
+)
+_KEYCHAIN_DIRS = (("Library", "Keychains"),)
+_BROWSER_DIRS = (
+    (".mozilla",),
+    ("Library", "Safari"),
+    ("Library", "Cookies"),
+    ("Library", "Application Support", "Google", "Chrome"),
+    ("Library", "Application Support", "Chromium"),
+    ("Library", "Application Support", "Microsoft Edge"),
+    ("Library", "Application Support", "BraveSoftware"),
+    ("Library", "Application Support", "Arc"),
+    ("Library", "Application Support", "Firefox"),
+)
+# Folder names denied wherever they occur. `node_modules`, `.venv`, `.git` and the rest of config.SKIP_DIRS keep
+# their own walker reason (`skipped_dir`); these are the ones SKIP_DIRS does not name.
+_PACKAGE_DIRS = frozenset({"site-packages", ".tox", ".gradle", ".m2", "pods", ".npm", ".pnpm-store"})
+_EVIDENCE_GLOB = "security-evidence-*"
+
+_SECRET_SUFFIXES = (
+    ".pem", ".key", ".p12", ".pfx", ".jks",
+    ".p8", ".ppk", ".gpg", ".tfvars", ".ovpn", ".tfstate", ".tfstate.backup",
+)  # fmt: skip
+_KEYCHAIN_SUFFIXES = (".keychain", ".keychain-db", ".kdbx", ".1pux", ".opvault")
+_SECRET_PREFIXES = ("id_rsa", "id_ed25519", "id_ecdsa", "id_dsa")
+_SECRET_NAMES = frozenset({".env", ".netrc", ".npmrc", ".pypirc", "kubeconfig"})
+# Whole words only, so "tokenizer.py" stays and "api-token.txt" and "accessToken.json" go.
+_SECRET_WORDS = frozenset(
+    {"token", "tokens", "secret", "secrets", "credential", "credentials", "password", "passwords", "passwd"}
+)
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_NON_WORD = re.compile(r"[^a-z0-9]+")
+
+
+class PolicyError(ValueError):
+    """The policy file is malformed. The message names the offending key."""
+
+
+@dataclass(frozen=True)
+class FolderProfile:
+    path: str
+    profile: str
+
+
+@dataclass(frozen=True)
+class Policy:
+    roots: tuple[str, ...] = ()
+    folders: tuple[FolderProfile, ...] = ()
+    library_allow: tuple[str, ...] = ()
+    deny_paths: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Decision:
+    allowed: bool
+    reason: str | None  # one of DENY_REASONS when not allowed
+    profile: str  # profile of the deepest matching folder, DEFAULT_PROFILE if none
+
+
+def _str_list(table: dict, key: str, where: str) -> tuple[str, ...]:
+    value = table.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise PolicyError(f"{where}{key} must be a list of strings")
+    for v in value:
+        _check_path_text(v, f"{where}{key}")
+    return tuple(value)
+
+
+def _check_path_text(text: str, where: str) -> None:
+    if not (text == "~" or text.startswith(("~/", "/"))):
+        raise PolicyError(f"{where}: {text!r} must start with ~/ or / (relative paths are ambiguous)")
+
+
+def _only_keys(table: dict, allowed: set[str], where: str) -> None:
+    unknown = sorted(set(table) - allowed)
+    if unknown:
+        raise PolicyError(f"unknown key {unknown[0]!r} in {where}")
+
+
+def parse_policy(text: str) -> Policy:
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as err:
+        raise PolicyError(f"not valid TOML: {err}") from err
+    _only_keys(data, {"version", "roots", "folder", "library", "deny"}, "the policy file")
+    if data.get("version", 1) != 1:
+        raise PolicyError(f"version {data['version']!r} is not supported (this Locus reads version 1)")
+    roots = _str_list(data, "roots", "")
+    folders: list[FolderProfile] = []
+    for entry in data.get("folder", []):
+        if not isinstance(entry, dict):
+            raise PolicyError("[[folder]] entries must be tables")
+        _only_keys(entry, {"path", "profile"}, "[[folder]]")
+        path, profile = entry.get("path"), entry.get("profile")
+        if not isinstance(path, str) or not isinstance(profile, str):
+            raise PolicyError("[[folder]] needs a path and a profile, both strings")
+        _check_path_text(path, "[[folder]] path")
+        if profile not in PROFILES:
+            raise PolicyError(f"unknown profile {profile!r} for a folder (use one of {', '.join(PROFILES)})")
+        folders.append(FolderProfile(path, profile))
+    library, deny = data.get("library", {}), data.get("deny", {})
+    _only_keys(library, {"allow"}, "[library]")
+    _only_keys(deny, {"paths"}, "[deny]")
+    return Policy(
+        roots=roots,
+        folders=tuple(folders),
+        library_allow=_str_list(library, "allow", "[library] "),
+        deny_paths=_str_list(deny, "paths", "[deny] "),
+    )
+
+
+def load_policy(path: Path) -> Policy:
+    """The policy at *path*; a missing file means the defaults (no roots, no profiles)."""
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return Policy()
+    return parse_policy(text)
+
+
+def _fold(text: str) -> str:
+    # NFC first: APFS keeps the spelling of whoever created a name, so "Café" may arrive composed or decomposed (F5).
+    return unicodedata.normalize("NFC", unicodedata.normalize("NFC", text).casefold())
+
+
+def _parts(path: Path | str) -> tuple[str, ...]:
+    return tuple(_fold(p) for p in Path(path).parts)
+
+
+def _expand(text: str, home: Path) -> tuple[str, ...]:
+    return _parts(home if text == "~" else home / text[2:] if text.startswith("~/") else text)
+
+
+def _starts(parts: tuple[str, ...], prefix: tuple[str, ...]) -> bool:
+    return parts[: len(prefix)] == prefix
+
+
+def _contains(parts: tuple[str, ...], seq: tuple[str, ...]) -> bool:
+    """True when *seq* occurs as consecutive path components anywhere in *parts*."""
+    n = len(seq)
+    return any(parts[i : i + n] == seq for i in range(len(parts) - n + 1))
+
+
+def _foreign_library(parts: tuple[str, ...]) -> bool:
+    """`/Users/<name>/Library` or `/Volumes/<disk>/Users/<name>/Library`: another user's or a backup's Library."""
+    return any(p == "library" and i >= 2 and parts[i - 2] == "users" for i, p in enumerate(parts))
+
+
+def secret_name(name: str) -> bool:
+    """True for a file name that looks like a secret (kept conservative: a false skip is cheaper than a leak)."""
+    low = _fold(name)
+    if low in _SECRET_NAMES or low.startswith(".env.") or low.startswith(_SECRET_PREFIXES):
+        return True
+    if low.endswith(_SECRET_SUFFIXES):
+        return True
+    words = _NON_WORD.split(_CAMEL.sub(" ", name).casefold())
+    return bool(_SECRET_WORDS.intersection(words)) or "apikey" in "".join(words)
+
+
+class Matcher:
+    """A policy compiled against one home directory. Cheap to call once per file."""
+
+    def __init__(self, policy: Policy, home: Path):
+        self.policy = policy
+        self.home = Path(home)
+        h = _parts(self.home)
+        self._home_parts = h
+        expanded = [_expand(r, self.home) for r in policy.roots]
+        # A root given through a symlink is the same place as its target; the walker resolves roots: both (F13).
+        resolved = [_parts(os.path.realpath(os.path.join(*e))) for e in expanded if e]
+        self._roots = tuple(dict.fromkeys([*expanded, *resolved]))
+        # Matched as a tail anywhere in the path, not only under this home: a backup disk, a Time Machine copy or
+        # another user's home holds the same credential and browser folders (F6).
+        self._secrets = tuple(tuple(_fold(x) for x in t) for t in _SECRETS_DIRS)
+        self._keychain = tuple(tuple(_fold(x) for x in t) for t in _KEYCHAIN_DIRS)
+        self._browsers = tuple(tuple(_fold(x) for x in t) for t in _BROWSER_DIRS)
+        self._library = h + ("library",)
+        self._library_allow = tuple(_expand(a, self.home) for a in policy.library_allow)
+        self._user_deny = tuple(_expand(d, self.home) for d in policy.deny_paths)
+        folders = [(_expand(f.path, self.home), f.profile) for f in policy.folders]
+        self._folders = sorted(folders, key=lambda fp: len(fp[0]), reverse=True)  # deepest first
+
+    def profile_of(self, path: Path | str) -> str:
+        parts = _parts(path)
+        for prefix, profile in self._folders:
+            if _starts(parts, prefix):
+                return profile
+        return DEFAULT_PROFILE
+
+    def _library_denied(self, parts: tuple[str, ...], is_dir: bool) -> bool:
+        if not _starts(parts, self._library):
+            return _foreign_library(parts)  # no allow-list applies to a Library that is not this home's
+        for exc in self._library_allow:
+            if _starts(parts, exc) or (is_dir and _starts(exc, parts)):
+                return False
+        return True
+
+    def decide(self, path: Path | str, is_dir: bool = False) -> Decision:
+        """May *path* (absolute) be indexed? A dir decision prunes the whole subtree."""
+        path = Path(path)
+        parts = _parts(path)
+        profile = self.profile_of(path)
+
+        def no(reason: str) -> Decision:
+            return Decision(False, reason, profile)
+
+        if self._roots and not any(_starts(parts, r) for r in self._roots):
+            return no("outside_roots")
+        if any(_contains(parts, p) for p in self._secrets):
+            return no("secrets_dir")
+        if any(_contains(parts, p) for p in self._keychain):
+            return no("keychain")
+        if any(_contains(parts, p) for p in self._browsers):
+            return no("browser_profile")
+        if self._library_denied(parts, is_dir):
+            return no("library")
+        below_home = parts[len(self._home_parts) :] if _starts(parts, self._home_parts) else parts
+        if any(fnmatchcase(c, _EVIDENCE_GLOB) for c in below_home):
+            return no("evidence")
+        if _PACKAGE_DIRS.intersection(below_home):
+            return no("package_cache")
+        if not is_dir:
+            if _fold(path.name).endswith(_KEYCHAIN_SUFFIXES):
+                return no("keychain")
+            if secret_name(path.name):
+                return no("secret_file")
+        if any(_starts(parts, d) for d in self._user_deny):
+            return no("user_deny")
+        if profile == "excluded":
+            return no("profile_excluded")
+        return Decision(True, None, profile)
+
+
+def decide(path: Path | str, policy: Policy, home: Path, is_dir: bool = False) -> Decision:
+    """One-shot form of `Matcher(policy, home).decide(path)`."""
+    return Matcher(policy, home).decide(path, is_dir)

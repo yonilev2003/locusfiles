@@ -1,0 +1,10 @@
+Quillwend sync API — limits
+Owner: Tomas · Updated 2026-09-09
+
+Per device: 120 requests per minute.
+Per account: 600 requests per minute across all devices.
+Maximum payload per request: 256 KB.
+Maximum events per push: 500.
+
+A request over a limit gets HTTP 429 with a Retry-After header in seconds. The apps back off
+exponentially, starting at 2 seconds and capping at 5 minutes.

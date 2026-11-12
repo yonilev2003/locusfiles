@@ -1,0 +1,50 @@
+# Dependency vulnerability audit.
+# Deliberately NOT triggered by push or pull_request, so it can never block a merge. Scheduled runs
+# start only once this file is on the default branch. Findings never fail the job: the reports are
+# uploaded as artifacts and summarised in the job summary; triage happens by hand.
+name: Audit
+
+on:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install the engine with its extras
+        continue-on-error: true
+        run: pip install -e ".[relay,lancedb]" pip-audit
+      - name: pip-audit
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          pip-audit --format json --output reports/pip-audit.json || true
+          pip-audit --format columns > reports/pip-audit.txt 2>&1 || true
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## pip-audit (installed: runtime deps + relay + lancedb extras)"
+            echo
+            echo "> **Expected:** chromadb 1.5.9 advisories CVE-2026-45829, CVE-2026-45833, CVE-2026-45830, CVE-2026-45831 (SEC-022, no fixed release). They are listed below, not suppressed. Anything else is new: triage it."
+            echo
+            echo '```'
+            head -n 80 reports/pip-audit.txt 2>/dev/null || echo "no report produced"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: pip-audit-report
+          path: reports/
+          if-no-files-found: ignore

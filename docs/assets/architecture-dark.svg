@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 280" width="880" height="280" role="img" aria-label="Locus architecture: your folder is parsed, chunked and embedded on your machine into a local store; locus serve returns results with file path and chunk number to your MCP client.">
+  <title>How Locus works</title>
+  <defs>
+    <marker id="ar-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:#93A0AD"/></marker>
+    <marker id="ar-acc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" style="fill:#2DD4BF"/></marker>
+  </defs>
+  <text x="40" y="28" style="font:600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;letter-spacing:1px;fill:#93A0AD">1. INDEX  (on your machine)</text>
+  <rect x="40" y="44" width="128" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="104.0" y="70" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Your folder</text>
+  <text x="104.0" y="90" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">md pdf docx csv</text>
+  <rect x="208" y="44" width="128" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="272.0" y="70" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Parse</text>
+  <text x="272.0" y="90" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">text from files</text>
+  <rect x="376" y="44" width="128" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="440.0" y="70" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Chunk</text>
+  <text x="440.0" y="90" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">passages</text>
+  <rect x="544" y="44" width="128" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="608.0" y="70" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Embed</text>
+  <text x="608.0" y="90" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">local by default</text>
+  <rect x="712" y="44" width="128" height="62" rx="10" style="fill:#16202B;stroke:#2DD4BF;stroke-width:2"/>
+  <text x="776.0" y="70" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Local store</text>
+  <text x="776.0" y="90" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">~/.locus</text>
+  <line x1="172" y1="75" x2="204" y2="75" style="stroke:#93A0AD;stroke-width:1.5" marker-end="url(#ar-muted)"/>
+  <line x1="340" y1="75" x2="372" y2="75" style="stroke:#93A0AD;stroke-width:1.5" marker-end="url(#ar-muted)"/>
+  <line x1="508" y1="75" x2="540" y2="75" style="stroke:#93A0AD;stroke-width:1.5" marker-end="url(#ar-muted)"/>
+  <line x1="676" y1="75" x2="708" y2="75" style="stroke:#93A0AD;stroke-width:1.5" marker-end="url(#ar-muted)"/>
+  <text x="40" y="168" style="font:600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;letter-spacing:1px;fill:#93A0AD">2. ASK  (every question)</text>
+  <rect x="40" y="184" width="240" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="160.0" y="210" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">Your MCP client</text>
+  <text x="160.0" y="230" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">Claude Code · Desktop · Cursor</text>
+  <rect x="420" y="184" width="130" height="62" rx="10" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.25"/>
+  <text x="485.0" y="210" text-anchor="middle" style="font:600 16px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#E7ECF1">locus serve</text>
+  <text x="485.0" y="230" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">stdio</text>
+  <path d="M776 110 L776 215 L554 215" fill="none" style="stroke:#2DD4BF;stroke-width:2" marker-end="url(#ar-acc)"/>
+  <line x1="416" y1="215" x2="284" y2="215" style="stroke:#2DD4BF;stroke-width:2" marker-end="url(#ar-acc)"/>
+  <text x="350" y="205" text-anchor="middle" style="font:600 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#2DD4BF">path + chunk #</text>
+  <text x="350" y="236" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">+ text</text>
+  <text x="664" y="205" text-anchor="middle" style="font:12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">top matches</text>
+</svg>

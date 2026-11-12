@@ -1,0 +1,32 @@
+# Gitleaks config Used by the `gitleaks` job in
+# .github/workflows/ci.yml over the full git history, and locally with:
+#   gitleaks git --config .gitleaks.toml --redact -v .
+# Start from the upstream default rule set; only narrow, reviewed exceptions below. Every entry
+# needs a reason, and an allowlist must never cover a real credential: rotate a leaked key, do not
+# allowlist it.
+title = "Locus gitleaks config"
+
+[extend]
+useDefault = true
+
+# Both exceptions are rule-level allowlists that extend the upstream generic-api-key rule. Tested
+# against gitleaks 8.28.0 on 2026-09-23: a global [[allowlists]] entry ignored `targetRules` for a
+# rule inherited from the default config, and treated `condition = "AND"` as OR (so it would have
+# waved through every file under tests/). The rule-level form below honors both.
+[[rules]]
+id = "generic-api-key"
+
+# Test fixtures: a value under a test directory is allowed only when the value itself is also
+# visibly fake (contains test/fake/dummy/example/placeholder, or a long run of x or 0). Both must
+# hold, so a real-looking key pasted into a test still fails the job. Fixtures for other rules
+# (JWTs, provider-format keys) should be built at runtime in the test, as
+# the test does, rather than committed as literals.
+[[rules.allowlists]]
+description = "Obviously fake credentials in test fixtures"
+condition = "AND"
+paths = [
+  '''(^|/)tests/''',
+]
+regexes = [
+  '''(?i)(test|fake|dummy|example|placeholder|not[-_]?a[-_]?real|x{8,}|0{8,})''',
+]

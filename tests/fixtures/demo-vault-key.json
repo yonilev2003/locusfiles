@@ -1,0 +1,118 @@
+{
+  "about": "Answer key for tests/fixtures/demo-vault (CON-012, UX-008, Ch.9.6.2, Ch.16.5.7). The vault is fictional sample data: Nimbrel Studio and its product Quillwend do not exist, and every person in it is invented. Paths are relative to the vault root. Kept outside the vault on purpose: a key inside it would be indexed and would hand the assistant the answers. tests/test_demo_vault.py checks every fact below against the files.",
+  "name_check": {
+    "names": ["Nimbrel Studio", "Quillwend", "Tessaloom"],
+    "checked_on": "2026-09-24",
+    "how": "Exact-phrase web searches for each name returned no business, product or person using it (only look-alikes such as Nimble/Nimbl studios and Tessalon). They replace the vault's first names, which collided with a real content studio, a person's Instagram handle, a WordPress theme and a publisher (demo-vault review F4; the retired names are listed in tests/test_demo_vault.py so they cannot come back). Re-check before a recorded demo is published."
+  },
+  "file_count": 21,
+  "questions": [
+    {
+      "id": "Q1",
+      "used_by": ["A4", "A6", "D2"],
+      "question": "Which two documents disagree about the launch date, and what does each say?",
+      "expected_paths": ["planning/launch-plan.md", "marketing/press-kit-draft.md"],
+      "facts": {
+        "planning/launch-plan.md": ["Tuesday 3 November 2026"],
+        "marketing/press-kit-draft.md": ["17 November 2026"]
+      },
+      "correct_answer": "The launch plan (Maya, 2026-09-14) says Tuesday 3 November 2026; the press kit draft (Jonah, 2026-09-02) says 17 November 2026."
+    },
+    {
+      "id": "Q2",
+      "used_by": ["A5"],
+      "question": "What is the per-device request limit of the Quillwend sync API?",
+      "expected_paths": ["engineering/api-limits.txt"],
+      "facts": {
+        "engineering/api-limits.txt": ["Per device: 120 requests per minute."]
+      },
+      "correct_answer": "120 requests per minute per device (600 per account).",
+      "a5_edit": {
+        "path": "engineering/api-limits.txt",
+        "replace": "Per device: 120 requests per minute.",
+        "with": "Per device: 90 requests per minute.",
+        "answer_after_edit": "90 requests per minute per device."
+      }
+    },
+    {
+      "id": "D1",
+      "used_by": ["D1"],
+      "question": "What did we finally decide about annual pricing, and when did it change?",
+      "expected_paths": ["pricing/pricing-v3.md", "meetings/2026-08-19-pricing-review.md"],
+      "facts": {
+        "pricing/pricing-v3.md": ["2026-09-08", "$54 per year", "$135 per seat per year", "flat 25%"],
+        "meetings/2026-08-19-pricing-review.md": ["2026-08-19", "**25%**", "**$54 per year**"]
+      },
+      "correct_answer": "A flat 25% annual discount on every plan (Solo $54 per year, Team $135 per seat per year), decided at the 2026-08-19 pricing review and written up as final in pricing v3 on 2026-09-08. It replaced v1's 'two months free' ($60 per year, June).",
+      "follow_up": {
+        "question": "Show me the old version.",
+        "expected_paths": ["pricing/pricing-v1.md"],
+        "facts": {
+          "pricing/pricing-v1.md": ["2026-06-12", "$60 per year", "two months free", "no annual option"]
+        }
+      }
+    },
+    {
+      "id": "S1",
+      "used_by": ["UX-008 suggested question"],
+      "question": "What caused the duplicate entries incident in September?",
+      "expected_paths": ["engineering/sync-bug-postmortem.md"],
+      "facts": {
+        "engineering/sync-bug-postmortem.md": ["Device clock skew", "more than 90 seconds apart", "build 0.9.7"]
+      },
+      "correct_answer": "Device clock skew: deduplication used wall-clock timestamps, so devices with clocks more than 90 seconds apart kept the same check-in twice. Fixed in build 0.9.7 (event IDs plus Lamport clocks)."
+    },
+    {
+      "id": "S2",
+      "used_by": ["UX-008 suggested question", "PDF parsing"],
+      "question": "What did people ask for most in the user interviews?",
+      "expected_paths": ["research/user-interviews-summary.pdf"],
+      "facts": {
+        "research/user-interviews-summary.pdf": ["7 of 12 participants", "shared streaks"]
+      },
+      "correct_answer": "Shared streaks with a small private group (7 of 12 participants)."
+    },
+    {
+      "id": "S3",
+      "used_by": ["UX-008 suggested question", "DOCX parsing"],
+      "question": "How quickly are approved refunds paid back?",
+      "expected_paths": ["support/refund-policy.docx"],
+      "facts": {
+        "support/refund-policy.docx": ["within 5 business days", "within 30 days"]
+      },
+      "correct_answer": "Within 5 business days, to the original payment method (refunds can be requested within 30 days of a payment)."
+    }
+  ],
+  "exclusive_facts": [
+    {
+      "why": "Q1 must have exactly two answers: no other file may state a November 2026 date.",
+      "pattern": "\\b\\d{1,2} November 2026\\b",
+      "only_in": ["planning/launch-plan.md", "marketing/press-kit-draft.md"]
+    },
+    {
+      "why": "D1: the old annual Solo price appears only in v1 and in the two documents that say it changed.",
+      "pattern": "\\$60\\b",
+      "only_in": ["pricing/pricing-v1.md", "pricing/pricing-v3.md", "meetings/2026-08-19-pricing-review.md"]
+    },
+    {
+      "why": "D1: the new annual Solo price appears only in the decision and in v3.",
+      "pattern": "\\$54\\b",
+      "only_in": ["pricing/pricing-v3.md", "meetings/2026-08-19-pricing-review.md"]
+    },
+    {
+      "why": "S3: the refund payout time is only in the DOCX, so a correct answer proves DOCX parsing.",
+      "pattern": "5 business days",
+      "only_in": ["support/refund-policy.docx"]
+    },
+    {
+      "why": "S2: the interview count is only in the PDF, so a correct answer proves PDF parsing.",
+      "pattern": "7 of 12",
+      "only_in": ["research/user-interviews-summary.pdf"]
+    }
+  ],
+  "removable_folder": {
+    "used_by": ["D3"],
+    "path": "research",
+    "files": ["research/persona-notes.txt", "research/survey-results.csv", "research/user-interviews-summary.pdf"]
+  }
+}

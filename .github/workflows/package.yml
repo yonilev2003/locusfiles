@@ -1,0 +1,144 @@
+name: Package
+
+# IP-008 / UX-001 (master plan Ch.8.10 E7): build the engine's sdist + wheel the way a customer
+# gets them, install the wheel into a clean environment (plain venv + pip, and `uv tool install`,
+# the documented path in docs/install.md) and prove it works offline: `locus --help`,
+# `locus doctor`, index + query on a tiny fixture, MCP stdio tools/list + a cited locus_search.
+#
+# This workflow NEVER publishes. Uploading to PyPI (Ch.8.10 E10) needs the founder's name pick
+# (E1), the licence ADR (A6), the domain in the engine (OPS-009) and a founder PyPI account with
+# Trusted Publishing; it will be a separate workflow.
+#
+# CI minutes: ubuntu on pushes that touch the package. macOS and Windows run weekly (skipped when
+# nothing was committed in the last 7 days) or on manual dispatch only.
+#
+# The distribution name has ONE source: [project].name in pyproject.toml (scripts/dist_name.py).
+# A manual run can rehearse a candidate name (input dist_name) in its own checkout; nothing is
+# committed or uploaded.
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "pyproject.toml"
+      - "docs/package/README.md"
+      - "LICENSE"
+      - "scripts/package_smoke.py"
+      - "scripts/check_dist_contents.py"
+      - "scripts/dist_name.py"
+      - ".github/workflows/package.yml"
+  schedule:
+    - cron: "23 2 * * 1" # weekly, Monday 02:23 UTC (F7: macOS bills ~10x; revisit after a measured run)
+  workflow_dispatch:
+    inputs:
+      dist_name:
+        description: "Rehearse a candidate PyPI name (e.g. locusfiles). Blank = pyproject's name. Never published."
+        required: false
+        default: ""
+      all_os:
+        description: "Also run the macOS and Windows install smoke"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.plan.outputs.run }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          ALL_OS: ${{ inputs.all_os }}
+        run: |
+          # Python 3.11 = requires-python floor. 3.12 on macOS/Windows = the version docs/install.md
+          # pins for `uv tool install`. 3.13 nightly on ubuntu catches newer-Python breakage early.
+          linux='{"os":"ubuntu-latest","python":"3.11"}'
+          nightly='{"os":"ubuntu-latest","python":"3.13"},{"os":"macos-latest","python":"3.12"},{"os":"windows-latest","python":"3.12"}'
+          run=true
+          case "$EVENT" in
+            push) matrix="[$linux]" ;;
+            schedule)
+              age=$(( $(date +%s) - $(git log -1 --format=%ct) ))
+              if [ "$age" -gt 604800 ]; then run=false; fi
+              matrix="[$linux,$nightly]" ;;
+            *)
+              if [ "$ALL_OS" = "true" ]; then matrix="[$linux,$nightly]"; else matrix="[$linux]"; fi ;;
+          esac
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "run=$run matrix=$matrix"
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Distribution name
+        env:
+          CANDIDATE: ${{ inputs.dist_name }}
+        run: |
+          if [ -n "$CANDIDATE" ]; then python scripts/dist_name.py set "$CANDIDATE"; fi
+          echo "distribution name: $(python scripts/dist_name.py get)"
+      - run: python -m pip install --upgrade build twine
+      # `python -m build` builds the sdist, then builds the wheel FROM the sdist, so a file the
+      # sdist allowlist forgets breaks the wheel build here instead of on a user's machine.
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - name: Contents allowlist, secrets, modules and metadata
+        run: python scripts/check_dist_contents.py dist
+      - name: SHA-256 checksums
+        working-directory: dist
+        run: sha256sum -- *.whl *.tar.gz | tee SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  install-smoke:
+    needs: [plan, build]
+    name: install smoke (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Only scripts/ is needed: the engine under test comes from the wheel, never from src/.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Clean venv + pip, customer extra [relay] (asserts no torch)
+        run: python scripts/package_smoke.py --wheel dist --installer venv --extras relay
+      - name: uv tool install, customer extra [relay] (the documented install path)
+        env:
+          PY: ${{ matrix.python }}
+        run: |
+          python -m pip install --disable-pip-version-check uv
+          python scripts/package_smoke.py --wheel dist --installer uv --extras relay --python "$PY"

@@ -1,0 +1,9 @@
+Standup — Thursday 2026-09-10
+
+Tomas: QM-142 (duplicate entries after sync) is fixed in build 0.9.7; postmortem is written.
+       Next: conflict-free merge for offline sync v2.
+Priya: shared streaks design v4 is in review. Widget sketches started.
+Jonah: press kit draft 2 is out for comments. Recruiting Android beta testers.
+Maya: pricing v3 is final and filed in the pricing folder.
+
+Blockers: none.

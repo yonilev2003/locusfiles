@@ -1,0 +1,70 @@
+[project]
+# The distribution name is the ONE place the PyPI name lives (scripts/dist_name.py).
+# E1 (Ch.8.10): `locusfiles` (W26, IP-008); `locus` is taken on PyPI. Import name and CLI stay `locus`.
+name = "locusfiles"
+dynamic = ["version"]  # from src/locus/__init__.py (__version__), see [tool.hatch.version]
+description = "Local-first personal AI brain: index your own folders and search them from local MCP clients such as Claude Desktop, Claude Code and Cursor."
+readme = "docs/package/README.md"  # public PyPI page; the repo README is internal (F8)
+requires-python = ">=3.11"
+# A6 ratified 2026-09-26 (licensor Yonathan Levy). PEP 639 SPDX expression; the licence covers the
+# engine only, so its text lives next to the engine and ships in the wheel's dist-info/licenses/.
+# LEG-014: NOTICE and the third-party licence inventory (scripts/licence_inventory.py writes it) ship
+# the same way; scripts/check_dist_contents.py fails a build whose sdist or wheel lacks any of them.
+license = "FSL-1.1-ALv2"
+license-files = ["src/locus/LICENSE", "src/locus/NOTICE", "src/locus/THIRD_PARTY_LICENSES.md"]
+dependencies = [
+  "mcp>=2.2,<2.3",
+  "chromadb>=1.5,<1.6",
+  "pydantic>=2.5",
+  "python-dotenv>=1.0",
+  "watchdog>=4.0",
+  "pypdfium2>=4.30",
+  "python-docx>=1.1",
+]
+
+[project.optional-dependencies]
+voyage = ["voyageai>=0.3"]
+openai = ["openai>=1.30"]
+local = ["fastembed>=0.9,<1"]  # ONNX Runtime: about 460 MB installed with the default model (PyTorch route: about 1.2 GB)
+local-torch = ["sentence-transformers>=3.0"]  # PyTorch route: models fastembed lacks (bge-m3, multilingual-e5)
+lancedb = ["lancedb>=0.15"]
+relay = ["realtime>=2.31,<2.32", "httpx>=0.27", "cryptography>=42"]  # cryptography: SEC-021 request verification
+# hatchling: the build backend below, so tests/test_connector_check.py builds the checkout's wheel
+# offline (--no-build-isolation) instead of downloading it in every CI run.
+dev = ["pytest>=8.0", "ruff>=0.6", "hatchling>=1.27,<2"]
+
+[project.scripts]
+locus = "locus.cli:main"
+locusfiles = "locus.cli:main"  # so `uvx locusfiles ...` (the PyPI name, as MCP registry clients run it) finds a command
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]  # pinned: Metadata-Version 2.4+ (F8)
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+# One version source: the engine reports __version__ (X-Locus-Version, locus_diagnose_connection).
+path = "src/locus/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/locus"]
+
+# IP-008: the sdist is an allowlist. Hatchling's default sdist is "everything git tracks", which
+# for this private repo means the master plan, docs/, locus-web/, supabase/ and .claude/ would be
+# published with the package. scripts/check_dist_contents.py fails the package workflow if
+# anything outside this list (plus the PKG-INFO and .gitignore hatchling adds) gets in.
+[tool.hatch.build.targets.sdist]
+only-include = ["src/locus", "pyproject.toml", "docs/package/README.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "e2e: installs the engine into a temporary environment and drives it end to end (runs in CI; about 15 s)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

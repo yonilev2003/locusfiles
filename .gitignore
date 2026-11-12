@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.env
+.locus/
+.DS_Store
+# Repo-internal ignores live in nested .gitignore files: hatchling
+# ships this root file in the public sdist (packaging review F8).

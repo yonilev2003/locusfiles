@@ -1,0 +1,13 @@
+{
+  "_note": "SEC-021 golden vector: one relay request signed with a throwaway Ed25519 key that was generated in memory and discarded; only its public half is here. Checked by tests/test_relay_signing.py and locus-web/tests/relay-signing.test.ts so both sides agree on the signed bytes.",
+  "pub": "6Da8DAjhvo6fJADnYkpj1ZxAunyfUbNfYvt0gRZpjTE",
+  "kid": "ae2dda00a7b956e9",
+  "user_id": "5ec21000-0000-4000-8000-000000000001",
+  "request_id": "5ec21000-0000-4000-8000-000000000002",
+  "iat": 1790000000000,
+  "exp": 1790000060000,
+  "body": "{\"type\":\"call_tool\",\"tool\":\"locus_search\",\"arguments\":{\"query\":\"pricing – décision\",\"top_k\":5}}",
+  "body_sha256": "d6593c2bcce588f69728e78698eb0781b3b0477f52029baf034c0189c93531b4",
+  "message": "locus-relay-request/v1\nae2dda00a7b956e9\n5ec21000-0000-4000-8000-000000000001\n5ec21000-0000-4000-8000-000000000002\n1790000000000\n1790000060000\nd6593c2bcce588f69728e78698eb0781b3b0477f52029baf034c0189c93531b4",
+  "sig": "z9a25xo4JmGyCWOADckH2_F3SxE_tgIBo2IWybyWTZXzSCoKf-1SS8-JQ2MCub1rKlULsdds5SXZ0Gjkd_mWDQ"
+}

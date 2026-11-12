@@ -1,0 +1,18 @@
+Locus engine (the `locusfiles` package)
+Copyright 2026 Yonathan Levy
+
+Licensed under the Functional Source License, Version 1.1, ALv2 Future License
+(FSL-1.1-ALv2). The full terms are in the LICENSE file shipped with this package.
+
+Third-party software
+--------------------
+This package contains no third-party source code. It depends on third-party
+packages (mcp, chromadb, pydantic, python-dotenv, watchdog, pypdfium2,
+python-docx, and optional extras) that pip, pipx or uv installs separately from
+their own upstream releases. Each keeps its own licence and notices, which ship
+with that package. THIRD_PARTY_LICENSES.md lists every direct dependency, its
+declared licence and where it comes from.
+
+With LOCUS_EMBEDDER=local, the engine downloads the BAAI/bge-small-en-v1.5
+embedding model (MIT licence) from Hugging Face on first use. The model is not
+included in this package.

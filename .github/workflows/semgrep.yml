@@ -1,0 +1,81 @@
+name: Semgrep
+
+# SEC-022 (master plan Ch.10.5.12 release gate, RISK-25): the chromadb 1.5.9 exception
+# (docs/security/exceptions/chromadb.md) holds only while Locus runs Chroma embedded, so the
+# `locus-chroma-embedded-only` rule in .semgrep/locus.yml is a blocking check. The job runs every
+# ERROR-severity rule in that file: today that rule and `locus-no-api-keys-insert-from-app`
+# (SEC-013/014), with 0 findings on 2026-09-26. The WARNING rules have known, triaged hits and stay
+# a local baseline until Semgrep blocking starts at W2. Before the scan, `semgrep --test` checks
+# the chroma rule against tests/semgrep/locus_chroma_fixture.py, so deleting or weakening it fails
+# here instead of scanning to 0 findings (tests/test_chroma_embedded_only.py also checks that the
+# rule is still ERROR, in the ci.yml test job).
+#
+# Only the repo's own rules: no registry packs, no Semgrep login or token, metrics off, nothing
+# uploaded. Read-only token, not persisted into .git/config. Actions pinned to full commit SHAs
+# (release tag in the comment), semgrep to an exact version.
+#
+# Triggers follow ci.yml's minutes policy (PRs, main, manual), narrowed to the files these rules
+# read. If this check is ever made required in a branch ruleset, drop the `paths` filters, or a
+# PR that touches none of them waits for a check that never runs.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.py"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - ".semgrep/**"
+      - ".semgrepignore"
+      - ".github/workflows/semgrep.yml"
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "**/*.ts"
+      - "**/*.tsx"
+      - "**/*.js"
+      - "**/*.jsx"
+      - "**/*.mjs"
+      - "**/*.cjs"
+      - ".semgrep/**"
+      - ".semgrepignore"
+      - ".github/workflows/semgrep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: semgrep-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  locus-rules:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      SEMGREP_VERSION: "1.178.0"
+      SEMGREP_SEND_METRICS: "off"
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install semgrep (exact version)
+        run: python -m pip install --disable-pip-version-check "semgrep==${SEMGREP_VERSION}"
+      # A deleted or weakened rule would otherwise pass the scan below with a silent 0 findings.
+      - name: Rule self-test (SEC-022 guard still catches its fixture)
+        run: >-
+          semgrep --test --metrics=off --disable-version-check
+          --config .semgrep/locus.yml tests/semgrep/locus_chroma_fixture.py
+      - name: Locus rules, ERROR severity (blocking)
+        run: >-
+          semgrep scan --metrics=off --disable-version-check
+          --config .semgrep/locus.yml --severity ERROR --error .

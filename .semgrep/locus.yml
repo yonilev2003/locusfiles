@@ -1,0 +1,35 @@
+# Locus Semgrep rule set. CI (.github/workflows/semgrep.yml) runs it as a blocking check:
+#   semgrep scan --metrics=off --config .semgrep/locus.yml --severity ERROR --error .
+rules:
+  - id: locus-chroma-embedded-only
+    # chromadb 1.5.9 (latest on PyPI, re-checked 2026-09-26) has open CVEs in its HTTP server
+    # (CVE-2026-45829/45833/45830/45831, no fixed release). Locus is not exposed because it only
+    # uses the in-process PersistentClient. This rule keeps it that way until a fix ships; it is
+    # the CI guard of the SEC-022 exception (docs/security/exceptions/chromadb.md). Covered, in
+    # Python files only: calls to the HTTP/cloud clients (also via `from chromadb import ...`), the
+    # HTTP client built from Settings (chroma_api_impl / chromadb.api.fastapi), importing or naming
+    # the server modules (chromadb.server / chromadb.app / chromadb.cli, e.g. "chromadb.app:app"
+    # for uvicorn), the native bindings whose cli() starts the server, and `chroma run` as an argv
+    # list or a shell string. Self-test: `semgrep --test --config .semgrep/locus.yml
+    # tests/semgrep/locus_chroma_fixture.py`.
+    # tests/test_chroma_embedded_only.py checks the same in pytest, and that this rule exists.
+    languages: [python]
+    severity: ERROR
+    message: >-
+      Chroma client/server mode. Locus uses the embedded PersistentClient only: chromadb's HTTP
+      server has unfixed CVEs (chromadb's HTTP server has open advisories).
+    pattern-either:
+      - pattern: chromadb.HttpClient(...)
+      - pattern: chromadb.AsyncHttpClient(...)
+      - pattern: chromadb.CloudClient(...)
+      - pattern-regex: \bchromadb\.(?:server|app|cli)\b
+      # The HTTP client without its helper: chromadb.Client(Settings(chroma_api_impl=
+      # "chromadb.api.fastapi.FastAPI", ...)) is what HttpClient() builds internally.
+      - pattern-regex: \bchromadb\.api\.(?:async_)?fastapi\b
+      - pattern-regex: \bchroma_api_impl\b
+      - pattern-regex: \bchromadb_rust_bindings\b
+      # YAML single-quoted: '' is one literal quote, so these are ['"]chroma['"]... in regex terms.
+      - pattern-regex: '[''"]chroma[''"]\s*,\s*[''"]run[''"]'
+      - pattern-regex: '[''"]chroma\s+run\b'
+    metadata:
+      category: security

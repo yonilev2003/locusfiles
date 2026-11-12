@@ -1,0 +1,59 @@
+name: Publish to PyPI
+
+# Upload `locusfiles` to PyPI with Trusted Publishing (OIDC, no API token) when a version tag (v*) is
+# pushed. The build job only runs when the repository variable PUBLISH_ENABLED is "true". One-time
+# setup, done by the maintainer in the web UIs (never by an agent):
+#   1. PyPI: a (pending) Trusted Publisher for project `locusfiles` that names THIS repository,
+#      workflow publish.yml and environment `pypi`;
+#   2. GitHub: environment `pypi` with the maintainer as required reviewer;
+#   3. GitHub: repository variable PUBLISH_ENABLED=true.
+# The licence is decided (FSL-1.1-ALv2, whole repository); `check_dist_contents --release` enforces it.
+# Then: bump __version__ in src/locus/__init__.py, commit, `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: vars.PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Tag matches __version__ and the distribution name is locusfiles
+        run: |
+          v=$(PYTHONPATH=src python -c "import locus; print(locus.__version__)")
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != v$v"; exit 1; }
+          test "$(python scripts/dist_name.py get)" = "locusfiles"
+      - run: python -m pip install --upgrade build twine
+      - run: python -m build
+      - run: python -m twine check --strict dist/*
+      - run: python scripts/check_dist_contents.py dist --release
+      - name: Install smoke from the built wheel
+        run: python scripts/package_smoke.py --wheel dist --installer venv --extras relay
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/locusfiles
+    permissions:
+      id-token: write # Trusted Publishing only; no token is stored anywhere
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1

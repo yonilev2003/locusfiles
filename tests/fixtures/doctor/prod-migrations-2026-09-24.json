@@ -1,0 +1,30 @@
+{
+  "source": "Supabase MCP list_migrations, project dmtybqtqvnagwcffhuzr, read-only, 2026-09-24 (names and versions only)",
+  "migrations": [
+    {"version": "20260916120856", "name": "init_v1_light_billing_auth"},
+    {"version": "20260917080327", "name": "0002_revoke_rls_auto_enable_execute"},
+    {"version": "20260917121921", "name": "profiles_auto_provision"},
+    {"version": "20260917122506", "name": "add_founding_tier_enum_value"},
+    {"version": "20260917131539", "name": "add_token_count_to_usage_events"},
+    {"version": "20260917132710", "name": "create_feedback_table"},
+    {"version": "20260918110829", "name": "trial_subscription_on_signup"},
+    {"version": "20260918160344", "name": "atomic_relay_quota_and_trial"},
+    {"version": "20260918160520", "name": "fix_pending_not_counted_in_reserve_relay_usage"},
+    {"version": "20260920061656", "name": "0009_rls_initplan_select_auth_uid"},
+    {"version": "20260920184113", "name": "atomic_api_key_cap"},
+    {"version": "20260920184117", "name": "deletion_requests"},
+    {"version": "20260921081902", "name": "0012_outreach_queue"},
+    {"version": "20260921082953", "name": "0013_mcp_relay_realtime_rls"},
+    {"version": "20260921085155", "name": "0014_org_schema"},
+    {"version": "20260921085232", "name": "0015_fix_outreach_messages_rls_initplan"},
+    {"version": "20260921085242", "name": "0016_org_schema_fk_indexes"},
+    {"version": "20260921085354", "name": "0017_fix_invite_org_member_ambiguous_id"},
+    {"version": "20260921085421", "name": "0018_fix_invite_org_member_gen_random_bytes"},
+    {"version": "20260921085456", "name": "0019_fix_accept_org_invite_ambiguous_org_id"},
+    {"version": "20260921085536", "name": "0020_fix_accept_org_invite_on_conflict"},
+    {"version": "20260921094008", "name": "0021_org_members_email"},
+    {"version": "20260921161732", "name": "0022_admin_revoke_member_api_keys"},
+    {"version": "20260921161736", "name": "0023_org_member_heartbeat"},
+    {"version": "20260921174009", "name": "0024_backfill_fix_pending_not_counted_in_reserve_relay_usage"}
+  ]
+}

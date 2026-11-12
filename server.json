@@ -1,0 +1,46 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.yonilev2003/locusfiles",
+  "title": "Locus",
+  "description": "Search folders on your own computer from an MCP client; every result carries its file path.",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/yonilev2003/locusfiles",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "locusfiles",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--with",
+          "value": "fastembed>=0.7,<1",
+          "description": "Adds the on-device ONNX embedder (the package's `local` extra) to the uvx environment."
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve",
+          "valueHint": "serve"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "LOCUS_EMBEDDER",
+          "description": "Embedder used for search: local (on-device, default for this entry), voyage or openai (your own key).",
+          "default": "local",
+          "isRequired": false
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

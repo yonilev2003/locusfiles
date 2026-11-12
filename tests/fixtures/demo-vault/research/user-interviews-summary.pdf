@@ -1,0 +1,46 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Length 641 >>
+stream
+BT
+/F1 11 Tf
+14 TL
+72 740 Td
+(User interviews summary) Tj T*
+(Author: Priya \(design lead\). Date: 2026-08-05.) Tj T*
+() Tj T*
+(We interviewed 12 people who keep a journal at least once a week.) Tj T*
+(Top request: shared streaks with a small private group \(7 of 12 participants\).) Tj T*
+(Second request: full offline use \(5 of 12 participants\).) Tj T*
+(Most common complaint: apps that nag with notifications \(9 of 12 participants\).) Tj T*
+(Nobody asked for public leaderboards; 4 participants said they would avoid them.) Tj T*
+() Tj T*
+(Recommendation: build shared streaks for groups of 2 to 8 people, private by default.) Tj T*
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000338 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1030
+%%EOF
