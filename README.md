@@ -7,7 +7,7 @@
 
 **Ask your AI assistant about your own files. Every answer names the file it came from.**
 
-[![PyPI](https://img.shields.io/pypi/v/locusfiles?style=flat-square&labelColor=1F2937&color=0B7A75)](https://pypi.org/project/locusfiles/) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: FSL-1.1-ALv2, source-available](https://img.shields.io/badge/licence-FSL--1.1--ALv2%20source--available-0B7A75?style=flat-square&labelColor=1F2937) ![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-tested-0B7A75?style=flat-square&labelColor=1F2937)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: FSL-1.1-ALv2, source-available](https://img.shields.io/badge/licence-FSL--1.1--ALv2%20source--available-0B7A75?style=flat-square&labelColor=1F2937) ![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-tested-0B7A75?style=flat-square&labelColor=1F2937)
 
 Locus indexes folders you choose on your own computer and gives your MCP client (Claude Code, Claude
 Desktop, Cursor and others) a search tool over them. Indexing and embeddings can run entirely on
@@ -17,15 +17,16 @@ pasted in. Locus is **source-available** under FSL-1.1-ALv2, not open source (se
 ## Try it on the demo folder
 
 ```text
-$ uv tool install --python 3.12 "locusfiles[local]"   # about 530 MB on disk, no account, no API key
+$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles"
+                                                      # about 530 MB on disk, no account, no API key
 $ locus index tests/fixtures/demo-vault               # from a clone of this repository
 seen=21 indexed=21 skipped=0 removed=0 chunks=22 errors=0
 
 $ locus query "why did the annual discount change from two months free, and what is the new Solo annual price" -k 4
-1. [0.725] meetings/2026-08-19-pricing-review.md #0
-2. [0.724] pricing/pricing-v3.md #0
-3. [0.710] pricing/pricing-v1.md #0
-4. [0.653] research/survey-results.csv #0
+1. [0.897] meetings/2026-08-19-pricing-review.md #0
+2. [0.889] pricing/pricing-v3.md #0
+3. [0.880] pricing/pricing-v1.md #0
+4. [0.855] research/survey-results.csv #0
 ```
 
 (Paths shortened; the real output also prints a text preview under each result.) The folder is a small
@@ -46,9 +47,11 @@ any FAIL line.
 
 ## Install
 
-`uv` installs its own Python, so you do not need one first. `pipx install "locusfiles[local]"` works
-if you already have Python 3.11 or newer. To run the server without installing it:
-`uvx --from "locusfiles[local]" locusfiles serve` (`locusfiles` is an alias of `locus`).
+`uv` installs its own Python, so you do not need one first. **Until 0.2.0 is on PyPI (the PyPI page still
+shows an older version), install from this repository, as above.** `pipx install "locusfiles[local] @
+git+https://github.com/yonilev2003/locusfiles"` works if you already have Python 3.11 or newer. To run the
+server without installing it: `uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles"
+locusfiles serve` (`locusfiles` is an alias of `locus`).
 
 The `local` extra runs the embedding model with ONNX Runtime. The default model is
 `intfloat/multilingual-e5-small` (MIT licence, about 100 languages): the whole environment is about
