@@ -64,6 +64,14 @@ DEFAULT_CASES = [
     ("Library/Application Support/Google/Chrome/Default/History", False, "browser_profile"),
     ("Library/Safari", True, "browser_profile"),
     ("library/application support/firefox", True, "browser_profile"),  # case-insensitive
+    (".config/google-chrome/Default/Cookies", False, "browser_profile"),  # Linux
+    (".config/chromium", True, "browser_profile"),
+    ("snap/firefox/common/.mozilla", True, "browser_profile"),
+    ("AppData/Local/Google/Chrome/User Data/Default/History", False, "browser_profile"),  # Windows
+    ("AppData/Roaming/Mozilla/Firefox/Profiles", True, "browser_profile"),
+    ("AppData/Roaming/Microsoft/Credentials/abc", False, "keychain"),
+    (".local/share/keyrings/login.keyring", False, "keychain"),
+    (".password-store/work/mail.gpg", False, "keychain"),
     ("Library/Preferences/x.plist", False, "library"),
     ("Library", True, "library"),
     ("proj/.venv/lib/python3.12/site-packages/x.py", False, "package_cache"),

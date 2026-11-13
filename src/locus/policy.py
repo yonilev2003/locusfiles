@@ -50,9 +50,26 @@ _SECRETS_DIRS = (
     (".config", "gh"),
     (".config", "op"),
 )
-_KEYCHAIN_DIRS = (("Library", "Keychains"),)
+_KEYCHAIN_DIRS = (
+    ("Library", "Keychains"),
+    (".local", "share", "keyrings"),  # Linux (GNOME Keyring)
+    (".password-store",),  # Linux (pass)
+    ("AppData", "Roaming", "Microsoft", "Credentials"),  # Windows
+    ("AppData", "Local", "Microsoft", "Credentials"),
+    ("AppData", "Roaming", "Microsoft", "Protect"),
+)
 _BROWSER_DIRS = (
     (".mozilla",),
+    ("snap", "firefox"),  # Linux (snap)
+    (".config", "google-chrome"),  # Linux
+    (".config", "chromium"),
+    (".config", "microsoft-edge"),
+    (".config", "BraveSoftware"),
+    ("AppData", "Local", "Google", "Chrome"),  # Windows
+    ("AppData", "Local", "Microsoft", "Edge"),
+    ("AppData", "Local", "BraveSoftware"),
+    ("AppData", "Roaming", "Mozilla"),
+    ("AppData", "Roaming", "Opera Software"),
     ("Library", "Safari"),
     ("Library", "Cookies"),
     ("Library", "Application Support", "Google", "Chrome"),
