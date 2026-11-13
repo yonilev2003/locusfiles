@@ -3,9 +3,8 @@
 Copyright 2026 Yonathan Levy. The whole of this repository is licensed under `FSL-1.1-ALv2`; the binding
 text is [`LICENSE`](LICENSE).
 
-> **DRAFT for the founder's approval (IP-001).** Written by Claude on 2026-10-03. It explains the
-> licence in plain words. It is not legal advice and it does not change the licence. If this page
-> and [`src/locus/LICENSE`](src/locus/LICENSE) ever disagree, the LICENSE file wins.
+> This page explains the licence in plain words. It is not legal advice and it does not change the
+> licence. If this page and [`src/locus/LICENSE`](src/locus/LICENSE) ever disagree, the LICENSE file wins.
 
 ## Which licence covers what?
 
@@ -64,10 +63,9 @@ govern the hosted services separately.
 ## Who decided this, and where is it recorded?
 
 The licence was chosen by the founder (2026-09-26) and confirmed for the whole public repository
-on 2026-11-11 (ADR-075). The licensor and the copyright notice are named in
+on 2026-11-11. The licensor and the copyright notice are named in
 [`src/locus/LICENSE`](src/locus/LICENSE) and `src/locus/NOTICE`.
 
 ## Approval
 
-- [ ] Founder: wording approved (date: ______). Until this box is ticked, this page is a draft and is
-  not linked from the website or the package.
+- [x] Founder: wording approved (2026-11-13).
