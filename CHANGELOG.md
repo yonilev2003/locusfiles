@@ -69,8 +69,32 @@ same model were measured as equivalent, so that part needs no re-index.
   the Xet path stalled for over ten minutes where plain HTTP fetched the 133 MB model in 40 s.
 - **`locus doctor` and `locus setup --local` recognise `fastembed`**, not only `sentence-transformers`.
 
+### Security
+
+Found in a protections review on 2026-11-14 and fixed before the repository opens.
+
+- **The deny-list now applies to `locus index <folder>`, `locus watch` and `--prune`**, not only to `--roots`. Files
+  named like passwords, tokens or secrets, key files and credential or browser folders are refused; `--prune`
+  removes index entries of files the rules now refuse. A malformed `policy.toml` stops the run (exit 2) instead of
+  being ignored. The freshness note named `locus index --prune`, which has no folder and cannot work; it now says
+  `locus index <folder> --prune`. Index entries made by an earlier version stay until you run `--prune`.
+- **Returned file text, paths and names are labelled untrusted file content**, in the server instructions and in
+  each `locus_search`, `locus_list_sources` and `locus_read_file` result. This is a request to the model, not a
+  barrier against prompt injection. `locus_account_status` and `locus_diagnose_connection` now say they reach the
+  network (`openWorldHint`).
+- **`locus_read_file` checks the path again after reading** and drops the text if a file or folder was swapped for
+  a link in between.
+- **`.docx` files get the same zip-bomb and entity checks as the other Office formats.**
+- **Telemetry is switched off explicitly:** Chroma's setting and `HF_HUB_DISABLE_TELEMETRY=1` are set, not
+  defaulted, and a test indexes and searches with Python's network calls refused.
+- `server.json` asks for the same `fastembed` floor as the package (0.9); NOTICE and the licence inventory name the
+  model the engine really downloads.
+
 ### Documentation
 
+- The README says per mode what leaves your computer (dated, checked against the code), how to erase `~/.locus`
+  and that the index is readable text, where the deny-list applies, and the prompt-injection risk; SECURITY.md has
+  a "Known limits" section; installs from the repository are pinned to the `v0.2.0` tag.
 - The README is rewritten for the public repository: a first screen that answers what it is, whether it
   works and how to try it, a runnable demo with real output, an architecture diagram with light and dark
   variants, and the same caveats as before. The PyPI page is updated for the new extras.
