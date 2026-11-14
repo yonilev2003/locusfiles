@@ -39,7 +39,7 @@ from collections.abc import Callable, Iterable, Iterator
 from typing import Protocol, TypeVar, runtime_checkable
 
 from .. import __version__
-from ..config import DEFAULT_LOCAL_MODEL, Settings, require_hosted
+from ..config import DEFAULT_LOCAL_MODEL, Settings, require_hosted, require_real_embedder
 from .errors import ProviderUnavailable, from_provider_exception, from_relay_http
 
 T = TypeVar("T")
@@ -717,6 +717,7 @@ def expected_embedder_name(settings: Settings) -> str:
     """The `name` get_embedder(settings) would produce, without building it (a local model would be
     loaded, possibly downloaded). Lets read-only tools open the right collection."""
     kind = settings.embedder
+    require_real_embedder(kind)
     if kind == "voyage":
         return f"voyage:{settings.voyage_model}"
     if kind == "openai":
@@ -727,11 +728,12 @@ def expected_embedder_name(settings: Settings) -> str:
         return "managed:voyage-4"
     if kind == "hash":
         return HashEmbedder().name
-    raise RuntimeError(f"Unknown LOCUS_EMBEDDER={kind!r}; expected voyage | openai | local | managed | hash")
+    raise RuntimeError(f"Unknown LOCUS_EMBEDDER={kind!r}; expected local | voyage | openai | managed")
 
 
 def get_embedder(settings: Settings) -> Embedder:
     kind = settings.embedder
+    require_real_embedder(kind)  # LOCUS_EMBEDDER=hash only with LOCUS_ALLOW_TEST_EMBEDDER=1 (tests)
     extras = {"voyage": "voyage", "openai": "openai", "local": "local"}
     try:
         if kind == "voyage":
@@ -771,7 +773,7 @@ def get_embedder(settings: Settings) -> Embedder:
             f'uv tool install --reinstall --python 3.12 "locusfiles[{extra}]", or with pipx: '
             f'pipx install --force "locusfiles[{extra}]". From a source checkout: pip install -e ".[{extra}]".'
         ) from exc
-    raise RuntimeError(f"Unknown LOCUS_EMBEDDER={kind!r}; expected voyage | openai | local | managed | hash")
+    raise RuntimeError(f"Unknown LOCUS_EMBEDDER={kind!r}; expected local | voyage | openai | managed")
 
 
 def embed_many(embedder: Embedder, texts: Iterable[str]) -> list[list[float]]:

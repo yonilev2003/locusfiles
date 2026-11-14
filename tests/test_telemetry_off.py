@@ -139,6 +139,7 @@ def test_indexing_and_searching_make_no_network_call(tmp_path):
         "USERPROFILE": str(tmp_path / "home"),
         "LOCUS_DATA_DIR": str(tmp_path / "data"),
         "LOCUS_EMBEDDER": "hash",
+        "LOCUS_ALLOW_TEST_EMBEDDER": "1",  # the hash embedder is refused at runtime without it
         "ANONYMIZED_TELEMETRY": "True",  # a user environment asking for telemetry must not win
         "HF_HUB_DISABLE_TELEMETRY": "0",
     }

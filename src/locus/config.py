@@ -126,6 +126,7 @@ _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # directory. Neither runs because a key or a credential happens to be present.
 HOSTED_ENABLE_ENV = "LOCUS_ENABLE_HOSTED"
 NOTION_ENABLE_ENV = "LOCUS_ENABLE_NOTION"
+TEST_EMBEDDER_ENV = "LOCUS_ALLOW_TEST_EMBEDDER"  # test-only: allows LOCUS_EMBEDDER=hash (tests/conftest.py sets it)
 _ON = frozenset({"1", "true", "yes", "on"})
 
 
@@ -143,6 +144,18 @@ def require_hosted(what: str) -> None:
             f"To switch them on, set {HOSTED_ENABLE_ENV}=1 and give a Locus account key in LOCUS_API_KEY. "
             "Text you index or search would then be sent to Locus's servers: see 'What leaves your computer' in the "
             "README."
+        )
+
+
+def require_real_embedder(kind: str) -> None:
+    """Refuse the offline test embedder (LOCUS_EMBEDDER=hash) unless LOCUS_ALLOW_TEST_EMBEDDER is on. Its vectors are
+    hashed words: indexing with it works and search then returns results that look plausible and mean nothing, so a
+    real user must never end up with it by a typo or a copied test setting. Raises RuntimeError (exit 2 in the CLI)."""
+    if kind == "hash" and not feature_enabled(TEST_EMBEDDER_ENV):
+        raise RuntimeError(
+            "LOCUS_EMBEDDER=hash is the offline test embedder: its vectors carry no meaning, so searches would return "
+            "results that look plausible and are not. It is refused outside tests. Use LOCUS_EMBEDDER=local (the "
+            "default), voyage or openai."
         )
 
 
