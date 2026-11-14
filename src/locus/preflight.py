@@ -35,9 +35,9 @@ from .ingest.estimator import (
 from .ingest.indexer import file_sha256
 from .policy import Matcher
 
-# Canonical per-mode data-flow statements. They must stay word-for-word equal to the exports of the
-# same names in locus-web/lib/data-flow-claims.ts (the /privacy page's source); tests/test_preflight.py
-# compares them, so a change there fails here until both say the same thing.
+# Canonical per-mode data-flow statements. tests/test_preflight.py pins that none of them claims that nothing leaves.
+# The website's /privacy page (locus-web/lib/data-flow-claims.ts) states the same sentences; no test in this
+# repository compares the two, so change both together.
 LOCAL = (
     "Indexing and embeddings run on your computer. When your AI assistant searches, the matching "
     "excerpts go to that assistant, as they would if you pasted them in."

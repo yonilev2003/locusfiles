@@ -24,8 +24,9 @@ from before SEC-021 and are ignored. A rejected request gets no response at all 
 stderr (never stdout: that is the MCP protocol on stdio, AGENTS.md constraint 5).
 
 Pure and offline: no network, no clock of its own (the caller passes the server time), so
-tests/test_relay_signing.py drives every branch. `cryptography` (a dependency of the `relay` extra)
-is imported only where a key is parsed.
+tests/test_relay_signing.py checks the golden vector only (signed bytes, key id, signature); the verifier's
+other branches have no test here because the relay is off in 0.2.0. `cryptography` (a dependency of the `relay`
+extra) is imported only where a key is parsed.
 """
 
 from __future__ import annotations

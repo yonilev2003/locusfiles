@@ -3,9 +3,7 @@ name: Semgrep
 # SEC-022 (master plan Ch.10.5.12 release gate, RISK-25): the chromadb 1.5.9 exception
 # (docs/security/exceptions/chromadb.md) holds only while Locus runs Chroma embedded, so the
 # `locus-chroma-embedded-only` rule in .semgrep/locus.yml is a blocking check. The job runs every
-# ERROR-severity rule in that file: today that rule and `locus-no-api-keys-insert-from-app`
-# (SEC-013/014), with 0 findings on 2026-09-26. The WARNING rules have known, triaged hits and stay
-# a local baseline until Semgrep blocking starts at W2. Before the scan, `semgrep --test` checks
+# ERROR-severity rule in that file: today only `locus-chroma-embedded-only`. Before the scan, `semgrep --test` checks
 # the chroma rule against tests/semgrep/locus_chroma_fixture.py, so deleting or weakening it fails
 # here instead of scanning to 0 findings (tests/test_chroma_embedded_only.py also checks that the
 # rule is still ERROR, in the ci.yml test job).

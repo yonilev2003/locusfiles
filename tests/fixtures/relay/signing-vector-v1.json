@@ -1,5 +1,5 @@
 {
-  "_note": "SEC-021 golden vector: one relay request signed with a throwaway Ed25519 key that was generated in memory and discarded; only its public half is here. Checked by tests/test_relay_signing.py and locus-web/tests/relay-signing.test.ts so both sides agree on the signed bytes.",
+  "_note": "SEC-021 golden vector: one relay request signed with a throwaway Ed25519 key that was generated in memory and discarded; only its public half is here. Checked by tests/test_relay_signing.py here (signed bytes, key id, signature) and, on the website's side, by a test in the private repository, so both agree on the signed bytes.",
   "pub": "6Da8DAjhvo6fJADnYkpj1ZxAunyfUbNfYvt0gRZpjTE",
   "kid": "ae2dda00a7b956e9",
   "user_id": "5ec21000-0000-4000-8000-000000000001",

@@ -31,8 +31,8 @@ from typing import Any
 PUBLIC_KEY_ENV = "LOCUS_MCP_RELAY_SUPABASE_ANON_KEY"
 PUBLIC_KEY_FIELD = "realtime_public_key"  # of the /api/relay/token answer (locus-web/lib/relay-public-key.ts)
 
-# Keep these two patterns identical to locus-web/lib/relay-public-key.ts (tests/test_relay_key.py
-# compares them): the site publishes only what this engine accepts.
+# Keep these two patterns identical to locus-web/lib/relay-public-key.ts (no test in this repository compares
+# them; the relay is off in 0.2.0): the site publishes only what this engine accepts.
 MAX_KEY_CHARS = 2048
 JWT_PART_PATTERN = r"[A-Za-z0-9_-]{1,2048}"
 PUBLISHABLE_PATTERN = r"sb_publishable_[A-Za-z0-9_-]{16,128}"

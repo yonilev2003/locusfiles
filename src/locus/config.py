@@ -105,7 +105,7 @@ def _normalize_ext(raw: str) -> str:
 # 2026-10-01). 0.1.0 shipped https://locus-rwhy.vercel.app, so keep that alias attached and serving
 # /api/* indefinitely: every engine installed before 0.1.1 keeps calling it (lib/canonical-host.ts
 # never redirects /api/*). Change this and lib/site.ts's fallback together
-# (tests/test_domain_cutover_parity.py).
+# (no test in this repository compares them; the hosted modes are off in 0.2.0).
 DEFAULT_API_BASE = "https://locusfiles.com"
 
 # The on-device model when LOCUS_LOCAL_MODEL is not set: multilingual (about 100 languages), MIT, 512-token window.

@@ -29,8 +29,8 @@ local = ["fastembed>=0.9,<1"]  # ONNX Runtime: about 530 MB installed with the d
 local-torch = ["sentence-transformers>=3.0"]  # PyTorch route: models fastembed lacks (bge-m3, multilingual-e5)
 lancedb = ["lancedb>=0.15"]
 relay = ["realtime>=2.31,<2.32", "httpx>=0.27", "cryptography>=42"]  # cryptography: SEC-021 request verification
-# hatchling: the build backend below, so tests/test_connector_check.py builds the checkout's wheel
-# offline (--no-build-isolation) instead of downloading it in every CI run.
+# hatchling: the build backend below, in the dev extra so a checkout can build its wheel offline
+# (`python -m build --no-isolation`) instead of downloading the backend.
 dev = ["pytest>=8.0", "ruff>=0.6", "hatchling>=1.27,<2"]
 
 [project.scripts]

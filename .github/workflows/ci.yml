@@ -26,8 +26,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      # `relay` too: tests/test_relay_realtime.py runs the relay worker against the real realtime
-      # classes (skipped when realtime is absent).
+      # `relay` too, so the dormant relay code (off in 0.2.0) imports here; this repository has no relay tests.
       - run: pip install -e ".[dev,relay]" "ruff==0.16.7"
       - run: ruff check src tests
       - run: ruff format --check src tests

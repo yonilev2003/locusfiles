@@ -96,11 +96,10 @@ from .relay_signing import (
 # call Locus less). Order: scope, lean search (ADR-087: Hebrew or mixed material is searched in both
 # languages), time, gaps, then the enumeration and locus_help rules.
 # Budgets: Claude Code keeps 4,096 characters of a server's instructions since v2.1.296 (2,048 before
-# it; whether older versions matter is ADR-091 [OPEN]) and 2,048 of each tool description. The hosted
-# relay (locus-web/app/api/mcp/relay/route.ts) answers `initialize` itself, so it sends a copy:
-# locus-web/lib/mcp-guidance.json. tests/test_mcp_guidance_sync.py pins the two to the same text and
-# these budgets. Change both together; docs/connectors/2026-10-03-d5-selection-priority.md says why
-# each sentence is there (and, at its end, what ADR-091 changed).
+# it; whether older versions matter is ADR-091 [OPEN]) and 2,048 of each tool description.
+# tests/test_mcp_instructions_standalone.py and tests/test_tool_set.py pin these budgets. The hosted relay, which
+# is off in 0.2.0, answers `initialize` itself with its own copy of the text (locus-web/lib/mcp-guidance.json);
+# no test in this repository compares the two, so change both together if the relay is ever switched on.
 # "Tell me every time you used Locus" (founder request 2026-10-26, for his own use). Off by default: switched on by
 # LOCUS_ANNOUNCE=1 (0 forces it off) or by the file `<data folder>/announce`. When on, the server instructions end with
 # one more paragraph and every result of the three file tools starts with one line naming the tool, so a client that
@@ -196,13 +195,11 @@ _state: dict[str, Any] = {}
 # the budget binds, the LOWEST-ranked hits lose their text first — they stay listed with path +
 # chunk_index — and the output says so. No hit's tail is cut, except a single top hit that is
 # larger than the whole budget (only with LOCUS_CHUNK_TOKENS raised far above the default).
-# Public copy states this number: locus-web/lib/data-flow-claims.ts (MODE_ROWS) and
-# docs/security/data-handling.md, pinned by tests/test_public_claims_search_budget.py; change all
-# three together, with a docs/legal/changelog.md entry.
-# Relay (`--transport relay`): the result travels as one Realtime broadcast carrying the text
-# twice (content + structuredContent). At 4 UTF-8 bytes per char (emoji) and top_k=25 it stays
-# under 200 KB (tests/test_mcp_server.py), below the 256 KB Free-plan broadcast payload limit
-# (ASSUMPTION from Supabase's published Realtime limits, not re-verified live).
+# The locus_search description states this number; tests/test_mcp_server.py pins the description to the constant.
+# Relay (`--transport relay`, off in 0.2.0): the result travels as one Realtime broadcast carrying the text
+# twice (content + structuredContent). At 4 UTF-8 bytes per char (emoji) and top_k=25 that is under 200 KB by
+# arithmetic, below the 256 KB Free-plan broadcast payload limit (ASSUMPTION from Supabase's published Realtime
+# limits; neither the size nor the limit is tested or re-verified here).
 SEARCH_DEFAULT_TOP_K = 6
 SEARCH_CHAR_BUDGET = 19_500
 
@@ -371,7 +368,7 @@ def _dedent_doc(fn: Any) -> Any:
     """Dedent a tool's docstring before @mcp.tool reads it as the description. Python 3.13 strips
     docstring indentation itself and 3.11/3.12 do not, so without this the same tool had two
     descriptions, and the indentation counted against the 2,048 characters Claude Code keeps of each
-    one (tests/test_mcp_guidance_sync.py checks that budget)."""
+    one (tests/test_tool_set.py checks that budget)."""
     fn.__doc__ = inspect.cleandoc(fn.__doc__ or "")
     return fn
 
@@ -994,8 +991,8 @@ async def locus_list_sources(
     # RET-007 step 1: one parameter name, `path_prefix`, on every tool. `prefix` stays as a
     # deprecated alias for one release (the tool schema marks it deprecated). Unknown argument names
     # are silently dropped by the SDK, which is how a model following the server instructions used
-    # to get an unscoped list: keep both names until the alias is removed. Remove it in 0.2.0:
-    # tests/test_mcp_server.py::test_deprecated_prefix_alias_is_gone_by_release_0_2 fails until then.
+    # to get an unscoped list: keep both names until the alias is removed. It was marked for removal in 0.2.0 and
+    # is still here: whether to drop it is a decision for the maintainer; tests/test_mcp_server.py covers it.
     if path_prefix and prefix and path_prefix.rstrip("/\\") != prefix.rstrip("/\\"):
         return "Error: path_prefix and prefix (its deprecated alias) name different folders. Pass only path_prefix."
     scope = path_prefix or prefix or None
@@ -1642,8 +1639,8 @@ def _run_http(*, host: str, port: int, path: str, token: str) -> None:
 #   label} — see RelayGuard.
 #
 # realtime 2.31 internals this worker relies on (pinned <2.32 in pyproject.toml; every access is
-# guarded, so a rename degrades to a stderr warning, and tests/test_relay_realtime.py exercises the
-# real classes in CI): channel.join_push (the stored phx_join payload), channel._rejoin(),
+# guarded, so a rename degrades to a stderr warning; no test in this repository exercises the real classes,
+# because the relay is off in 0.2.0): channel.join_push (the stored phx_join payload), channel._rejoin(),
 # channel.rejoin_timer, channel.state, channel.topic, client.channels, client._listen_task,
 # client._ws_connection.
 
@@ -2132,8 +2129,8 @@ def _state_name(channel: Any) -> str:
 
 class _RelayWorker:
     """Glue between one Realtime channel, RelayGuard and _relay_dispatch. Imports nothing from
-    `realtime`, so its callbacks, token refresh, recovery and watchdog are unit-testable with fakes
-    (tests/test_relay.py) as well as against the real classes (tests/test_relay_realtime.py).
+    `realtime`, so its callbacks, token refresh, recovery and watchdog are unit-testable with fakes. No such
+    test is in this repository: the relay is off in 0.2.0 and its tests are not shipped.
 
     Liveness, in one place: the subscribe callback reports refused (CHANNEL_ERROR) and timed-out
     rejoins, which _recover heals (fresh token + rejoin) or waits out; refresh_loop keeps the JWT
