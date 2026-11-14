@@ -1026,6 +1026,25 @@ async def locus_list_sources(
     return "\n".join(lines)
 
 
+def _confinement_refusal(path: str, indexed_nfc: set[str]) -> str | None:
+    """Why *path* (a path the index lists) may not be read right now, or None. Constraint 3: only what the index
+    holds, never arbitrary file-system access, and never through a link."""
+    if Path(path).is_symlink():
+        # The recorded path string still matches, but the file on disk has been
+        # replaced by a symlink since indexing — refuse rather than follow it
+        # to whatever it now points at.
+        return f"Error: {path!r} is now a symlink, not a regular indexed file. Re-index to update."
+    real = unicodedata.normalize("NFC", os.path.realpath(path))
+    if real != unicodedata.normalize("NFC", path) and real not in indexed_nfc:
+        # A parent folder was replaced by a symlink after indexing: the path string matches, the bytes come from
+        # somewhere the index never saw (F16). A link to another *indexed* file stays readable.
+        return (
+            f"Error: {path!r} now resolves outside the indexed files (a folder on its way is a symlink). "
+            "Re-index to update."
+        )
+    return None
+
+
 @mcp.tool(name="locus_read_file", annotations={"title": "Read an indexed file", **READ_ONLY})
 @_announced("locus_read_file")
 @_dedent_doc
@@ -1057,19 +1076,9 @@ async def locus_read_file(
             return f"Error: {path!r} is not an indexed file. Call locus_list_sources to see valid paths."
         path = match
     file_path = Path(path)
-    if file_path.is_symlink():
-        # The recorded path string still matches, but the file on disk has been
-        # replaced by a symlink since indexing — refuse rather than follow it
-        # to whatever it now points at (constraint 3: index-only, never arbitrary FS access).
-        return f"Error: {path!r} is now a symlink, not a regular indexed file. Re-index to update."
-    real = unicodedata.normalize("NFC", os.path.realpath(file_path))
-    if real != unicodedata.normalize("NFC", path) and real not in {unicodedata.normalize("NFC", p) for p in indexed}:
-        # A parent folder was replaced by a symlink after indexing: the path string matches, the bytes come from
-        # somewhere the index never saw (F16). A link to another *indexed* file stays readable.
-        return (
-            f"Error: {path!r} now resolves outside the indexed files (a folder on its way is a symlink). "
-            "Re-index to update."
-        )
+    indexed_nfc = {unicodedata.normalize("NFC", p) for p in indexed}
+    if refusal := _confinement_refusal(path, indexed_nfc):
+        return refusal
     is_pdf = file_path.suffix.lower() == ".pdf"
     wanted: list[int] | None = None
     if pages is not None:
@@ -1116,6 +1125,11 @@ async def locus_read_file(
             f"({type(exc).__name__}: {exc.strerror or exc}). It was probably moved or deleted "
             f"after indexing — run `locus index <folder> --prune` to refresh the index."
         )
+    # The checks above ran before the read, and the path can change in between (a file or folder swapped for a link
+    # to somewhere the index never saw). Check again now that the bytes are read: if the path no longer passes, the
+    # text is dropped, never returned (S-05). This narrows the race to a swap that is undone before this line.
+    if refusal := _confinement_refusal(path, indexed_nfc):
+        return f"{refusal} It changed while it was being read, so nothing was returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
     header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{UNTRUSTED_NOTICE}\n\n"
