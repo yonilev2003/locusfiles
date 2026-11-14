@@ -357,8 +357,13 @@ def prepare_hf_download() -> None:
     huggingface_hub's Xet transfer path stalled for 10+ minutes without output on a clean machine
     (2026-11-12, `locus doctor`, "connection struggling" retried forever, no timeout); the plain HTTP path
     fetched the same 133 MB in 40 s. The models are small, so plain HTTP is the default; a user who sets
-    HF_HUB_DISABLE_XET themselves keeps their value. Must run before huggingface_hub is first imported."""
+    HF_HUB_DISABLE_XET themselves keeps their value.
+
+    Also switches off huggingface_hub's usage telemetry (S-08): HF_HUB_DISABLE_TELEMETRY is set, not defaulted, so an
+    environment that says otherwise does not turn it on. The only request Locus's on-device embedder makes is the
+    model download itself. Must run before huggingface_hub is first imported."""
     os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 
 def _announce_download(model: str) -> None:

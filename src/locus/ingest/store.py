@@ -135,6 +135,18 @@ def dir_keys(path: str) -> dict[str, str]:
     return {f"{DIR_KEY_PREFIX}{n}": _dir_hash(dirs[:n]) for n in range(1, min(len(dirs), DIR_KEY_DEPTH) + 1)}
 
 
+def open_chroma_client(path: Path | str) -> Any:
+    """The one place Locus opens a Chroma client (S-08). Product telemetry is switched off twice: the environment
+    variable Chroma reads (set, not defaulted: a user's `ANONYMIZED_TELEMETRY=True` does not turn it on) and an explicit
+    `Settings(anonymized_telemetry=False)`, which also covers a Chroma release that stops reading the variable.
+    chromadb 1.5's own telemetry class does nothing, so today this guards against a later release, not a send."""
+    os.environ["ANONYMIZED_TELEMETRY"] = "False"
+    import chromadb
+    from chromadb.config import Settings
+
+    return chromadb.PersistentClient(path=str(path), settings=Settings(anonymized_telemetry=False))
+
+
 def _close_client(client: Any) -> None:
     """Release a Chroma client so that the next PersistentClient for its path loads from disk.
 
@@ -226,8 +238,6 @@ class ChromaStore:
         `chunk_tokens` (ADR-087) works the same way for the chunk size: recorded on a collection this call
         creates, and on an empty one that records none. `self.chunk_tokens` is what the collection
         records; None for one built before ADR-087, which keeps the legacy size."""
-        os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
-
         data_dir = Path(data_dir).expanduser()
         data_dir.mkdir(parents=True, exist_ok=True)
         # 0700: this directory holds chunk text + vectors of the user's own files. mkdir's own
@@ -261,12 +271,10 @@ class ChromaStore:
             return None
 
     def _open(self) -> None:
-        import chromadb
-
         # Read the token before opening: a write that lands while the index loads then shows up
         # as a change on the next call (one spare reopen) instead of being missed.
         generation = self._read_generation()
-        client = chromadb.PersistentClient(path=str(self.data_dir / "chroma"))
+        client = open_chroma_client(self.data_dir / "chroma")
         try:
             if self._create:
                 metadata: dict[str, Any] = {"hnsw:space": "cosine", "embedder": self.embedder_name, DIR_KEYS_FLAG: 1}
@@ -796,10 +804,7 @@ def recorded_collection(data_dir: Path, collection: str) -> tuple[str | None, in
     chroma_dir = Path(data_dir).expanduser() / "chroma"
     if not chroma_dir.is_dir():
         return None
-    os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
-    import chromadb
-
-    client = chromadb.PersistentClient(path=str(chroma_dir))
+    client = open_chroma_client(chroma_dir)
     try:
         try:
             col = client.get_collection(name=collection)
