@@ -1552,7 +1552,7 @@ async def locus_help(
 ) -> str:
     """Answer questions about Locus itself from Locus's official help articles: installing and
     updating, indexing folders, connecting an AI app (Claude Desktop, Claude Code, Cursor, other
-    MCP clients, Claude.ai, ChatGPT, phone apps), local vs managed embeddings, API keys, privacy
+    MCP clients, Claude.ai, ChatGPT, phone apps), local vs managed embeddings, privacy
     and what leaves the computer, erasing your data, the licence and commercial use, error messages
     and their fixes, and how to reach a person.
 

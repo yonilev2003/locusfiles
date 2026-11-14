@@ -94,10 +94,10 @@ def test_readme_tells_how_to_erase_the_index_and_that_it_is_readable_text():
 
 # --- founder decision 2026-11-14: hosted modes and Notion are off; plan, trial and refund pages are not public ---
 
-REMOVED_PAGES = ("plans-and-limits", "free-trial", "cancel-and-refunds")
+REMOVED_PAGES = ("plans-and-limits", "free-trial", "cancel-and-refunds", "api-keys", "teams-and-organizations")
 
 
-def test_the_plan_trial_and_refund_pages_are_not_in_the_public_help():
+def test_the_hosted_account_pages_are_not_in_the_public_help():
     from locus import support
 
     ids = {article.id for article in support.load_articles()}
@@ -119,10 +119,17 @@ def test_no_public_text_quotes_a_plan_name_a_price_or_a_trial_budget():
             assert name not in path.read_text(encoding="utf-8"), (path.name, name)
 
 
-def test_the_help_tool_does_not_answer_a_pricing_question_from_a_removed_page():
+def test_the_help_tool_does_not_answer_an_account_question_from_a_removed_page():
     from locus import support
 
-    for question in ("how much does a plan cost", "when does my free trial end", "how do I get a refund"):
+    questions = (
+        "how much does a plan cost",
+        "when does my free trial end",
+        "how do I get a refund",
+        "how do I create an API key",
+        "how do I invite a team member to my organization",
+    )
+    for question in questions:
         ids = [article.id for article, _score in support.help_index().search(question, limit=5)]
         assert not set(ids) & set(REMOVED_PAGES), (question, ids)
 
