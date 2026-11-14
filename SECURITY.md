@@ -44,6 +44,31 @@ Out of scope:
 - Advisories in third-party dependencies that do not affect how Locus uses them (for example,
   chromadb's HTTP server, which Locus never starts; a CI rule keeps it that way).
 
+## Known limits
+
+These are known and described here so that you do not have to find them. A report that shows one is worse than
+described here is welcome.
+
+- **Prompt injection.** A file you index can contain text written to steer an AI assistant. Locus labels what
+  it returns (chunk text, excerpts, file paths and names) as untrusted file content and its server instructions
+  tell the assistant not to follow instructions found in it. That is a request to the model, not a control:
+  models can be fooled and Locus cannot prevent it. Locus's tools are read-only; the harm comes from other tools
+  the same assistant has (sending, posting, opening web pages, running commands). Do not pair Locus with such
+  tools for folders that hold files from other people. Whether such wording protects the maintainer in law has
+  not been reviewed by a lawyer.
+- **The index is readable text.** `~/.locus` holds the text of every indexed chunk, unencrypted, next to the
+  vectors. It is created owner-only on macOS and Linux (not checked on Windows). Anything that can read the
+  folder, including backups and synced drives, can read the text.
+- **The deny-list works on names and places, not contents.** It applies to `locus index <folder>`, `locus watch`,
+  `--prune` and `--roots`, not to `locus sync-notion`, and a password inside an ordinary note is indexed. A file
+  indexed by an earlier version stays in the index until `locus index <folder> --prune`.
+- **A file swapped for a link during a read.** `locus_read_file` refuses a path that is not in the index or that
+  has become a link, and checks again after reading and drops the text if the path changed. A swap that is undone
+  before the second check is not detected.
+- **Hosted services.** The relay and the managed-embedding endpoint run on Locus's servers, whose code is not in
+  this repository. What this repository states about their behaviour (no storage of text, encryption in transit)
+  is Locus's statement and cannot be checked from here.
+
 ## Please do not
 
 - Access, change or delete data that is not yours.
