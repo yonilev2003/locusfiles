@@ -18,6 +18,21 @@ Either keep the old model (`LOCUS_EMBEDDER=local` and `LOCUS_LOCAL_MODEL=BAAI/bg
 working) or re-index into a new collection (`LOCUS_COLLECTION=<new name>`). The two ONNX/PyTorch routes of the
 same model were measured as equivalent, so that part needs no re-index.
 
+### Licence
+
+- **The licence changes from FSL-1.1-ALv2 to the PolyForm Noncommercial License 1.0.0** (`PolyForm-Noncommercial-1.0.0`)
+  for 0.2.0 and later. Personal, educational, charitable and public-body use stays free; work for a company, paid
+  client work, and use inside a product or service, including by one person, need a separate paid commercial licence,
+  which cannot be bought yet (<https://locusfiles.com/commercial>). `LICENSE` is the official PolyForm text, unchanged,
+  with the line `Required Notice: Copyright 2026 Yonathan Levy (https://locusfiles.com)`. There is no later
+  open-source licence. Releases 0.1.0, 0.1.3 and 0.1.4 on PyPI were released under FSL-1.1-ALv2 and stay under it.
+- **Soft notices, no lock:** `locus license` prints the licence in two sentences and the page; the first time
+  `locus setup` or `locus doctor` runs in a terminal it asks "Will you use Locus for work at a company, for paid client
+  work, or in a product or service?" (a yes stops with a pointer to the page; the answer is kept in a file in the
+  data folder and sent nowhere); `locus_help` answers licence questions; the server instructions carry one sentence
+  telling the assistant to mention the licence once when the user says they use Locus for work. Nothing checks a key
+  and nothing refuses to search.
+
 ### Changed
 
 - **The default on-device model is now `intfloat/multilingual-e5-small`** (MIT, about 100 languages) instead of

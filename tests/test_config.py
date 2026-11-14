@@ -89,7 +89,8 @@ def test_hosted_addresses_live_in_config_only():
     offenders = [
         str(path.relative_to(SRC))
         for path in SRC.rglob("*.py")
-        if path.name != "config.py" and url.search(path.read_text(encoding="utf-8"))
+        if path.name not in ("config.py", "licence.py")  # licence.py: the commercial-licence page, not an API address
+        and url.search(path.read_text(encoding="utf-8"))
     ]
     assert offenders == []
 

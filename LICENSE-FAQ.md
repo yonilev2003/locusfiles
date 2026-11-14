@@ -1,71 +1,98 @@
 # Locus engine licence: questions and answers
 
-Copyright 2026 Yonathan Levy. The whole of this repository is licensed under `FSL-1.1-ALv2`; the binding
-text is [`LICENSE`](LICENSE).
+Copyright 2026 Yonathan Levy. The whole of this repository is licensed under the PolyForm Noncommercial License
+1.0.0 (`PolyForm-Noncommercial-1.0.0`); the binding text is [`LICENSE`](LICENSE).
 
-> This page explains the licence in plain words. It is not legal advice and it does not change the
-> licence. If this page and [`src/locus/LICENSE`](src/locus/LICENSE) ever disagree, the LICENSE file wins.
+> This page explains the licence in plain words, as the licensor reads it. It is not legal advice and it does not
+> change the licence. If this page and [`LICENSE`](LICENSE) ever disagree, the LICENSE file wins. If your case is
+> not clear, treat it as commercial and ask (see the last question).
 
 ## Which licence covers what?
 
 | Part | Licence | Where the text is |
 |---|---|---|
-| The Locus engine: the Python package in `src/locus/`, published on PyPI as `locusfiles` | Functional Source License, Version 1.1, ALv2 Future License (`FSL-1.1-ALv2`) | [`src/locus/LICENSE`](src/locus/LICENSE), shipped inside the wheel and the sdist |
-| Everything else in this repository (tests, scripts, workflows, documentation) | The same licence, `FSL-1.1-ALv2` | [`LICENSE`](LICENSE) at the repository root (identical to `src/locus/LICENSE`) |
+| The Locus engine: the Python package in `src/locus/`, published on PyPI as `locusfiles` | PolyForm Noncommercial License 1.0.0 | [`src/locus/LICENSE`](src/locus/LICENSE), shipped inside the wheel and the sdist |
+| Everything else in this repository (tests, scripts, workflows, documentation) | The same licence | [`LICENSE`](LICENSE) at the repository root (identical to `src/locus/LICENSE`) |
+| Releases before 0.2.0 (0.1.0, 0.1.3 and 0.1.4 on PyPI) | Functional Source License 1.1, ALv2 Future License (`FSL-1.1-ALv2`), the licence they were released under; it stays theirs | The `LICENSE` file inside each of those packages |
 | The hosted services (the relay, the website, billing) | Not licensed to you. You use them under the Terms of Service | `/terms` on the Locus website |
 | Third-party packages the engine depends on | Their own licences | `src/locus/THIRD_PARTY_LICENSES.md` and `src/locus/NOTICE` |
 
-## What may I do with the engine?
+## What may I do with Locus?
 
-Anything the licence calls a **Permitted Purpose**, which is any purpose other than a Competing Use.
-The licence names some examples on purpose:
+Anything for a **noncommercial purpose**. In plain words, that is:
 
-- use it yourself or inside your company (internal use and access);
-- use it for non-commercial education or non-commercial research;
-- use it while providing professional services to someone who is themselves using it under the
-  licence.
+- **Personal use:** research, experiments and testing for the benefit of public knowledge, personal study,
+  private entertainment, hobby projects and amateur pursuits, or religious observance, with no commercial
+  application in mind;
+- **Use by** a charitable organisation, an educational institution, a public research organisation, a public
+  safety or health organisation, an environmental protection organisation, or a government institution, whatever
+  the source of its funding.
 
-Within those purposes you may use, copy, modify, create derivative works, publicly perform,
-publicly display and redistribute it.
+Within those purposes you may use, copy, change and redistribute Locus, and make new works based on it.
 
 ## What may I not do?
 
-A **Competing Use**: making the engine available to others in a commercial product or service
-that (1) substitutes for the engine, (2) substitutes for another product or service the licensor
-offers using the engine and that existed when that engine version was made available, or (3)
-offers the same or substantially similar functionality.
+Use it commercially. In plain words, that is work for a company, paid client work, or use inside a product or
+service, **including when you are one person**. The licence's own words are "any noncommercial purpose is a
+permitted purpose"; anything that is not a noncommercial purpose is not covered by the licence.
 
-## Is the engine open source?
+## Can I get a commercial licence?
 
-Not in the sense of the Open Source Definition: the Competing Use restriction is not allowed in an
-OSI-approved licence, so Locus never calls the engine "open source". The accurate word is
-**source-available**. Each version becomes available under the Apache License, Version 2.0 two
-years after that version was made available (the licence's "Grant of Future License"), and from
-then on that version may be used under Apache-2.0.
+**Not yet.** A paid commercial licence is planned and does not exist: none can be bought yet. If you want one,
+leave your details at <https://locusfiles.com/commercial>; see [`COMMERCIAL-LICENSE.md`](COMMERCIAL-LICENSE.md).
+Until it exists, do not use Locus for commercial purposes.
+
+## Does Locus enforce this?
+
+No. Locus has no licence key, no lock and no check that contacts a server. In a terminal, the first time you run
+`locus setup` or `locus doctor`, it asks one question ("Will you use Locus for work at a company, for paid client
+work, or in a product or service?") and keeps your answer in a small file in your data folder; it sends nothing.
+`locus license` prints the licence in two sentences. An AI assistant connected to Locus may mention the licence once
+if you tell it you use Locus for work.
+
+## Is it open source?
+
+No. The Open Source Definition does not allow a restriction to noncommercial use, and this licence is not
+OSI-approved, so Locus never calls itself "open source". The accurate word is **source-available**. Unlike the
+licence of the earlier releases, this one has no later open-source licence: a version does not turn into Apache-2.0
+after some years.
 
 ## If I redistribute it, what must I keep?
 
-The licence terms apply to every copy, modification and derivative. Include a copy of or a link to
-the licence, and keep the copyright notices. The licence gives no right to use Locus's names or
-marks, except to identify where the software came from.
+You must make sure that anyone who gets a copy of any part of Locus from you also gets a copy of the licence terms
+or the URL for them, and any plain-text lines that begin with `Required Notice:` that came with the software. The
+one in this repository is `Required Notice: Copyright 2026 Yonathan Levy (https://locusfiles.com)`. The licence does
+not let you sublicense or transfer your licence to anyone else.
 
 ## Are there patent terms?
 
-Yes. For a Permitted Purpose, the grant includes a licence under the licensor's patents that the
-use would necessarily infringe. That patent licence ends at once for anyone who claims that the
-software infringes a patent.
+Yes. You get a patent licence from the licensor for the patent claims the licensor can license that you would
+infringe by using the software. If you make a written claim that the software infringes a patent, your patent licence
+ends at once (and, if your company makes the claim, for work on its behalf).
+
+## What happens if I break the terms?
+
+If the licensor tells you in writing that you have broken them, your licences can continue if you come into full
+compliance and take practical steps to correct past violations within 32 days of receiving the notice. Otherwise
+all your licences end at once.
 
 ## Is there a warranty?
 
-No. The software is provided "as is", and the licence excludes liability. The Terms of Service
-govern the hosted services separately.
+No. As far as the law allows, the software comes as is, without any warranty or condition, and the licensor is not
+liable for damages. The Terms of Service govern the hosted services separately.
+
+## I am not sure whether my use is commercial. What do I do?
+
+Ask before you rely on it: use the form at <https://locusfiles.com/commercial>. The line is not "do you earn money
+from Locus directly": work for a company or a paying client counts even when only one person uses it and Locus
+is only a tool on the way. If you must decide before you get an answer, treat it as commercial and do not use it.
 
 ## Who decided this, and where is it recorded?
 
-The licence was chosen by the founder (2026-09-26) and confirmed for the whole public repository
-on 2026-11-11. The licensor and the copyright notice are named in
-[`src/locus/LICENSE`](src/locus/LICENSE) and `src/locus/NOTICE`.
+The licensor chose this licence on 2026-11-14, replacing the earlier FSL-1.1-ALv2 licence for version 0.2.0 and
+later. The licensor and the copyright notice are named in [`LICENSE`](LICENSE) and `src/locus/NOTICE`.
 
 ## Approval
 
-- [x] Founder: wording approved (2026-11-13).
+- [ ] Founder: wording of this page after the 2026-11-14 licence change has not been approved yet. It must be read
+  together with the licence text, which is the official PolyForm text, unchanged.

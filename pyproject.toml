@@ -6,11 +6,13 @@ dynamic = ["version"]  # from src/locus/__init__.py (__version__), see [tool.hat
 description = "Local-first personal AI brain: index your own folders and search them from local MCP clients such as Claude Desktop, Claude Code and Cursor."
 readme = "docs/package/README.md"  # public PyPI page; the repo README is internal (F8)
 requires-python = ">=3.11"
-# A6 ratified 2026-09-26 (licensor Yonathan Levy). PEP 639 SPDX expression; the licence covers the
-# engine only, so its text lives next to the engine and ships in the wheel's dist-info/licenses/.
+# Licence changed to PolyForm Noncommercial 1.0.0 on 2026-11-14 (licensor Yonathan Levy; 0.1.x was FSL-1.1-ALv2).
+# PEP 639 SPDX expression; the licence covers the engine only, so its text lives next to the engine and ships in
+# the wheel's dist-info/licenses/. There is no Trove classifier for it, and PEP 639 forbids a License:: classifier
+# next to a licence expression.
 # LEG-014: NOTICE and the third-party licence inventory (scripts/licence_inventory.py writes it) ship
 # the same way; scripts/check_dist_contents.py fails a build whose sdist or wheel lacks any of them.
-license = "FSL-1.1-ALv2"
+license = "PolyForm-Noncommercial-1.0.0"
 license-files = ["src/locus/LICENSE", "src/locus/NOTICE", "src/locus/THIRD_PARTY_LICENSES.md"]
 dependencies = [
   "mcp>=2.2,<2.3",

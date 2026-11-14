@@ -4,7 +4,7 @@ Direct runtime dependencies of this package, generated from each installed packa
 None of them is bundled in this package: pip, pipx or uv installs each one from its own upstream
 release, which carries its own licence text and any NOTICE file. Test and lint tools are not listed
 because they are never installed for users. The Locus engine itself is licensed under
-FSL-1.1-ALv2 (see LICENSE and NOTICE).
+the PolyForm Noncommercial License 1.0.0 (see LICENSE and NOTICE).
 
 | Package | Needed for | Version range | Licence (as declared) | Checked version | Ships its own NOTICE | Upstream |
 |---|---|---|---|---|---|---|

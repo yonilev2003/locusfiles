@@ -77,11 +77,13 @@ variables, or a `.env` file in the directory you run `locus` from or one of its 
 
 ## Licence
 
-The `locusfiles` package is licensed under the **Functional Source License, Version 1.1, ALv2
-Future License** (`FSL-1.1-ALv2`). The full text ships inside the package as its `LICENSE` file,
-and that text is the binding version. In short, the engine is **source-available**: you may use,
-copy, modify and redistribute it for any purpose except a Competing Use (making it available to
-others in a commercial product or service that substitutes for it or offers substantially similar
-functionality). Two years after a version is made available, that version is also available under
-the Apache License, Version 2.0. The hosted services (the relay, the website and billing) are not
-part of the package and are not licensed by it.
+The `locusfiles` package is licensed under the **PolyForm Noncommercial License 1.0.0**
+(`PolyForm-Noncommercial-1.0.0`). The full text ships inside the package as its `LICENSE` file, and that text
+is the binding version. In short, the engine is **source-available**: you may use, copy, modify and redistribute
+it for noncommercial purposes (personal use, study and research, hobby projects, and use by charitable,
+educational, public-research, public-safety or health, environmental-protection and government organisations),
+and not for work at a company, paid client work, or use inside a product or service. Commercial use needs a
+separate paid licence, which cannot be bought yet: leave your details at https://locusfiles.com/commercial.
+`locus license` prints this. Releases before 0.2.0 were released under FSL-1.1-ALv2 and stay under it. The hosted
+services (the relay, the website and billing) are not part of the package and are not licensed by it. This is a
+summary, not legal advice.

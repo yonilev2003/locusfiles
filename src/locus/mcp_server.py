@@ -75,6 +75,7 @@ from .ingest.freshness import freshen_for_serve
 from .ingest.parsers import format_pages, parse_file, parse_page_spec, read_pdf
 from .ingest.shared_embedder import start_helper_early
 from .ingest.store import Hit, VectorStore, _under
+from .licence import INSTRUCTIONS_SENTENCE
 from .relay_key import PUBLIC_KEY_ENV, PUBLIC_KEY_FIELD, parse_relay_public_key
 from .relay_signing import (
     NOT_BEFORE_SLOP_MS,
@@ -137,7 +138,8 @@ def _instructions_text(account_tool: bool) -> str:
     itself = (
         "Questions about Locus itself (install, connect, privacy, errors) are not file "
         "questions: call locus_help and cite the page it returns. Locus not working: "
-        "locus_diagnose_connection first, then locus_help with the problem it reports."
+        "locus_diagnose_connection first, then locus_help with the problem it reports. "
+        + INSTRUCTIONS_SENTENCE
     )
     if account_tool:
         itself += (
@@ -1551,8 +1553,8 @@ async def locus_help(
     """Answer questions about Locus itself from Locus's official help articles: installing and
     updating, indexing folders, connecting an AI app (Claude Desktop, Claude Code, Cursor, other
     MCP clients, Claude.ai, ChatGPT, phone apps), local vs managed embeddings, API keys, privacy
-    and what leaves the computer, erasing your data, error messages and their fixes, and how to
-    reach a person.
+    and what leaves the computer, erasing your data, the licence and commercial use, error messages
+    and their fixes, and how to reach a person.
 
     Use it whenever the user asks how to do something with Locus, why Locus is not working, or
     what a Locus error means, instead of answering about Locus from memory. Returns the

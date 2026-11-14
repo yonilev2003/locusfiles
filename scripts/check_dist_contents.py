@@ -82,6 +82,7 @@ REQUIRED_EXTRAS = ("relay", "local")
 # LEG-014: every archive carries the engine licence, the NOTICE and the third-party licence inventory
 # (scripts/licence_inventory.py). pyproject's license-files puts them in the wheel's .dist-info/licenses/.
 REQUIRED_LICENCE_FILES = ("LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md")
+EXPECTED_LICENCE = "PolyForm-Noncommercial-1.0.0"  # the SPDX id pyproject.toml declares (decided 2026-11-14)
 # Package data the engine reads at run time: locus_help's articles (src/locus/support.py KB_DIR).
 HELP_ARTICLES_DIR = "support_kb"
 HEAVY_CORE_DEPS = ("torch", "sentence-transformers", "sentence_transformers")
@@ -201,7 +202,8 @@ def check_wheel(path: Path, name: str, version: str, src: Path | None) -> list[s
 
 
 def release_errors(wheel: Path) -> list[str]:
-    """Upload-only checks: the licence must be the one ADR A6 picks, never the pre-launch placeholder."""
+    """Upload-only checks: the licence must be PolyForm Noncommercial 1.0.0 (decided 2026-11-14), with its text and the
+    Required Notice, never the pre-launch placeholder and never the earlier FSL text."""
     with zipfile.ZipFile(wheel) as whl:
         meta_name = next((n for n in whl.namelist() if n.endswith(".dist-info/METADATA")), None)
         if meta_name is None:
@@ -210,14 +212,22 @@ def release_errors(wheel: Path) -> list[str]:
         licence_files = [n for n in whl.namelist() if "/licenses/" in n or n.rsplit("/", 1)[-1].startswith("LICENSE")]
     errors: list[str] = []
     declared = (meta.get("License-Expression") or meta.get("License") or "").strip()
-    if not declared or declared.lower() == "proprietary":
-        errors.append(f"release: licence is {declared or 'unset'!r}; founder decision A6 is still open (no LICENSE)")
+    if declared != EXPECTED_LICENCE:
+        errors.append(f"release: licence is {declared or 'unset'!r}; expected {EXPECTED_LICENCE!r}")
     if not licence_files:
         errors.append("release: the wheel carries no LICENSE file")
     for n in licence_files:
         with zipfile.ZipFile(wheel) as whl:
-            if "[LICENSOR]" in whl.read(n).decode("utf-8", "replace"):
-                errors.append(f"release: {n} still has the [LICENSOR] placeholder")
+            text = whl.read(n).decode("utf-8", "replace")
+        if "[LICENSOR]" in text:
+            errors.append(f"release: {n} still has the [LICENSOR] placeholder")
+        if n.rsplit("/", 1)[-1] == "LICENSE":
+            if "# PolyForm Noncommercial License 1.0.0" not in text:
+                errors.append(f"release: {n} is not the PolyForm Noncommercial License 1.0.0 text")
+            if "Required Notice: Copyright" not in text:
+                errors.append(f"release: {n} has no 'Required Notice: Copyright' line")
+            if "Functional Source License" in text:
+                errors.append(f"release: {n} still carries the earlier FSL text")
     return errors
 
 

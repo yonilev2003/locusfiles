@@ -9,7 +9,7 @@
     <tspan x="80" y="410" style="fill:#2DD4BF">Every answer names the file.</tspan>
   </text>
   <text style="font:20px ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;fill:#93A0AD"><tspan x="80" y="478">Local-first search for MCP clients:</tspan><tspan x="80" y="506">Claude Code, Claude Desktop, Cursor</tspan></text>
-  <text x="80" y="552" style="font:600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">source-available  ·  FSL-1.1-ALv2  ·  macOS  ·  Linux</text>
+  <text x="80" y="552" style="font:600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#93A0AD">source-available  ·  PolyForm Noncommercial  ·  macOS  ·  Linux</text>
   <rect x="640" y="120" width="560" height="400" rx="16" style="fill:#16202B;stroke:#2F3B48;stroke-width:1.5"/>
   <circle cx="672" cy="152" r="6" style="fill:#2F3B48"/><circle cx="694" cy="152" r="6" style="fill:#2F3B48"/><circle cx="716" cy="152" r="6" style="fill:#2F3B48"/>
   <text x="672" y="214" style="font:600 18px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;fill:#E7ECF1">$ locus query "why did the annual</text>

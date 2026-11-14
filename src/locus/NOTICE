@@ -1,8 +1,13 @@
 Locus engine (the `locusfiles` package)
 Copyright 2026 Yonathan Levy
 
-Licensed under the Functional Source License, Version 1.1, ALv2 Future License
-(FSL-1.1-ALv2). The full terms are in the LICENSE file shipped with this package.
+Licensed under the PolyForm Noncommercial License 1.0.0 (PolyForm-Noncommercial-1.0.0).
+The full terms are in the LICENSE file shipped with this package.
+
+Required Notice: Copyright 2026 Yonathan Levy (https://locusfiles.com)
+
+Commercial use needs a separate paid licence, which cannot be bought yet.
+See https://locusfiles.com/commercial.
 
 Third-party software
 --------------------

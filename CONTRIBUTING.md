@@ -1,6 +1,6 @@
 # Contributing to Locus
 
-Thank you for looking. Locus is early, source-available software (FSL-1.1-ALv2, see [LICENSE](LICENSE)),
+Thank you for looking. Locus is early, source-available software (PolyForm Noncommercial 1.0.0, see [LICENSE](LICENSE)),
 maintained by one person.
 
 ## Issues are welcome
@@ -31,5 +31,6 @@ When the agreement is ready, this page will say so and the README line "Pull req
 
 ## What you can do without asking
 
-Under the licence you may use, copy and modify Locus for any purpose except a Competing Use. See
+Under the licence you may use, copy and modify Locus for noncommercial purposes; commercial use needs a separate
+paid licence that cannot be bought yet (<https://locusfiles.com/commercial>). See
 [LICENSE-FAQ.md](LICENSE-FAQ.md) for plain answers.

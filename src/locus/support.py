@@ -228,7 +228,7 @@ def _format_help(query: str, results: list[tuple[Article, float]], *, base: str,
     provenance = (
         f"From Locus's own help articles, bundled with Locus {version} (last reviewed {reviewed}). "
         "They are not from the user's indexed files. Where they describe a status that changes "
-        "(plans, trial, remote connection), the linked page is current."
+        "(the licence, the remote connection), the linked page is current."
     )
     if not results:
         lines = [
@@ -242,8 +242,8 @@ def _format_help(query: str, results: list[tuple[Article, float]], *, base: str,
         lines += [f"- {a.title}: {article_url(a, base)}" for a in articles]
         lines += [
             "",
-            "For this computer's setup, run locus_diagnose_connection; for the user's own plan and "
-            f"usage, run locus_account_status. A person can help too: {article_url(_by_id('contact-support'), base)}",
+            "For this computer's setup, run locus_diagnose_connection. "
+            f"A person can help too: {article_url(_by_id('contact-support'), base)}",
         ]
         return "\n".join(lines)
     lines = [f"# Locus help: {query}", "", provenance, ""]

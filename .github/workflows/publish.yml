@@ -7,7 +7,7 @@ name: Publish to PyPI
 #      workflow publish.yml and environment `pypi`;
 #   2. GitHub: environment `pypi` with the maintainer as required reviewer;
 #   3. GitHub: repository variable PUBLISH_ENABLED=true.
-# The licence is decided (FSL-1.1-ALv2, whole repository); `check_dist_contents --release` enforces it.
+# The licence is decided (PolyForm-Noncommercial-1.0.0, whole repository); `check_dist_contents --release` enforces it.
 # Then: bump __version__ in src/locus/__init__.py, commit, `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 on:

@@ -7,12 +7,14 @@
 
 **Ask your AI assistant about your own files. Every answer names the file it came from.**
 
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: FSL-1.1-ALv2, source-available](https://img.shields.io/badge/licence-FSL--1.1--ALv2%20source--available-0B7A75?style=flat-square&labelColor=1F2937) ![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-tested-0B7A75?style=flat-square&labelColor=1F2937)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: PolyForm Noncommercial 1.0.0, source-available](https://img.shields.io/badge/licence-PolyForm%20Noncommercial%201.0.0-0B7A75?style=flat-square&labelColor=1F2937) ![macOS and Linux](https://img.shields.io/badge/macOS%20%7C%20Linux-tested-0B7A75?style=flat-square&labelColor=1F2937)
 
 Locus indexes folders you choose on your own computer and gives your MCP client (Claude Code, Claude
 Desktop, Cursor and others) a search tool over them. Indexing and embeddings can run entirely on
 your machine; the excerpts your assistant retrieves go to the assistant you chose, like text you
-pasted in. Locus is **source-available** under FSL-1.1-ALv2, not open source (see [Licence](#licence)).
+pasted in. Locus is **source-available** under the PolyForm Noncommercial License 1.0.0: free for personal,
+educational, charitable and public-body use, **not for work at a company, paid client work, or use inside a product
+or service**. It is not open source (see [Licence](#licence)).
 
 ## Try it on the demo folder
 
@@ -240,11 +242,18 @@ A reproducible benchmark on public documents will replace these numbers.
 
 ## Licence
 
-Functional Source License 1.1 with an Apache-2.0 future licence (`FSL-1.1-ALv2`), for the whole
-repository. You may use, copy, modify and redistribute it for any purpose except a Competing Use:
-making it available to others in a commercial product or service that substitutes for it or offers
-substantially similar functionality.
+The [PolyForm Noncommercial License 1.0.0](LICENSE) (`PolyForm-Noncommercial-1.0.0`), for the whole repository.
+In plain words: you may use, copy and modify Locus for noncommercial purposes: personal use, study and research,
+hobby projects, and use by charitable, educational, public-research, public-safety or health,
+environmental-protection and government organisations. You may not use it commercially: work for a company, paid
+client work, or use inside a product or service, including when you are one person.
 
-Each version becomes available under Apache-2.0 two years after it was released.
-Text: [LICENSE](LICENSE). Plain-language answers: [LICENSE-FAQ.md](LICENSE-FAQ.md).
-Security reports: [SECURITY.md](SECURITY.md).
+**Commercial use needs a separate paid licence. None can be bought yet.** If you want one, leave your details at
+<https://locusfiles.com/commercial> (see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)). `locus license` prints
+this in two sentences. The first time you run `locus setup` or `locus doctor` in a terminal, Locus asks one question
+about commercial use; your answer stays on your computer.
+
+This licence is source-available, not open source, and it has no later open-source licence: versions do not turn
+into Apache-2.0. Releases published before 0.2.0 (0.1.x on PyPI) were released under FSL-1.1-ALv2 and stay under
+it. This is a summary, not legal advice; the binding text is [LICENSE](LICENSE). Plain-language answers:
+[LICENSE-FAQ.md](LICENSE-FAQ.md). Security reports: [SECURITY.md](SECURITY.md).

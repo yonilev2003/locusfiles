@@ -1,4 +1,7 @@
-"""Command-line entry point: locus index | estimate | query | serve | watch | sync-notion | stats | doctor | setup."""
+"""Command-line entry point.
+
+locus index | estimate | query | serve | watch | sync-notion | stats | doctor | setup | license
+"""
 
 from __future__ import annotations
 
@@ -406,6 +409,8 @@ _LOCAL_EXTRA_HINT = (
 
 def cmd_doctor(_: argparse.Namespace) -> int:
     """Diagnose the most common setup failures before they turn into a support message."""
+    if not _licence_question_answered():
+        return EXIT_NEEDS_YES
     ok = True
 
     def check(label: str, passed: bool, detail: str = "") -> None:
@@ -500,9 +505,33 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def _licence_question_answered() -> bool:
+    """The one soft notice (licence.py): in a terminal, the first time, ask whether Locus will be used commercially.
+    False when the answer is yes: the stop text is printed and the command stops. Never a lock and never a network
+    call; without a terminal nothing is asked."""
+    from .licence import ask_once
+
+    try:
+        data_dir = get_settings().data_dir
+    except Exception:  # noqa: BLE001 - a bad setting is the command's own business; the question can wait
+        return True
+    return ask_once(data_dir)
+
+
+def cmd_license(_: argparse.Namespace) -> int:
+    """`locus license`: the licence in two sentences and the page."""
+    from .licence import licence_text
+
+    print(licence_text())
+    return 0
+
+
 def cmd_setup(args: argparse.Namespace) -> int:
     """`locus setup --managed | --local`: the embedder in one step (configure.py says how)."""
     from .configure import run_setup
+
+    if not _licence_question_answered():
+        return EXIT_NEEDS_YES
 
     mode = "managed" if args.managed else "local"
     return run_setup(mode, collection=args.collection, new_key=args.new_key, skip_check=args.skip_check).code
@@ -630,8 +659,20 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stats", help="show index statistics")
     p.set_defaults(func=cmd_stats)
 
-    p = sub.add_parser("doctor", help="diagnose common setup problems")
+    p = sub.add_parser(
+        "doctor",
+        help="diagnose common setup problems",
+        description="Check Python, packages, settings and the embedder. In a terminal, the first run also asks "
+        "whether you will use Locus commercially (see `locus license`); exit code 2 if you answer yes.",
+    )
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser(
+        "license",
+        aliases=["licence"],
+        help="what the licence allows, in two sentences, and where to ask about commercial use",
+    )
+    p.set_defaults(func=cmd_license)
 
     p = sub.add_parser(
         "setup",
