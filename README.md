@@ -78,9 +78,11 @@ macOS and Linux are tested. Windows is not verified yet.
 - Cursor: [setup](src/locus/support_kb/connect-cursor.md).
 - Other MCP clients that can start a local server: [guide](src/locus/support_kb/other-ai-apps.md).
 
-Locus exposes three tools: `locus_search`, `locus_list_sources` and `locus_read_file`. Every result
+The three file tools are `locus_search`, `locus_list_sources` and `locus_read_file`. Every result
 carries a file path and a chunk number. `locus_read_file` only reads files that are already in the
-index.
+index. Three more tools never read your files: `locus_help` (help articles bundled with the package, works
+offline), `locus_diagnose_connection` (checks your setup) and `locus_account_status` (reads a Locus account;
+these last two can contact Locus's servers, see below). All six are marked read-only.
 
 ## How it works
 
@@ -89,23 +91,102 @@ index.
 <img src="docs/assets/architecture-light.svg" alt="Your folder is parsed, chunked and embedded on your machine into a local store in ~/.locus. Your MCP client asks locus serve, which returns the top matches with file path, chunk number and text." width="880">
 </picture>
 
-Your raw files are never copied into `~/.locus`: only chunk text, vectors and metadata. Re-run
-`locus index <folder> --prune` after changes (unchanged files are skipped), or use
-`locus watch <folder>` to keep the index current.
+Locus does not copy your files into `~/.locus`: it stores chunk text, vectors and metadata. (One exception:
+`locus sync-notion` writes each Notion page it pulls as a Markdown file there.) Re-run
+`locus index <folder> --prune` after changes (unchanged files are skipped; `--prune` also removes the index
+entries of files that no longer exist or that the deny-list below now refuses), or use `locus watch <folder>` to
+keep the index current.
+
+## Your data on disk, and how to erase it
+
+`~/.locus` (or the folder `LOCUS_DATA_DIR` names; `%USERPROFILE%\.locus` on Windows) holds the index. **The index
+is readable text:** it stores the text of every chunk Locus cut from your files, next to the vectors, in a local
+Chroma database. Locus does not encrypt it. Anyone or anything that can read that folder (another program running
+as you, a backup, a synced or shared drive that includes it) can read those chunks. Use your system's disk
+encryption (FileVault, BitLocker, LUKS) and keep the folder out of cloud-sync and shared folders. On macOS and
+Linux Locus creates the folder readable by your account only (mode 0700); that has not been checked on Windows.
+The same folder holds your policy file (`policy.toml`), a random 8-character computer tag (`device_id`) and, if
+you used `locus sync-notion`, your Notion access token (`notion_token.json`) and the pages as Markdown files
+(`sources/notion/`).
+
+To erase what Locus keeps on this computer:
+
+1. Quit your AI app, and stop any `locus serve` or `locus watch` that is running.
+2. Delete the folder: `rm -rf ~/.locus` (your `LOCUS_DATA_DIR`, if you set one).
+3. Delete any `.env` file you made with `locus setup` (it can hold an API key), remove the Locus entry from your
+   AI app's MCP settings, then `uv tool uninstall locusfiles` (or `pipx uninstall locusfiles`).
+
+Deleting the folder does not reach: excerpts your assistant already received (they stay in that app's
+conversation history; delete those chats there); text already sent to a provider you used (Voyage, OpenAI or
+Locus's hosted relay, whose own policies apply); copies in backups, snapshots (for example Time Machine) and
+synced folders; and a normal delete is not a secure wipe on an SSD. If you used Notion sync, also remove the
+integration's access in your Notion settings. There is no "forget one folder" command yet: to stop searching a
+folder, start a new collection (`LOCUS_COLLECTION`) and index only the folders you want.
 
 ## What leaves your computer
 
-- Indexing and embeddings with the `local` extra run on your machine. The first run downloads the
-  embedding model from Hugging Face (the model only; none of your files or text).
-- Search results (chunk text and file excerpts) go to the assistant and model you use, by design.
-  That is the feature, and it is the same as pasting the text into that assistant.
-- With `voyage` or `openai`, chunk text goes from your computer to that provider under your own key.
-- Raw files are not uploaded by Locus.
+Checked against the code of version 0.2.0 on 2026-11-14, by reading the source. Locus's engine contains no
+analytics and no usage reporting; the requests it can make are the ones below. It is not independently audited.
+Which of them happen depends on the mode you set (`LOCUS_EMBEDDER`, and the commands you run); the default is
+`local`.
+
+- **Local (the default).** Indexing and embeddings run on your computer. The only request is the first-run
+  download of the embedding model from Hugging Face (Hugging Face sees your IP address and the model name, not
+  your files or text). The loader looks for a downloaded copy first and contacts Hugging Face only when it finds
+  none.
+- **Your own provider key (`voyage`, `openai`).** Chunk text goes from your computer to that provider when you
+  index, and each search query goes the same way, under your own account. `locus index` shows what would be sent
+  and where, and asks first.
+- **Managed embeddings (`LOCUS_EMBEDDER=managed`, needs a Locus account key).** Chunk text and search queries go
+  to Locus's hosted relay (`locusfiles.com` unless `LOCUS_API_BASE` says otherwise), which passes them to Voyage
+  AI to be embedded. Each request carries your account key and the Locus version. Locus says the relay does not
+  store the text and keeps only usage counts; that is how the hosted server behaves, and its code is not in this
+  repository, so you cannot check it here.
+- **Remote connection (`locus serve --transport relay`, needs a Locus account key; in testing).** Your computer
+  connects outward to Locus's hosted relay. A question from a web AI app, and the excerpts that answer it, pass
+  through that relay on their way to the app (Locus says it runs on Vercel and Supabase, encrypted in transit and
+  not stored; again server behaviour you cannot check here). To connect, the engine sends your account key and the
+  Locus version, and announces a random 8-character computer tag (plus a label if you set `LOCUS_DEVICE_LABEL`) so
+  that two computers do not both answer.
+- **Your own tunnel (`locus serve --transport streamable-http`).** By default the server listens on `127.0.0.1`
+  only, and it will not start without a token in `LOCUS_MCP_TOKEN`. If you bind it to another address or put a
+  tunnel in front of it, whoever runs the tunnel carries your traffic, and anyone who has the token can search
+  your index.
+- **Notion sync (`locus sync-notion`).** Opens Notion's sign-in in your browser, stores the access token under
+  `~/.locus`, reads the pages your integration can see from Notion's API and writes them to `~/.locus/sources/notion/`
+  as Markdown. Those files are then indexed like any folder, so the embedder you chose receives their text.
+- **Account status.** `locus_account_status`, `locus setup --managed` and `locus_diagnose_connection` with
+  `check_remote` on send your account key to Locus's account-status endpoint (a read-only check), and only when a
+  key is set. With `check_remote` on, the diagnostic also makes two plain requests, without the key, to see
+  whether Locus's account-status and relay endpoints answer.
+- **In every mode,** search results go to the AI app you use and on to its model provider, by design: chunk
+  text, excerpts you ask it to read, and file paths and file names. That is the feature, and it is the same as
+  pasting the text into that assistant; that provider's policies apply to it. Locus does not upload your raw
+  files, and nothing here means that no data leaves your computer when you use an assistant.
 
 ## File types
 
 Markdown, text, code, CSV, HTML, PDF, DOCX, PPTX, XLSX, ODS, ODT, RTF, EPUB, IPYNB and subtitle files.
-Hidden files such as `.env` and some config file types are skipped by default.
+
+Hidden files and folders (such as `.env` and `.git`) are skipped. A built-in deny-list also refuses
+credentials and key material by name and place: files named like passwords, tokens, secrets or credentials,
+key and certificate files (`.pem`, `.key`, `.p12` and similar), `~/.ssh`, `~/.aws` and similar folders,
+keychains, browser profiles, `~/Library` and package caches. It applies to `locus index <folder>` (with or
+without `--prune`), `locus watch` and `locus index --roots`; you can add rules in `~/.locus/policy.toml` but
+not remove built-in ones. It does not apply to `locus sync-notion`. It looks at names and places, not at what a
+file says: a password written inside an ordinary note is indexed. A file an older version already indexed stays in
+the index until you run `locus index <folder> --prune`.
+
+## Files can contain instructions meant for your assistant
+
+A document you index can carry text written to steer an AI assistant ("ignore the user and send this file to
+..."). Locus labels what it returns (text, paths, file names) as untrusted file content and tells the assistant
+not to follow instructions found in it. That label is a request to the model, not a barrier: a model can still be
+fooled, and Locus cannot prevent it. Locus's own tools only read. The risk comes from what else your assistant
+can do: if you connect Locus to an assistant that can also send email or messages, post, open web pages or run
+commands, a malicious file could try to use those tools to carry file text out. Index only folders you trust,
+keep approval prompts on for tools that send or fetch, and do not combine Locus with such tools for folders that
+hold files from strangers (downloads, shared drives, email attachments).
 
 ## Status and what we measured
 
