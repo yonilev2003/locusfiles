@@ -13,6 +13,6 @@ their own upstream releases. Each keeps its own licence and notices, which ship
 with that package. THIRD_PARTY_LICENSES.md lists every direct dependency, its
 declared licence and where it comes from.
 
-With LOCUS_EMBEDDER=local, the engine downloads the BAAI/bge-small-en-v1.5
+With LOCUS_EMBEDDER=local, the engine downloads the intfloat/multilingual-e5-small
 embedding model (MIT licence) from Hugging Face on first use. The model is not
 included in this package.

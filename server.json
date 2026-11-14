@@ -19,7 +19,7 @@
         {
           "type": "named",
           "name": "--with",
-          "value": "fastembed>=0.7,<1",
+          "value": "fastembed>=0.9,<1",
           "description": "Adds the on-device ONNX embedder (the package's `local` extra) to the uvx environment."
         }
       ],

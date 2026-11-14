@@ -62,9 +62,9 @@ NOTES = {
 # record is complete. The id must match LOCUS_LOCAL_MODEL's default in src/locus/config.py.
 RUNTIME_MODELS = (
     (
-        "BAAI/bge-small-en-v1.5",
+        "intfloat/multilingual-e5-small",
         "MIT",
-        "https://huggingface.co/BAAI/bge-small-en-v1.5",
+        "https://huggingface.co/intfloat/multilingual-e5-small",
         "Downloaded from Hugging Face on first use when LOCUS_EMBEDDER=local (the `local` extra).",
     ),
 )

@@ -32,4 +32,4 @@ Notes:
 
 | Model | Licence | Source | When |
 |---|---|---|---|
-| BAAI/bge-small-en-v1.5 | MIT | https://huggingface.co/BAAI/bge-small-en-v1.5 | Downloaded from Hugging Face on first use when LOCUS_EMBEDDER=local (the `local` extra). |
+| intfloat/multilingual-e5-small | MIT | https://huggingface.co/intfloat/multilingual-e5-small | Downloaded from Hugging Face on first use when LOCUS_EMBEDDER=local (the `local` extra). |
