@@ -438,6 +438,7 @@ def _docx_blocks(container) -> list[str]:
 def _read_docx(path: Path) -> str:
     import docx  # python-docx
 
+    docformats.check_docx_package(path)  # S-09: the zip-bomb and entity guards every other container already has
     document = docx.Document(str(path))
     return "\n\n".join(_docx_blocks(document.element.body))
 

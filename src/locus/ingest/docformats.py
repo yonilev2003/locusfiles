@@ -114,6 +114,30 @@ def _xml(pkg: _Package, name: str) -> ET.Element:
     return ET.fromstring(data)
 
 
+def check_docx_package(path: Path) -> None:
+    """Hold a .docx to the limits the other containers get, before python-docx opens it (S-09). python-docx loads
+    every member of the package into memory (media included) and parses every XML part, with no limit of its own, so a
+    zip bomb or a part with an entity declaration would reach it unchecked. Refused with UnreadableFile: a member whose
+    declared size is over MAX_MEMBER_BYTES, a package whose members declare more than MAX_TOTAL_BYTES together, an
+    encrypted member, an XML or relationship part that unpacks to more than it declared, and an XML part with a
+    DOCTYPE or ENTITY declaration. Also refuses a password-protected file (an OLE wrapper) in plain words."""
+    with _Package(path) as pkg:
+        total = 0
+        for info in pkg._zip.infolist():
+            if info.flag_bits & 0x1:
+                raise UnreadableFile(f"{info.filename} is encrypted")
+            if info.file_size > MAX_MEMBER_BYTES:
+                raise UnreadableFile(
+                    f"{info.filename} unpacks to {_mb(info.file_size)}, over the {_mb(MAX_MEMBER_BYTES)} read limit"
+                )
+            total += info.file_size
+        if total > MAX_TOTAL_BYTES:
+            raise UnreadableFile(f"the package unpacks to {_mb(total)}, over the {_mb(MAX_TOTAL_BYTES)} read limit")
+        for name in pkg.names():
+            if name.endswith((".xml", ".rels")):
+                _check_no_dtd(pkg.read(name), name)
+
+
 def _local(tag: str) -> str:
     """Element name without its namespace, so the same code reads transitional and strict OOXML."""
     return tag.rsplit("}", 1)[-1]
