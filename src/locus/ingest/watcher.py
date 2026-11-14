@@ -25,6 +25,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from ..config import SKIP_DIRS, Settings
+from ..policy import Matcher
 from .embedder import Embedder
 from .errors import BudgetExhausted, EmbedError, as_embed_error
 from .indexer import file_sha256, index_file, remove_path
@@ -183,10 +184,12 @@ def watch_folder(
     pending: PendingQueue | None = None,
     poll_seconds: float = 1.0,
     stop: threading.Event | None = None,
+    matcher: Matcher | None = None,
 ) -> None:
     """Watch *root* until Ctrl+C (or until `stop` is set). `pending` may arrive already holding
     files (e.g. those an initial `index_folder` pass stopped before reaching); they are retried
-    when its pause ends."""
+    when its pause ends. `matcher` is the deny-list (policy.Matcher), the same one `locus index` uses: a file
+    it refuses is never (re)indexed, whatever event the folder reports for it."""
     from watchdog.events import FileSystemEvent, FileSystemEventHandler
     from watchdog.observers import Observer
 
@@ -215,6 +218,8 @@ def watch_folder(
         """Full eligibility for (re)indexing an existing file — extension, skip-dirs, and size."""
         if not _path_eligible(path):
             return False
+        if matcher is not None and not matcher.decide(path).allowed:
+            return False  # the deny-list (keys, passwords, browser profiles, the policy file's rules)
         if path.is_symlink():
             return False  # like `locus index`: a link can point anywhere, so it is never followed
         try:

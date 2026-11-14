@@ -33,6 +33,7 @@ from .ingest.estimator import (
     scan,
 )
 from .ingest.indexer import file_sha256
+from .policy import Matcher
 
 # Canonical per-mode data-flow statements. They must stay word-for-word equal to the exports of the
 # same names in locus-web/lib/data-flow-claims.ts (the /privacy page's source); tests/test_preflight.py
@@ -138,10 +139,12 @@ def build_preflight(
     settings: Settings,
     known_hash: Callable[[str], str | None] | None = None,
     sample_seconds: float = PREFLIGHT_SAMPLE_SECONDS,
+    matcher: Matcher | None = None,
 ) -> Preflight:
     """Scan *root*, split new/changed files from unchanged ones (via the store's stored hashes,
-    when given) and estimate the tokens the changed ones would send."""
-    result = scan(root, settings)
+    when given) and estimate the tokens the changed ones would send. *matcher* is the deny-list: the
+    files it refuses are not counted as files to send."""
+    result = scan(root, settings, matcher)
     to_send: list[FileEntry] = []
     unchanged = 0
     for entry in result.files:

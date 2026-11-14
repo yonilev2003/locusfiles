@@ -185,7 +185,9 @@ def test_explicitly_indexed_library_folder_is_kept_and_counted(world):
     assert store.list_paths() and report.removed == 0 and report.kept_denied == 1
     note = render_freshness_note(report, 2.0)
     assert note and "1 indexed file(s) now match a deny rule and were kept" in note and "n.md" not in note
-    assert "locus index --prune" in note
+    # S-01: the advice must be a command that works: `locus index --prune` without a folder is refused (it falls into
+    # the --roots path, which has no --prune), so the note names the folder form.
+    assert "`locus index <folder> --prune`" in note and "`locus index --prune`" not in note
 
 
 def test_a_newly_denied_secret_folder_is_kept_not_purged(world):

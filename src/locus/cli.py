@@ -44,11 +44,14 @@ def cmd_index(args: argparse.Namespace) -> int:
     if args.roots is not None or args.policy is not None or args.folder is None:
         return _index_roots(args, settings)
     folder = Path(args.folder)
+    matcher = _deny_list_for(folder, settings)
+    if isinstance(matcher, int):
+        return matcher
     if args.dry_run:
-        return _dry_run(folder, settings)
+        return _dry_run(folder, settings, matcher)
     embedder, store = _components(settings)
     rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
-    refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun)
+    refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
     resume = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": args.yes})
@@ -59,8 +62,24 @@ def cmd_index(args: argparse.Namespace) -> int:
         settings,
         prune=args.prune,
         resume=f"To continue, re-run `{resume}` — unchanged files are skipped.",
+        matcher=matcher,
     )
     return _report(stats)
+
+
+def _deny_list_for(folder: Path, settings: Settings) -> Matcher | int:
+    """The deny-list (policy.py) for indexing *folder*, with the user's `<data dir>/policy.toml` rules added: the
+    same rules `--roots` applies, so a plain `index`, `watch` and `--prune` refuse the same keys, passwords and
+    browser profiles. Or the exit code to return when the policy file is unreadable: a typo in a restriction must not
+    fail open."""
+    from .policy import PolicyError, load_policy, matcher_for_folder
+
+    try:
+        policy = load_policy(settings.data_dir / "policy.toml")
+    except (PolicyError, OSError) as err:
+        print(f"locus: policy file problem: {err}", file=sys.stderr)
+        return EXIT_NEEDS_YES
+    return matcher_for_folder(folder, policy, Path.home().resolve())
 
 
 # Exit codes of commands that index: 0 done, 1 every attempted file failed or the user declined,
@@ -71,14 +90,23 @@ EXIT_NEEDS_YES = 2
 EXIT_STOPPED = 3
 
 
-def _consent_gate(folder: Path, settings: Settings, store: ChromaStore, *, assume_yes: bool, rerun: str) -> int | None:
+def _consent_gate(
+    folder: Path,
+    settings: Settings,
+    store: ChromaStore,
+    *,
+    assume_yes: bool,
+    rerun: str,
+    matcher: Matcher | None = None,
+) -> int | None:
     """UX-005: before a hosted embedder receives any chunk text, show what would be sent and where,
-    and ask. None = go ahead; otherwise the exit code to return without indexing."""
+    and ask. None = go ahead; otherwise the exit code to return without indexing. *matcher* (the deny-list)
+    keeps refused files out of what the screen says would be sent."""
     from .preflight import DECLINED, NEEDS_YES, build_preflight, confirm, needs_consent
 
     if not needs_consent(settings):
         return None
-    pre = build_preflight(folder, settings, known_hash=store.file_hash)
+    pre = build_preflight(folder, settings, known_hash=store.file_hash, matcher=matcher)
     outcome = confirm(pre, assume_yes=assume_yes, rerun=rerun)
     if outcome == NEEDS_YES:
         return EXIT_NEEDS_YES
@@ -179,7 +207,7 @@ def _ask_for_scope(settings: Settings, roots: list[Path], matcher: Matcher) -> i
     return EXIT_NEEDS_YES
 
 
-def _dry_run(folder: Path, settings: Settings) -> int:
+def _dry_run(folder: Path, settings: Settings, matcher: Matcher | None = None) -> int:
     """`locus index --dry-run`: the preflight report for any embedder, without building the embedder
     (a local model load could download it) and without embedding or sending anything."""
     from .ingest.chunk_policy import settings_for_preview
@@ -197,7 +225,7 @@ def _dry_run(folder: Path, settings: Settings) -> int:
             store = None
         known_hash = store.file_hash if store is not None else None
     settings, chunk_line = settings_for_preview(settings, store)
-    pre = build_preflight(folder, settings, known_hash=known_hash)
+    pre = build_preflight(folder, settings, known_hash=known_hash, matcher=matcher)
     print(pre.render())
     print(f"\n{chunk_line}")
     print("\nDry run: nothing was embedded or sent.")
@@ -237,8 +265,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     from .ingest.estimator import estimate, render_estimate, scan
 
     settings = get_settings()
+    matcher = _deny_list_for(Path(args.folder), settings)
+    if isinstance(matcher, int):
+        return matcher
     settings, chunk_line = settings_for_preview(settings, _existing_store(settings))
-    result = scan(Path(args.folder), settings)
+    result = scan(Path(args.folder), settings, matcher)
     est = estimate(result.files, settings, sample_seconds=args.sample_seconds)
     if args.json:
         payload = {
@@ -285,10 +316,13 @@ def cmd_watch(args: argparse.Namespace) -> int:
     from .ingest.watcher import PendingQueue, watch_folder
 
     settings = get_settings()
-    embedder, store = _components(settings)
     root = Path(args.folder)
+    matcher = _deny_list_for(root, settings)
+    if isinstance(matcher, int):
+        return matcher
+    embedder, store = _components(settings)
     rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
-    refused = _consent_gate(root, settings, store, assume_yes=args.yes, rerun=rerun)
+    refused = _consent_gate(root, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
     pending = PendingQueue()
@@ -300,12 +334,13 @@ def cmd_watch(args: argparse.Namespace) -> int:
             settings,
             prune=True,
             resume="The watcher keeps running, queues them and retries when the pause ends.",
+            matcher=matcher,
         )
         if stats.stop is not None:
             # RET-008: the files the initial pass did not reach wait in the watcher's queue and are
             # retried when the pause ends, instead of waiting for their next edit.
             pending.hold(stats.pending_paths, stats.stop.error)
-    watch_folder(root, embedder, store, settings, pending=pending)
+    watch_folder(root, embedder, store, settings, pending=pending, matcher=matcher)
     return 0
 
 
@@ -521,7 +556,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--all", action="store_true", help="with --roots on the whole home: index everything, no scope")
     p.add_argument("--policy", metavar="FILE", help="policy file (default: <data dir>/policy.toml)")
-    p.add_argument("--prune", action="store_true", help="remove files that no longer exist")
+    p.add_argument(
+        "--prune",
+        action="store_true",
+        help="remove index entries of files that no longer exist or that the deny-list or policy file now refuses",
+    )
     p.add_argument("-y", "--yes", action="store_true", help=yes_help)
     p.add_argument(
         "--dry-run",

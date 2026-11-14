@@ -12,6 +12,7 @@ not fail open.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import re
 import tomllib
@@ -296,6 +297,13 @@ class Matcher:
         if profile == "excluded":
             return no("profile_excluded")
         return Decision(True, None, profile)
+
+
+def matcher_for_folder(folder: Path | str, policy: Policy, home: Path) -> Matcher:
+    """The matcher for indexing one *folder*: the policy's rules with that folder as the only root, so the deny-list
+    and the policy's `excluded` folders and `[deny] paths` apply to it (the rule `--roots` applies to its roots)."""
+    root = Path(folder).expanduser().resolve()
+    return Matcher(dataclasses.replace(policy, roots=(str(root),)), home)
 
 
 def decide(path: Path | str, policy: Policy, home: Path, is_dir: bool = False) -> Decision:

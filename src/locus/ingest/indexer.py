@@ -22,6 +22,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+from collections import Counter
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC
@@ -71,6 +72,8 @@ class IndexStats:
     # hit the page or time limit and were indexed up to the pages read (parsers.py, LOCUS_PDF_*).
     pdf_no_text: int = 0
     pdf_truncated: int = 0
+    # Files and folders the deny-list (policy.Matcher) refused; only counted when a matcher is passed.
+    denied: int = 0
     # Set when the run stopped early (RET-008). `files_pending`: eligible files the run did not get
     # to process, the one it stopped on included (some may turn out unchanged); a re-run picks them up.
     stop: IndexStop | None = None
@@ -88,6 +91,8 @@ class IndexStats:
             line += f" pdf_no_text={self.pdf_no_text}"
         if self.pdf_truncated:
             line += f" pdf_truncated={self.pdf_truncated}"
+        if self.denied:
+            line += f" denied={self.denied}"
         if self.stop is not None:
             line += f" stopped={self.stop.kind} pending={self.files_pending}"
         return line
@@ -347,9 +352,11 @@ def index_folder(
     log: Logger = _stderr,
     retry: RetryPolicy = DEFAULT_RETRY,
     resume: str | None = None,
+    matcher: Matcher | None = None,
 ) -> IndexStats:
     """Index every eligible file under *root*. `resume` is the stop message's how-to-continue
-    sentence (default: re-run `locus index <root>`)."""
+    sentence (default: re-run `locus index <root>`). `matcher` is the deny-list (policy.Matcher): files and
+    folders it refuses are not indexed, and `prune` removes the ones it refuses now that an earlier run indexed."""
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise NotADirectoryError(root)
@@ -361,14 +368,18 @@ def index_folder(
     aborted = False
     too_large: list[Path] = []
     unreadable: list[Path] = []  # folders/files the OS would not list or stat: whether they still exist is unknown
+    denied_by_rule: Counter[str] = Counter()  # deny-list rule -> files and folders refused (counts only, no names)
 
     def on_skip(reason: str, p: Path) -> None:
         if reason == "too_large":
             too_large.append(p)
         elif reason in ("unreadable_dir", "unreadable"):
             unreadable.append(p)
+        elif reason in DENIED_SKIP_REASONS:
+            stats.denied += 1
+            denied_by_rule[reason.removeprefix("denied_")] += 1
 
-    files = iter_files(root, settings, on_skip=on_skip)
+    files = iter_files(root, settings, on_skip=on_skip, policy=matcher)
     for path in files:
         stats.files_seen += 1
         seen.add(str(path))
@@ -422,7 +433,8 @@ def index_folder(
         for indexed in store.list_paths():
             # Remove anything under root that iter_files would not currently index — a file
             # that vanished, but also one that's still on disk but no longer eligible (an
-            # extension dropped from settings, now over the size cap, or now a symlink).
+            # extension dropped from settings, now over the size cap, now a symlink, or now
+            # refused by the deny-list when a matcher is given).
             # Checking Path(indexed).exists() here was the bug: it only caught the first
             # case, so e.g. removing .txt from LOCUS_EXTENSIONS left old .txt chunks in the
             # index forever even after --prune (found via a real repro, PR #1 2026-09-12).
@@ -438,6 +450,13 @@ def index_folder(
                 f"--prune kept the index of {kept} file(s) under {len(guarded)} folder(s) or file(s) it could not "
                 "read (permission, a volume that went away); fix access and run --prune again"
             )
+    if denied_by_rule:
+        rules = ", ".join(f"{rule} {n}" for rule, n in sorted(denied_by_rule.items()))
+        log(
+            f"refused by the deny-list (keys, passwords, browser profiles, ~/Library, package caches): "
+            f"{stats.denied} file(s) or folder(s), by rule: {rules}. They are not indexed; "
+            "`--prune` removes any index entries an earlier run made for them."
+        )
     for big in too_large:
         # A real run used to skip these without a word; only `--dry-run` counted them, without a name.
         log(

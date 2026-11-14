@@ -13,8 +13,8 @@ therefore found within one scan cycle (a few calls on a big root), and then inde
 
 Files that are gone, and indexed files a deny rule now matches, are found by a second, exact pass (`iter_files` with
 the policy matcher on every file). It is the expensive one, so it runs only when a whole scan cycle fit in one call and
-the exact pass is projected to fit in the time left; on a root this big it does not, and `locus index --prune` removes
-rows of deleted files.
+the exact pass is projected to fit in the time left; on a root this big it does not, and `locus index <folder> --prune`
+removes rows of deleted files and of files a deny rule now matches.
 """
 
 from __future__ import annotations
@@ -432,7 +432,7 @@ def render_freshness_note(report: FreshnessReport, budget_s: float) -> str | Non
     if report.kept_denied:
         parts.append(
             f"{report.kept_denied} indexed file(s) now match a deny rule and were kept; remove them with an "
-            "explicit `locus index --prune`."
+            "explicit `locus index <folder> --prune` on the folder they are in (it applies the same deny rules)."
         )
     if report.hosted_off:
         return (

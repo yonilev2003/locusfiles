@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
+from ..policy import DENIED_SKIP_REASONS, Matcher
 from .chunker import chunk_text
 from .indexer import iter_files
 from .parsers import parse_document
@@ -174,7 +175,8 @@ class Scan:
         return {k: (v[0], v[1]) for k, v in sorted(acc.items(), key=lambda kv: (-kv[1][1], kv[0]))}
 
 
-def scan(root: Path | str, settings: Settings) -> Scan:
+def scan(root: Path | str, settings: Settings, matcher: Matcher | None = None) -> Scan:
+    """Walk *root* as `locus index` does; with a *matcher* (the deny-list), refused files are counted, not listed."""
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise NotADirectoryError(root)
@@ -185,7 +187,7 @@ def scan(root: Path | str, settings: Settings) -> Scan:
         if reason in ("skipped_dir", "hidden_dir"):
             result.skipped_dir_names[path.name] += 1
 
-    for path in iter_files(root, settings, on_skip):
+    for path in iter_files(root, settings, on_skip, matcher):
         try:
             size = path.stat().st_size
         except OSError:
@@ -402,6 +404,9 @@ def exclusion_lines(result: Scan) -> list[str]:
         for r, (one, many) in _REASON_LABELS.items()
         if (n := result.excluded.get(r, 0))
     ]
+    denied = sum(n for r, n in result.excluded.items() if r in DENIED_SKIP_REASONS)
+    if denied:
+        parts.append(f"{denied:,} file(s) or folder(s) refused by the deny-list (keys, passwords, browser profiles)")
     folders = result.excluded.get("skipped_dir", 0) + result.excluded.get("hidden_dir", 0)
     lines = [f"Not indexed: {', '.join(parts) if parts else 'no files'}"]
     if folders:
