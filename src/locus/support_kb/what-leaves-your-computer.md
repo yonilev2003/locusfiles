@@ -3,28 +3,42 @@ id: what-leaves-your-computer
 title: What leaves your computer, by mode
 url: /privacy
 keywords: privacy, private, data, data flow, leave, leaves, upload, uploaded, send, sends, sent, share, store, stored, cloud, server, servers, security, secure, encrypted, voyage, vercel, supabase, hugging face, files, excerpts, who sees, safe, confidential
-updated: 2026-10-01
+updated: 2026-11-14
 ---
-What leaves your computer depends on the mode you use:
+What leaves your computer depends on the mode you use. This was checked against the engine's code
+(version 0.2.0) on 2026-11-14. Statements about what Locus's hosted servers do or do not keep are
+Locus's own and cannot be checked from the engine's code.
 
-- **Local:** Indexing and embeddings run on your computer. When your AI assistant searches, the
-  matching excerpts go to that assistant, as they would if you pasted them in.
+- **Local:** Indexing and embeddings run on your computer. The only request is the first-run
+  download of the embedding model from Hugging Face. When your AI assistant searches, the matching
+  excerpts go to that assistant, as they would if you pasted them in.
 - **Your own key:** Chunk text goes straight from your computer to the embedding provider you
-  chose, under your own account.
+  chose, under your own account, and so does each search query.
 - **Managed:** On managed plans, chunk text and your search queries pass through Locus's relay to
-  Voyage AI to be embedded. We don't store them; we keep only usage counts.
+  Voyage AI to be embedded, with your account key and the Locus version. Locus says it does not
+  store them and keeps only usage counts.
 - **Remote:** When you reach your computer from another device or a web AI app, your question and
   the matching excerpts travel through Locus's relay (Vercel and Supabase) to and from your
-  computer. They are encrypted in transit and we don't store them.
+  computer. Locus says they are encrypted in transit and not stored. To connect, the engine also
+  sends your account key, the Locus version and a random 8-character computer tag (plus the label
+  in `LOCUS_DEVICE_LABEL`, if you set one).
+- **Notion:** `locus sync-notion` signs in to Notion in your browser, reads the pages your
+  integration can see from Notion, and saves them as Markdown files in `~/.locus/sources/notion/`.
+  They are then indexed like any folder, so your chosen embedder receives their text.
+- **Account status:** `locus_account_status`, `locus setup --managed` and
+  `locus_diagnose_connection` with `check_remote` on send your account key to Locus's
+  account-status endpoint (a read-only check), only when a key is set.
 - **Account:** Your account details are stored with Supabase. Your files are not.
-- **In every mode:** Your raw files are never uploaded to Locus.
+- **In every mode:** Locus does not upload your raw files. That is not the same as saying no data
+  leaves your computer: the next paragraph says what your assistant receives.
 
 Two details people often ask about:
 
-- In every mode, search results (excerpts, file text the assistant reads, and file paths) go to the
-  AI app you chose and on to its model provider. That provider's own policies apply to them.
-- With the local embedder, each time the engine loads its model while you are online it contacts
-  Hugging Face (and downloads the model the first time). Hugging Face sees your IP address and the
-  model name, not your files.
+- In every mode, search results (excerpts, file text the assistant reads, and file paths and
+  names) go to the AI app you chose and on to its model provider. That provider's own policies
+  apply to them.
+- With the local embedder, the engine looks for a downloaded copy of its model first and contacts
+  Hugging Face only to download it (the first time, or if the copy is gone). Hugging Face sees your
+  IP address and the model name, not your files.
 
 The privacy page has the full table, including what Locus keeps for each mode.

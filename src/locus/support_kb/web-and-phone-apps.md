@@ -3,7 +3,7 @@ id: web-and-phone-apps
 title: Claude.ai, ChatGPT and phone apps (remote connection)
 url: /docs/connect#claude-ai-web
 keywords: claude.ai, claude web, chatgpt, chat gpt, web app, browser, phone, mobile, iphone, ios, android, remote, remote connection, relay, transport relay, connector, custom connector, oauth, another device, away from computer
-updated: 2026-10-03
+updated: 2026-11-14
 ---
 Web and phone AI apps cannot start a program on your computer, so they reach Locus through Locus's
 hosted relay instead: the computer that holds your index runs `locus serve --transport relay` and
@@ -32,4 +32,7 @@ mean that nothing matched.
 
 What it sends: When you reach your computer from another device or a web AI app, your question and
 the matching excerpts travel through Locus's relay (Vercel and Supabase) to and from your computer.
-They are encrypted in transit and we don't store them.
+Locus says they are encrypted in transit and not stored; that is behaviour of its hosted servers,
+which the engine's code cannot show. To connect, the engine also sends your account key, the Locus
+version and a random 8-character computer tag (plus the label in `LOCUS_DEVICE_LABEL`, if you set
+one), so that two computers do not both answer. Checked against the engine's code on 2026-11-14.

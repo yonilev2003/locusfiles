@@ -52,16 +52,25 @@ client are on the Locus website's Connect page (`/docs/connect`).
 
 ## What leaves your computer
 
-- Local: Indexing and embeddings run on your computer. When your AI assistant searches, the
-  matching excerpts go to that assistant, as they would if you pasted them in.
-- Your own key: Chunk text goes straight from your computer to the embedding provider you chose,
-  under your own account.
-- Managed: On managed plans, chunk text and your search queries pass through Locus's relay to Voyage AI to be embedded.
-  We don't store them; we keep only usage counts.
-- Remote: When you reach your computer from another device or a web AI app, your question and
-  the matching excerpts travel through Locus's relay (Vercel and Supabase) to and from your
-  computer. They are encrypted in transit and we don't store them.
-- In every mode: Your raw files are never uploaded to Locus.
+Checked against the code of version 0.2.0 on 2026-11-14. The repository README has the full statement.
+
+- Local (the default): Indexing and embeddings run on your computer; the only request is the first-run
+  download of the embedding model from Hugging Face. When your AI assistant searches, the matching excerpts go
+  to that assistant, as they would if you pasted them in.
+- Your own key: Chunk text, and each search query, goes straight from your computer to the embedding provider
+  you chose, under your own account.
+- Managed (needs a Locus account key): Chunk text and your search queries pass through Locus's relay to Voyage
+  AI to be embedded. Locus says it does not store them and keeps only usage counts; that is server behaviour
+  the package's code cannot show.
+- Remote (needs a Locus account key): When you reach your computer from a web AI app, your question and the
+  matching excerpts travel through Locus's relay. Locus says they are encrypted in transit and not stored.
+- Notion sync: pages you pull are saved as Markdown files in `~/.locus/sources/notion/` and then indexed.
+- Account status: your account key is sent to Locus's account-status endpoint when you ask for it.
+- In every mode: Locus does not upload your raw files. Search results, including file text and paths, go to
+  the AI app you use and on to its model provider.
+
+The index in `~/.locus` is readable, unencrypted text (the text of every indexed chunk). To erase it, delete
+that folder.
 
 Indexes live in `~/.locus` (set `LOCUS_DATA_DIR` to move them). Settings are environment
 variables, or a `.env` file in the directory you run `locus` from or one of its parents.
