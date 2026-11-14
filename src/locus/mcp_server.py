@@ -2124,6 +2124,17 @@ async def _relay_dispatch(data: dict[str, Any], *, device: str) -> dict[str, Any
         }
 
 
+def _channel_refused_text(err: Any) -> str:
+    """What a user sees when the relay refuses this computer's channel. Plain words about what to check on their side;
+    nothing about the relay's own configuration (that is the operator's business, not a user's)."""
+    return (
+        f"locus_mcp: the relay refused this computer's channel: {_printable(err, 300)}\n"
+        "Restarting won't fix this: the relay service rejected the connection. Check that LOCUS_API_KEY is current and "
+        "that the Locus account behind it is active, then start `locus serve --transport relay` again. The help "
+        "article 'The remote connection stopped or will not start' (locus_help) explains the exit codes."
+    )
+
+
 def _state_name(channel: Any) -> str:
     state = getattr(channel, "state", None)
     return str(getattr(state, "value", state)).lower()
@@ -2983,13 +2994,7 @@ async def _run_relay_async(settings: Settings) -> int:
         status, err = "TIMED_OUT", None
     if status != "SUBSCRIBED":
         if status == "CHANNEL_ERROR":
-            print(
-                f"locus_mcp: the relay refused this computer's channel: {_printable(err, 300)}\n"
-                "Restarting won't fix this. Usually the Realtime Authorization RLS policy rejected the JWT "
-                "(check SUPABASE_JWT_SECRET matches the project's actual key) or 'Allow public access' vs. "
-                "RLS is misconfigured in the Supabase Realtime dashboard settings.",
-                file=sys.stderr,
-            )
+            print(_channel_refused_text(err), file=sys.stderr)
             code = RELAY_EXIT_AUTH
         else:
             print(
