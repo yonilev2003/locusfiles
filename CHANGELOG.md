@@ -89,6 +89,19 @@ Found in a protections review on 2026-11-14 and fixed before the repository open
   defaulted, and a test indexes and searches with Python's network calls refused.
 - `server.json` asks for the same `fastembed` floor as the package (0.9); NOTICE and the licence inventory name the
   model the engine really downloads.
+- **Managed embeddings, the remote (relay) connection and Notion sync are off by default.** `LOCUS_EMBEDDER=managed`,
+  `locus setup --managed` and `locus serve --transport relay` refuse to run unless `LOCUS_ENABLE_HOSTED=1` is set (and a
+  key is given); `locus sync-notion` refuses unless `LOCUS_ENABLE_NOTION=1` is set. A key or a credential alone
+  switches nothing on. Notion sync copies page text as plaintext Markdown into `~/.locus/sources/notion`; the README
+  says so.
+- **`locus_account_status` is registered only when `LOCUS_API_KEY` is set**, so the server lists five tools by default
+  (six with a key). The server instructions name only registered tools and no longer send the model to the account
+  tool for general questions. The account text no longer fails when the server leaves a field out.
+- **The plan, trial and refund help pages are no longer shipped**, and `locus_help` no longer lists plans, prices,
+  trials or refunds as topics.
+- **Test files that code, comments or CI cited and that were not in the tree** are written (config, preflight consent
+  screen, input_type policy, Chroma embedded-only guard, search budget, demo vault key, relay signing vector) or the
+  claim is removed (the relay's tests: the relay is off); a test now fails if a comment cites a test that is missing.
 
 ### Documentation
 
