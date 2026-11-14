@@ -357,6 +357,12 @@ def run_setup(
     env_file = env_file_to_write(cwd)
     settings = get_settings()
 
+    if mode == "managed":
+        try:
+            config.require_hosted("`locus setup --managed`")  # off unless LOCUS_ENABLE_HOSTED=1
+        except RuntimeError as exc:
+            print(f"locus setup: nothing was saved: {exc}", file=stderr)
+            return SetupResult(EXIT_CONFIG)
     if collection is not None and not _COLLECTION_RE.match(collection):
         print(
             f"locus setup: nothing was saved: {collection!r} is not a collection name (3-63 letters, digits, "

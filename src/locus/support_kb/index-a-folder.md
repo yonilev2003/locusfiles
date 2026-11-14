@@ -36,8 +36,9 @@ work, and connecting an AI app is the only step left.
   as errors and goes on). Files over 25 MB are skipped by default (`LOCUS_MAX_FILE_MB`). The
   compatibility page lists every format.
 - Locus keeps chunk text, vectors and metadata in `~/.locus`, not copies of your files. The one
-  exception is Notion: `locus sync-notion` saves each page it pulls as a Markdown file there.
-- Notion: `locus sync-notion` pulls and indexes Notion pages through your own Notion integration.
+  exception is Notion, which is off by default (next point).
+- Notion: `locus sync-notion` (off by default; needs `LOCUS_ENABLE_NOTION=1`) pulls Notion pages through your
+  own Notion integration, copies their text as plaintext Markdown into `~/.locus/sources/notion/` and indexes it.
 - Do not point Locus at your home folder or the whole machine. A full home directory is tens of thousands of
   files and can take hours to index (HYPOTHESIS for your machine: the figure depends on file count
   and embedder). Index the specific folder you need, or only recent work, and add more later. If an

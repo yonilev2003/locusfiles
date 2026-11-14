@@ -377,6 +377,7 @@ def test_stdio_starts_the_warmup_before_serving(env, calls):
 
 
 def test_relay_starts_the_warmup_before_connecting(env, calls):
+    env.setenv("LOCUS_ENABLE_HOSTED", "1")  # the relay is off unless switched on
     env.setenv("LOCUS_API_KEY", "lk_test_not_a_key")
     env.setenv("LOCUS_MCP_RELAY_SUPABASE_ANON_KEY", "anon")
     get_settings.cache_clear()
@@ -386,6 +387,7 @@ def test_relay_starts_the_warmup_before_connecting(env, calls):
 
 def test_relay_needs_only_the_api_key_for_the_warmup(env, calls):
     """G1: the public relay key comes from the token answer, so a fresh install has only LOCUS_API_KEY."""
+    env.setenv("LOCUS_ENABLE_HOSTED", "1")
     env.setenv("LOCUS_API_KEY", "lk_test_not_a_key")
     env.delenv("LOCUS_MCP_RELAY_SUPABASE_ANON_KEY", raising=False)
     get_settings.cache_clear()
@@ -394,6 +396,7 @@ def test_relay_needs_only_the_api_key_for_the_warmup(env, calls):
 
 
 def test_relay_without_its_configuration_does_not_start_a_warmup_it_would_throw_away(env, calls):
+    env.setenv("LOCUS_ENABLE_HOSTED", "1")
     env.delenv("LOCUS_API_KEY", raising=False)
     env.delenv("LOCUS_MCP_RELAY_SUPABASE_ANON_KEY", raising=False)
     get_settings.cache_clear()

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .config import Settings, get_settings
+from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
 from .ingest.indexer import IndexStats
@@ -306,6 +306,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
         # The relay worker calls Locus's hosted token endpoint: an invalid LOCUS_API_BASE is a
         # configuration error here (exit 2), while stdio / streamable-http never need it.
         settings = get_settings()
+        require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1 (after .env is read)
         settings.hosted_url(settings.mcp_relay_token_url)
     serve(args.transport, host=args.host, port=args.port, path=args.path)
     return 0
@@ -349,6 +350,7 @@ def cmd_sync_notion(args: argparse.Namespace) -> int:
     from .ingest.notion_source import sync_notion
 
     settings = get_settings()
+    require_notion("`locus sync-notion`")  # off unless LOCUS_ENABLE_NOTION=1: it copies page text into ~/.locus
     sync_stats = sync_notion(settings)
     print(f"notion sync: {sync_stats.summary()}")
 

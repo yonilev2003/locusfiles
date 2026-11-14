@@ -14,7 +14,7 @@ connection. Local mode needs no key.
   (or put `LOCUS_API_KEY` in `.env` yourself). Put it in your AI app's `env` block for the Locus
   server too, then restart `locus serve` or your AI app.
 - **How many:** one key per computer you index. Your plan sets how many active keys you can have
-  (Starter 1, Personal 3, Power 10). Revoke a key you no longer use to free its place.
+  (the limit is set per account). Revoke a key you no longer use to free its place.
 - **"Key not recognized" or "rejected":** the key was revoked or mistyped. Check the key list in your
   dashboard, generate a new key if needed, and update the computer: `locus setup --managed --new-key`
   replaces the saved key.

@@ -39,7 +39,7 @@ from collections.abc import Callable, Iterable, Iterator
 from typing import Protocol, TypeVar, runtime_checkable
 
 from .. import __version__
-from ..config import DEFAULT_LOCAL_MODEL, Settings
+from ..config import DEFAULT_LOCAL_MODEL, Settings, require_hosted
 from .errors import ProviderUnavailable, from_provider_exception, from_relay_http
 
 T = TypeVar("T")
@@ -751,6 +751,7 @@ def get_embedder(settings: Settings) -> Embedder:
                 )
             return LocalEmbedder(settings.local_model)
         if kind == "managed":
+            require_hosted("LOCUS_EMBEDDER=managed")  # off unless LOCUS_ENABLE_HOSTED=1: it sends text to Locus
             # hosted_url: an invalid LOCUS_API_BASE surfaces here, where the relay is actually used.
             return ManagedEmbedder(
                 settings.managed_api_key,

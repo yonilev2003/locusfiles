@@ -17,7 +17,8 @@ Pick the extra that matches how your files will be embedded:
 
 - On-device embeddings, no account (ONNX Runtime, about 530 MB installed with the model; PyTorch is optional):
   `uv tool install --python 3.12 "locusfiles[local]"` or `pipx install "locusfiles[local]"`
-- A Locus plan (managed embeddings, remote connection), no PyTorch:
+- Locus's hosted services (managed embeddings, remote connection; off by default, they need
+  `LOCUS_ENABLE_HOSTED=1` and a Locus account key): the `relay` extra,
   `uv tool install --python 3.12 "locusfiles[relay]"` or `pipx install "locusfiles[relay]"`
 - Your own Voyage or OpenAI key: the `voyage` or `openai` extra.
 
@@ -28,9 +29,10 @@ Next, choose how your files are embedded. Run one of these in the folder you wil
 
 - `locus setup --local`: on-device embeddings, no account and no key. The first run downloads the
   model from huggingface.co once; later runs use the copy on your computer.
-- `locus setup --managed`: a Locus plan. It asks for the API key from your dashboard (what you type
-  is not shown), or uses `LOCUS_API_KEY` if it is already set, and checks the key with Locus before
-  saving it (a status check: nothing is embedded).
+- `locus setup --managed`: Locus's hosted embedding service. Off by default: it refuses to run
+  unless `LOCUS_ENABLE_HOSTED=1` is set. With it on, it asks for the API key from your dashboard
+  (what you type is not shown), or uses `LOCUS_API_KEY` if it is already set, and checks the key
+  with Locus before saving it (a status check: nothing is embedded).
 
 Either one writes its settings into the `.env` file Locus reads in that folder (a new file is
 readable only by you; an existing one keeps its other lines) and prints the next steps, including

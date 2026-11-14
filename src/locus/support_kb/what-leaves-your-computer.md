@@ -14,20 +14,23 @@ Locus's own and cannot be checked from the engine's code.
   excerpts go to that assistant, as they would if you pasted them in.
 - **Your own key:** Chunk text goes straight from your computer to the embedding provider you
   chose, under your own account, and so does each search query.
-- **Managed:** On managed plans, chunk text and your search queries pass through Locus's relay to
+- **Managed (off by default; needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key):** Chunk text and your search queries pass through Locus's relay to
   Voyage AI to be embedded, with your account key and the Locus version. Locus says it does not
   store them and keeps only usage counts.
-- **Remote:** When you reach your computer from another device or a web AI app, your question and
+- **Remote (off by default; needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key):** When you reach your computer from another device or a web AI app, your question and
   the matching excerpts travel through Locus's relay (Vercel and Supabase) to and from your
   computer. Locus says they are encrypted in transit and not stored. To connect, the engine also
   sends your account key, the Locus version and a random 8-character computer tag (plus the label
   in `LOCUS_DEVICE_LABEL`, if you set one).
-- **Notion:** `locus sync-notion` signs in to Notion in your browser, reads the pages your
-  integration can see from Notion, and saves them as Markdown files in `~/.locus/sources/notion/`.
-  They are then indexed like any folder, so your chosen embedder receives their text.
-- **Account status:** `locus_account_status`, `locus setup --managed` and
-  `locus_diagnose_connection` with `check_remote` on send your account key to Locus's
-  account-status endpoint (a read-only check), only when a key is set.
+- **Notion (off by default; needs `LOCUS_ENABLE_NOTION=1`):** `locus sync-notion` signs in to
+  Notion in your browser, reads the pages your integration can see from Notion, and copies their
+  text as plaintext Markdown files into `~/.locus/sources/notion/`, readable by anything that can
+  read that folder. A page deleted in Notion stays there until you delete it. The files are then
+  indexed like any folder, so your chosen embedder receives their text.
+- **Account status:** `locus_account_status` exists only when `LOCUS_API_KEY` is set. It,
+  `locus setup --managed` (off by default) and `locus_diagnose_connection` with `check_remote` on
+  send your account key to Locus's account-status endpoint (a read-only check), only when a key
+  is set.
 - **Account:** Your account details are stored with Supabase. Your files are not.
 - **In every mode:** Locus does not upload your raw files. That is not the same as saying no data
   leaves your computer: the next paragraph says what your assistant receives.

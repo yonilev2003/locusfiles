@@ -23,5 +23,5 @@ For privacy requests (a copy of your data, corrections, deletion), email from th
 account; see "Delete your account or your local data".
 
 Your AI app can also help directly, from inside the chat: `locus_help` answers questions from these
-articles, `locus_account_status` shows your plan, trial and usage, and `locus_diagnose_connection`
+articles, `locus_account_status` (present only when `LOCUS_API_KEY` is set) shows the state of your Locus account, and `locus_diagnose_connection`
 checks this computer's setup.

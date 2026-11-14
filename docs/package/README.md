@@ -24,12 +24,10 @@ Either one puts `locus` in its own environment. `locusfiles` has been on PyPI si
 curl -LsSf https://astral.sh/uv/install.sh | sh   # then open a new terminal, so `uv` is found
 # On-device embeddings, no account (ONNX Runtime: about 400 MB installed plus a 134 MB multilingual model on first use):
 uv tool install --python 3.12 "locusfiles[local]"
-# or a Locus plan (managed embeddings, remote connection), no on-device model:
-uv tool install --python 3.12 "locusfiles[relay]"
 uv tool update-shell               # adds ~/.local/bin to PATH; open a new terminal afterwards
 
 # Alternative: pipx (needs Python 3.11+)
-pipx install "locusfiles[local]"   # or "locusfiles[relay]"
+pipx install "locusfiles[local]"
 ```
 
 Other extras: `voyage` or `openai` to embed with your own provider key, and `local-torch` for
@@ -41,7 +39,7 @@ macOS and Linux are tested. Windows is not yet verified.
 ## First search
 
 ```bash
-export LOCUS_EMBEDDER=local            # or managed (with LOCUS_API_KEY), voyage, openai
+export LOCUS_EMBEDDER=local            # or voyage, openai (your own key)
 locus doctor                           # checks Python, packages, settings and the embedder
 locus index ~/Documents/notes --prune  # parse, chunk, embed and index a folder
 locus query "what did I decide about pricing" -k 5
@@ -59,13 +57,15 @@ Checked against the code of version 0.2.0 on 2026-11-14. The repository README h
   to that assistant, as they would if you pasted them in.
 - Your own key: Chunk text, and each search query, goes straight from your computer to the embedding provider
   you chose, under your own account.
-- Managed (needs a Locus account key): Chunk text and your search queries pass through Locus's relay to Voyage
+- Managed (off by default: needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key): Chunk text and your search queries pass through Locus's relay to Voyage
   AI to be embedded. Locus says it does not store them and keeps only usage counts; that is server behaviour
   the package's code cannot show.
-- Remote (needs a Locus account key): When you reach your computer from a web AI app, your question and the
+- Remote (off by default: needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key): When you reach your computer from a web AI app, your question and the
   matching excerpts travel through Locus's relay. Locus says they are encrypted in transit and not stored.
-- Notion sync: pages you pull are saved as Markdown files in `~/.locus/sources/notion/` and then indexed.
-- Account status: your account key is sent to Locus's account-status endpoint when you ask for it.
+- Notion sync (off by default: needs `LOCUS_ENABLE_NOTION=1`): the text of the pages you pull is copied as
+  plaintext Markdown files into `~/.locus/sources/notion/` and then indexed.
+- Account status: the `locus_account_status` tool exists only when `LOCUS_API_KEY` is set; it sends that key to
+  Locus's account-status endpoint when asked.
 - In every mode: Locus does not upload your raw files. Search results, including file text and paths, go to
   the AI app you use and on to its model provider.
 

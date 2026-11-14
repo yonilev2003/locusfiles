@@ -42,6 +42,7 @@ def _isolated(tmp_path, monkeypatch):
         if key.startswith("LOCUS_"):
             del os.environ[key]
     os.environ["LOCUS_DATA_DIR"] = str(tmp_path / "data")
+    os.environ["LOCUS_ENABLE_HOSTED"] = "1"  # off by default in 0.2.0 (config.require_hosted); these tests need it on
     monkeypatch.setattr(config, "_SOURCE_CHECKOUT", None)
     work = tmp_path / "proj"
     work.mkdir()

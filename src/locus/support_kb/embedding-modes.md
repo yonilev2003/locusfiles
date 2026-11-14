@@ -9,8 +9,9 @@ updated: 2026-11-14
 
 - `local` (the default): an on-device multilingual model (multilingual-e5-small, about 100 languages). No account, no API key, no
   cost. Needs the `local` extra. The first time it loads, the model is downloaded from Hugging Face.
-- `managed`: a Locus plan or trial. Set `LOCUS_API_KEY` from your dashboard. Needs the `relay` extra
-  (no PyTorch).
+- `managed`: Locus's hosted embedding service. Off by default in this version: it refuses to run
+  unless `LOCUS_ENABLE_HOSTED=1` is set, and it needs a Locus account key in `LOCUS_API_KEY` and the
+  `relay` extra. Text you index and your search queries are then sent to Locus's servers.
 - `voyage` or `openai`: your own provider account. Set `VOYAGE_API_KEY` or `OPENAI_API_KEY`, and
   install the matching extra.
 

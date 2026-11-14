@@ -505,6 +505,7 @@ def test_backoff_is_exponential_jittered_bounded_and_honours_retry_after():
 def test_cli_exits_3_with_one_stop_message_on_stderr(tmp_path, corpus, monkeypatch, capsys):
     from locus import cli
 
+    monkeypatch.setenv("LOCUS_ENABLE_HOSTED", "1")  # managed embeddings are off unless switched on
     monkeypatch.setenv("LOCUS_EMBEDDER", "managed")
     monkeypatch.setenv("LOCUS_API_KEY", "lk_test")
     monkeypatch.setenv("LOCUS_RELAY_URL", RELAY_URL)
@@ -529,6 +530,7 @@ def test_cli_hints_keep_the_users_flags(tmp_path, corpus, monkeypatch, capsys):
     so a script following them exited 2 instead of resuming, or silently stopped pruning."""
     from locus import cli
 
+    monkeypatch.setenv("LOCUS_ENABLE_HOSTED", "1")  # managed embeddings are off unless switched on
     monkeypatch.setenv("LOCUS_EMBEDDER", "managed")
     monkeypatch.setenv("LOCUS_API_KEY", "lk_test")
     monkeypatch.setenv("LOCUS_RELAY_URL", RELAY_URL)

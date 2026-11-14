@@ -25,8 +25,8 @@ Start with `locus doctor`: each FAIL line names the check that failed. The most 
   embedder. Use a new `LOCUS_COLLECTION` (or delete `~/.locus/chroma`) and re-index.
 - **"LOCUS_API_KEY was rejected (invalid or revoked)":** generate a new key in your dashboard and
   replace it on this computer.
-- **"Your Locus subscription isn't active" / trial ended:** the trial ended or the plan is past due
-  or canceled. `locus_account_status` shows which. Local search keeps working.
+- **"Your Locus subscription isn't active":** the Locus account behind `LOCUS_API_KEY` is not active.
+  `locus_account_status` (present when a key is set) shows which. Local search keeps working.
 - **Daily limit or token budget reached (HTTP 429 or 402):** managed embedding pauses until the
   limit resets (daily limits reset at 00:00 UTC). `locus index` stops with a summary you can resume
   by running it again later. Search of what is already indexed keeps working.

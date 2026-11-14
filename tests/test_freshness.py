@@ -256,7 +256,6 @@ def test_tool_names_and_read_only_hints_unchanged():
         "locus_search",
         "locus_list_sources",
         "locus_read_file",
-        "locus_account_status",
         "locus_diagnose_connection",
         "locus_help",
     }

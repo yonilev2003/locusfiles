@@ -80,9 +80,11 @@ macOS and Linux are tested. Windows is not verified yet.
 
 The three file tools are `locus_search`, `locus_list_sources` and `locus_read_file`. Every result
 carries a file path and a chunk number. `locus_read_file` only reads files that are already in the
-index. Three more tools never read your files: `locus_help` (help articles bundled with the package, works
-offline), `locus_diagnose_connection` (checks your setup) and `locus_account_status` (reads a Locus account;
-these last two can contact Locus's servers, see below). All six are marked read-only.
+index. Two more tools never read your files: `locus_help` (help articles bundled with the package, works
+offline) and `locus_diagnose_connection` (checks your setup; it contacts Locus's servers only if asked to with
+`check_remote`). A sixth tool, `locus_account_status`, is registered only when `LOCUS_API_KEY` is set, that is,
+only for someone who uses a Locus account (off by default, see below); without a key the server lists five
+tools and its instructions do not mention it. Every tool is marked read-only.
 
 ## How it works
 
@@ -91,8 +93,8 @@ these last two can contact Locus's servers, see below). All six are marked read-
 <img src="docs/assets/architecture-light.svg" alt="Your folder is parsed, chunked and embedded on your machine into a local store in ~/.locus. Your MCP client asks locus serve, which returns the top matches with file path, chunk number and text." width="880">
 </picture>
 
-Locus does not copy your files into `~/.locus`: it stores chunk text, vectors and metadata. (One exception:
-`locus sync-notion` writes each Notion page it pulls as a Markdown file there.) Re-run
+Locus does not copy your files into `~/.locus`: it stores chunk text, vectors and metadata. (One exception, off by
+default: `locus sync-notion` writes each Notion page it pulls as a plaintext Markdown file there.) Re-run
 `locus index <folder> --prune` after changes (unchanged files are skipped; `--prune` also removes the index
 entries of files that no longer exist or that the deny-list below now refuses), or use `locus watch <folder>` to
 keep the index current.
@@ -106,7 +108,7 @@ as you, a backup, a synced or shared drive that includes it) can read those chun
 encryption (FileVault, BitLocker, LUKS) and keep the folder out of cloud-sync and shared folders. On macOS and
 Linux Locus creates the folder readable by your account only (mode 0700); that has not been checked on Windows.
 The same folder holds your policy file (`policy.toml`), a random 8-character computer tag (`device_id`) and, if
-you used `locus sync-notion`, your Notion access token (`notion_token.json`) and the pages as Markdown files
+you used `locus sync-notion`, your Notion access token (`notion_token.json`) and the pages as plaintext Markdown files
 (`sources/notion/`).
 
 To erase what Locus keeps on this computer:
@@ -128,7 +130,10 @@ folder, start a new collection (`LOCUS_COLLECTION`) and index only the folders y
 Checked against the code of version 0.2.0 on 2026-11-14, by reading the source. Locus's engine contains no
 analytics and no usage reporting; the requests it can make are the ones below. It is not independently audited.
 Which of them happen depends on the mode you set (`LOCUS_EMBEDDER`, and the commands you run); the default is
-`local`.
+`local`. **Locus's hosted modes (managed embeddings and the remote connection) and Notion sync are off in this
+version:** they refuse to run unless you set `LOCUS_ENABLE_HOSTED=1` (and give a Locus account key in
+`LOCUS_API_KEY`) or `LOCUS_ENABLE_NOTION=1`. A key alone does not switch anything on. The entries below say what
+each would send or write if you do.
 
 - **Local (the default).** Indexing and embeddings run on your computer. The only request is the first-run
   download of the embedding model from Hugging Face (Hugging Face sees your IP address and the model name, not
@@ -137,12 +142,13 @@ Which of them happen depends on the mode you set (`LOCUS_EMBEDDER`, and the comm
 - **Your own provider key (`voyage`, `openai`).** Chunk text goes from your computer to that provider when you
   index, and each search query goes the same way, under your own account. `locus index` shows what would be sent
   and where, and asks first.
-- **Managed embeddings (`LOCUS_EMBEDDER=managed`, needs a Locus account key).** Chunk text and search queries go
+- **Managed embeddings (`LOCUS_EMBEDDER=managed`; off unless `LOCUS_ENABLE_HOSTED=1`; needs a Locus account key).** Chunk text and search queries go
   to Locus's hosted relay (`locusfiles.com` unless `LOCUS_API_BASE` says otherwise), which passes them to Voyage
   AI to be embedded. Each request carries your account key and the Locus version. Locus says the relay does not
   store the text and keeps only usage counts; that is how the hosted server behaves, and its code is not in this
   repository, so you cannot check it here.
-- **Remote connection (`locus serve --transport relay`, needs a Locus account key; in testing).** Your computer
+- **Remote connection (`locus serve --transport relay`; off unless `LOCUS_ENABLE_HOSTED=1`; needs a Locus account
+  key; in testing).** Your computer
   connects outward to Locus's hosted relay. A question from a web AI app, and the excerpts that answer it, pass
   through that relay on their way to the app (Locus says it runs on Vercel and Supabase, encrypted in transit and
   not stored; again server behaviour you cannot check here). To connect, the engine sends your account key and the
@@ -152,12 +158,15 @@ Which of them happen depends on the mode you set (`LOCUS_EMBEDDER`, and the comm
   only, and it will not start without a token in `LOCUS_MCP_TOKEN`. If you bind it to another address or put a
   tunnel in front of it, whoever runs the tunnel carries your traffic, and anyone who has the token can search
   your index.
-- **Notion sync (`locus sync-notion`).** Opens Notion's sign-in in your browser, stores the access token under
-  `~/.locus`, reads the pages your integration can see from Notion's API and writes them to `~/.locus/sources/notion/`
-  as Markdown. Those files are then indexed like any folder, so the embedder you chose receives their text.
-- **Account status.** `locus_account_status`, `locus setup --managed` and `locus_diagnose_connection` with
-  `check_remote` on send your account key to Locus's account-status endpoint (a read-only check), and only when a
-  key is set. With `check_remote` on, the diagnostic also makes two plain requests, without the key, to see
+- **Notion sync (`locus sync-notion`; off unless `LOCUS_ENABLE_NOTION=1`).** Opens Notion's sign-in in your
+  browser, stores the access token under `~/.locus`, reads the pages your integration can see from Notion's API
+  and **copies the text of every page it reads as plaintext Markdown files into `~/.locus/sources/notion/`**:
+  readable by anything that can read that folder, not encrypted, and not covered by the deny-list. A page you
+  delete in Notion stays in that folder until you delete it. Those files are then indexed like any folder, so the
+  embedder you chose receives their text.
+- **Account status.** `locus_account_status` is registered only when `LOCUS_API_KEY` is set. It, `locus setup
+  --managed` (off unless `LOCUS_ENABLE_HOSTED=1`) and `locus_diagnose_connection` with `check_remote` on send your
+  account key to Locus's account-status endpoint (a read-only check), and only when a key is set. With `check_remote` on, the diagnostic also makes two plain requests, without the key, to see
   whether Locus's account-status and relay endpoints answer.
 - **In every mode,** search results go to the AI app you use and on to its model provider, by design: chunk
   text, excerpts you ask it to read, and file paths and file names. That is the feature, and it is the same as

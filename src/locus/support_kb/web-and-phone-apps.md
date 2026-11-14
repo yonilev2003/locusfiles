@@ -22,9 +22,9 @@ your files.
 What the remote connection needs: the `relay` extra
 (`uv tool install --python 3.12 "locusfiles[relay]"`, or `pipx install "locusfiles[relay]"`), a
 Locus account, and that account's `LOCUS_API_KEY` on the computer. Start the relay with the same
-embedder you indexed with (`LOCUS_EMBEDDER=managed` for a Locus plan). Only one computer per account
+embedder you indexed with (`LOCUS_EMBEDDER=managed` for a Locus account). Only one computer per account
 serves remote requests at a time; starting Locus relay on another computer takes over. The computer must be
-on, awake and running Locus. Remote connection needs an active subscription or trial.
+on, awake and running Locus. The remote connection is off by default: it refuses to run unless `LOCUS_ENABLE_HOSTED=1` is set, and it needs an active Locus account.
 
 If the web app reports that your computer did not answer, wake or open that computer, make sure
 `locus serve --transport relay` is still running on it, and try again. "Did not answer" does not

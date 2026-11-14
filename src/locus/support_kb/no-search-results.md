@@ -17,8 +17,8 @@ When Locus cannot search, it says why and that nothing was searched, so it is no
   open the folder `LOCUS_DATA_DIR` names (`~/.locus` by default). On macOS, allow that app in System
   Settings > Privacy & Security, or point `LOCUS_DATA_DIR` at a folder it can use, then restart the
   app. `locus_read_file` says "no access" in the same way for a single file it may not read.
-- **"Locus could not search: no access":** the API key was not accepted, or the plan or trial is not
-  active (see the API keys article; `locus_account_status` shows the plan).
+- **"Locus could not search: no access":** the API key was not accepted, or the account is not
+  active (see the API keys article; `locus_account_status` shows its state).
 - **"Stale index":** some results come from files that changed or were deleted after they were
   indexed; the line names them, and their text may be old. Run `locus index <folder> --prune`, or
   keep `locus watch <folder>` running.

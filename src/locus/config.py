@@ -121,6 +121,40 @@ BILLING_PATH = "/account/billing"
 
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
+# Features that are off in this version unless a user switches them on explicitly (founder decision 2026-11-14).
+# The hosted modes send text to Locus's servers; Notion sync copies page text as plaintext Markdown into the data
+# directory. Neither runs because a key or a credential happens to be present.
+HOSTED_ENABLE_ENV = "LOCUS_ENABLE_HOSTED"
+NOTION_ENABLE_ENV = "LOCUS_ENABLE_NOTION"
+_ON = frozenset({"1", "true", "yes", "on"})
+
+
+def feature_enabled(name: str) -> bool:
+    """True when the environment variable *name* (read after .env is loaded) is 1, true, yes or on."""
+    return (os.getenv(name) or "").strip().lower() in _ON
+
+
+def require_hosted(what: str) -> None:
+    """Refuse *what* (a command or setting) unless LOCUS_ENABLE_HOSTED is on. Raises RuntimeError, which the CLI
+    prints as `error: ...` with exit code 2."""
+    if not feature_enabled(HOSTED_ENABLE_ENV):
+        raise RuntimeError(
+            f"{what} uses Locus's hosted services (the relay, managed embeddings), which are off in this version. "
+            f"To switch them on, set {HOSTED_ENABLE_ENV}=1 and give a Locus account key in LOCUS_API_KEY. "
+            "Text you index or search would then be sent to Locus's servers: see 'What leaves your computer' in the "
+            "README."
+        )
+
+
+def require_notion(what: str) -> None:
+    """Refuse *what* unless LOCUS_ENABLE_NOTION is on. Raises RuntimeError (exit code 2 in the CLI)."""
+    if not feature_enabled(NOTION_ENABLE_ENV):
+        raise RuntimeError(
+            f"{what} is off in this version. It copies the text of your Notion pages as plaintext Markdown files "
+            "into your Locus data folder (sources/notion), readable by anything that can read that folder, and "
+            f"indexes them. To switch it on, set {NOTION_ENABLE_ENV}=1."
+        )
+
 
 def normalize_api_base(raw: str | None) -> str:
     """LOCUS_API_BASE (or the default) as `scheme://host[:port][/prefix]`, without a trailing slash.
