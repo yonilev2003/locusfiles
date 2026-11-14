@@ -17,7 +17,7 @@ pasted in. Locus is **source-available** under FSL-1.1-ALv2, not open source (se
 ## Try it on the demo folder
 
 ```text
-$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles"
+$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0"
                                                       # about 530 MB on disk, no account, no API key
 $ locus index tests/fixtures/demo-vault               # from a clone of this repository
 seen=21 indexed=21 skipped=0 removed=0 chunks=22 errors=0
@@ -48,10 +48,13 @@ any FAIL line.
 ## Install
 
 `uv` installs its own Python, so you do not need one first. **Until 0.2.0 is on PyPI (the PyPI page still
-shows an older version), install from this repository, as above.** `pipx install "locusfiles[local] @
-git+https://github.com/yonilev2003/locusfiles"` works if you already have Python 3.11 or newer. To run the
-server without installing it: `uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles"
-locusfiles serve` (`locusfiles` is an alias of `locus`).
+shows an older version), install from this repository, as above.** The commands name the release tag
+`@v0.2.0`, so you get that release and not whatever the default branch holds later. The tag is created when
+0.2.0 is released: until it exists, these commands fail with a message that the tag was not found.
+`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0"` works if you already
+have Python 3.11 or newer. To run the server without installing it:
+`uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0" locusfiles serve`
+(`locusfiles` is an alias of `locus`).
 
 The `local` extra runs the embedding model with ONNX Runtime. The default model is
 `intfloat/multilingual-e5-small` (MIT licence, about 100 languages): the whole environment is about
