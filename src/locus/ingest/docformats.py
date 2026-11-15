@@ -792,7 +792,11 @@ def _rtf_text(data: bytes) -> str:
             out.append(pending.decode(pending_codec, errors="replace"))
             pending.clear()
 
+    last = -1
     while pos < end:
+        if pos <= last:  # every token must move the position forward; \bin-6 once moved it back onto itself
+            raise UnreadableFile("RTF reader made no progress (corrupt file)")
+        last = pos
         m = _RTF_TOKEN.match(data, pos)
         if m is None:  # a lone backslash at the very end
             pos += 1
@@ -840,6 +844,8 @@ def _rtf_text(data: bytes) -> str:
             elif name == "uc" and arg is not None:
                 state.uc = max(arg, 0)
             elif name == "bin":
+                if arg is not None and arg < 0:
+                    raise UnreadableFile("RTF has a negative \\bin length (corrupt file)")
                 pos += arg or 0  # raw binary follows (inside a picture): never parsed as text
             elif state.skip:
                 continue
