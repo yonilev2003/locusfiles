@@ -1,4 +1,4 @@
-"""ADR-087 items 1-2: the default chunk size follows the embedding model's window, a collection records
+"""The default chunk size follows the embedding model's window, a collection records
 the size it was created with (an older one keeps the legacy 700), and the English BGE query instruction
 goes only to English bge-*-en models.
 
@@ -129,7 +129,7 @@ def test_hosted_style_embedder_records_nothing(tmp_path, monkeypatch):
 def test_a_populated_collection_without_a_record_keeps_700_after_upgrade(tmp_path, monkeypatch):
     s = _settings(tmp_path)
     notes = _long_note(tmp_path / "notes")
-    # built "before ADR-087": no chunk_tokens passed, one file indexed
+    # built "before chunk sizes were recorded": no chunk_tokens passed, one file indexed
     old = ChromaStore(s.data_dir, "coll", "hash:windowed")
     index_folder(notes, _Windowed(512), old, s, log=lambda _: None)
     assert old.count() > 0

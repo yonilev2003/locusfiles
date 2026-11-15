@@ -1,4 +1,4 @@
-"""One embedding model shared by every `locus serve` / `locus index` on this computer (ADR-089 draft, prototype).
+"""One embedding model shared by every `locus serve` / `locus index` on this computer.
 
 Why: each MCP client starts its own `locus serve`, and each used to hold its own copy of the local model. Measured on
 a 16 GB Mac (2026-10-26): 1.6 GB per process with multilingual-e5-small, 3.8 GB with bge-m3. Four clients do not fit
@@ -19,7 +19,7 @@ How it works
 
 What it does not do: it is not a network service (no TCP, no relay), it does not keep running, and it never sees
 paths or file contents beyond the chunk text that `locus index` embeds anyway. Whether an on-demand, self-exiting helper
-counts as a "background service" under the 2026-10-25 incident note is the founder's call (ADR-089 [OPEN]).
+counts as a "background service" is an open question for the maintainer.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""`locus index --roots ... --dry-run`: what a multi-root index would cover, as counts only (ADR-092).
+"""`locus index --roots ... --dry-run`: what a multi-root index would cover, as counts only.
 
 Walks every root with the indexer's own `iter_files` and a policy Matcher, parses and embeds nothing,
 opens no store. The report holds counts by extension, profile and skip reason and never a file or

@@ -5,9 +5,8 @@ Run with `locus serve` or `python -m locus.mcp_server`. Built on the official `m
 transport; log to stderr. `--transport streamable-http` (see `main()`) is a separate, opt-in HTTP
 mode for a user's own tunnel (ngrok/Cloudflare Tunnel) to reach Claude.ai web/ChatGPT — it always
 requires `LOCUS_MCP_TOKEN`; this stays a user-initiated, single-machine option, never a Locus-hosted
-service (ADR-003, docs/open-tasks.md §1b). `--transport relay` (ADR-034/`docs/design/remote-mcp-
-relay-design-2026-09-21.md`) is the Locus-hosted alternative: this instance opens an OUTBOUND
-connection to a Locus-run Supabase Realtime channel scoped to this account only, so Claude.ai web /
+service. `--transport relay` is the Locus-hosted alternative (off unless LOCUS_ENABLE_HOSTED=1): this instance opens
+an OUTBOUND connection to a Locus-run Supabase Realtime channel scoped to this account only, so Claude.ai web /
 ChatGPT can reach it without any inbound port or tunnel — needs the `relay` extra
 (`uv tool install --python 3.12 "locusfiles[relay]"`, or pipx; `pip install -e ".[relay]"` in a
 source checkout) and `LOCUS_API_KEY` (same credential `LOCUS_EMBEDDER=managed` uses).
@@ -87,24 +86,24 @@ from .relay_signing import (
     parse_verify_keys_env,
 )
 
-# Server instructions (D5, founder decision 2026-10-03; rewritten by ADR-091, 2026-10-23): what a client
+# Server instructions: what a client
 # reads to decide whether Locus applies to a request. With tool search on (Claude Code by default;
 # Claude.ai with many connectors), the model sees only tool NAMES and these instructions until it
 # searches, so the first paragraph says what Locus holds and what it is for, in the first 512 characters
 # (OpenAI asks for the key guidance there). It scopes; it does not rank: no "call this first", no "even
 # if they do not mention Locus", no "as well, not instead" (directory review rules reject descriptions
-# that steer the model to prefer one tool; founder decision 2026-10-23: replaced even if clients then
-# call Locus less). Order: scope, lean search (ADR-087: Hebrew or mixed material is searched in both
+# that steer the model to prefer one tool; replaced even if clients then
+# call Locus less). Order: scope, lean search (Hebrew or mixed material is searched in both
 # languages), time, gaps, then the enumeration and locus_help rules.
 # Budgets: Claude Code keeps 4,096 characters of a server's instructions since v2.1.296 (2,048 before
-# it; whether older versions matter is ADR-091 [OPEN]) and 2,048 of each tool description.
+# it; whether older versions matter is open) and 2,048 of each tool description.
 # tests/test_mcp_instructions_standalone.py and tests/test_tool_set.py pin these budgets. The hosted relay, which
-# is off in 0.2.0, answers `initialize` itself with its own copy of the text (locus-web/lib/mcp-guidance.json);
+# is off in 0.2.0, answers `initialize` itself with its own copy of the text (kept with the website);
 # no test in this repository compares the two, so change both together if the relay is ever switched on.
-# "Tell me every time you used Locus" (founder request 2026-10-26, for his own use). Off by default: switched on by
+# "Tell me every time you used Locus" (a maintainer's own setting). Off by default: switched on by
 # LOCUS_ANNOUNCE=1 (0 forces it off) or by the file `<data folder>/announce`. When on, the server instructions end with
 # one more paragraph and every result of the three file tools starts with one line naming the tool, so a client that
-# ignores the instructions still sees it. The relay's copy of the instructions (locus-web/lib/mcp-guidance.json) is
+# ignores the instructions still sees it. The relay's copy of the instructions is
 # unchanged: this is the local engine's setting.
 ANNOUNCE_ENV = "LOCUS_ANNOUNCE"
 ANNOUNCE_MARKER = "announce"
@@ -279,7 +278,7 @@ def _warmup_enabled() -> bool:
 def _warm_file_list(store: Any) -> float:
     """Read the store's list of indexed files now (seconds taken). `locus_search` asks for it at every call (freshness);
     the first ask after a start, or after any write by any process, reads the metadata of every chunk: 11 to 18 s
-    for 72,000 chunks under load (MEASURED 2026-11-02, docs/review/serve-startup-cost.md). A search that arrives
+    for 72,000 chunks under load (MEASURED 2026-11-02). A search that arrives
     meanwhile waits on the store's lock for the same read it would have made itself. Never raises."""
     started = time.monotonic()
     reader = getattr(store, "file_mtimes", None)
@@ -632,7 +631,7 @@ def _as_local(naive: datetime) -> datetime:
 
 
 def _parse_when(value: str | None, name: str) -> float | None:
-    """ISO 8601 text to a Unix time; no offset means the user's local timezone (ADR-091). None passes through."""
+    """ISO 8601 text to a Unix time; no offset means the user's local timezone. None passes through."""
     if value is None:
         return None
     text = value.strip()
@@ -665,7 +664,7 @@ def _parse_when(value: str | None, name: str) -> float | None:
 def _search_header(
     after_ts: float | None, before_ts: float | None, path_prefix: str | None, order_note: str | None
 ) -> str:
-    """ADR-091 item 4: the first lines of a locus_search result. Today's date and timezone are in
+    """The first lines of a locus_search result. Today's date and timezone are in
     the model's context for free (it cannot know them otherwise), then the filters that were applied."""
     now = _local_now()
     lines = [f"Today is {now:%Y-%m-%d} ({_tz_name(now)}, {_utc_offset(now)})."]
@@ -721,7 +720,7 @@ def _no_hits_in_window_text(
 
 # UX-004 (master plan 4.4.6 and 8.6.6(d)): an assistant must be able to tell the user which of these
 # it is, instead of "no results": the computer is offline (the hosted relay says so itself,
-# locus-web/lib/relay-protocol.ts: such a request never reaches this process), no access (a key or
+# the relay's own protocol: such a request never reaches this process), no access (a key or
 # plan the embedder refuses, a folder this process may not open), an empty index, or a stale one
 # (files changed on disk after they were indexed). Each answer below says which, and whether
 # anything was searched, so none can be passed on as "nothing matched".
@@ -878,7 +877,7 @@ def _format_search_results(
     and every lower-ranked hit are listed without text (path + chunk_index kept, constraint 2).
     Only a top hit that alone exceeds the budget is cut, with an explicit marker.
 
-    ADR-091: each header also carries the file's modified time (`modified_at`, local time with its
+    Each header also carries the file's modified time (`modified_at`, local time with its
     offset) when the index recorded one. `scored=False` (a search with no query ranked nothing)
     leaves the score out; `title_newest_first` says the list is ordered by modified time.
     """
@@ -940,7 +939,7 @@ def _format_search_results(
     return "\n".join(lines)
 
 
-# ADR-094: say what the index covers. Locus indexes only the folders the user chose, so an absent
+# Say what the index covers. Locus indexes only the folders the user chose, so an absent
 # file may simply not be indexed; never nudge the user to index the whole machine (hours of work).
 _COVERAGE_LINE = (
     "Coverage: {n} file(s) indexed in the whole index; the index is partial, files outside it are not "
@@ -948,7 +947,7 @@ _COVERAGE_LINE = (
     "work (`locus index <folder>`), not the whole computer or home folder."
 )
 
-# Memory/projects nudge (docs/design/memory-and-projects-hint.md): only here and in locus_help, never in
+# Memory/projects nudge: only here and in locus_help, never in
 # locus_search or the instructions (both are at their budgets). Locus itself keeps no memory.
 _MEMORY_HINT_LINE = (
     "Tip, only if the user keeps returning to the same material (say it once, never repeat it): they "
@@ -1238,7 +1237,7 @@ def _account_status_text() -> str:
     status = data.get("status")
     lines = ["# Locus account status", "", f"Plan: {field('tier')} ({field('status')})"]
     # trial_end comes from the relays' own rule (relay_entitlement): "no_end_yet" while paid plans
-    # are not open (ADR-042 item 6), "unavailable" when the backend could not read it -- never shown
+    # are not open, "unavailable" when the backend could not read it -- never shown
     # as a date or as "no end". An older backend sends only trial_ends_at.
     trial_end = data.get("trial_end")
     if trial_end == "no_end_yet":
@@ -1272,7 +1271,7 @@ def _diagnose_data_directory(data_dir: Path) -> str:
     Uses a uniquely-named, exclusively-created temp file rather than a fixed probe filename: a
     fixed name risks silently overwriting an existing file of that name, or -- if it happens to
     be a symlink -- following it and corrupting whatever it points to, then deleting the symlink
-    itself (Codex review finding, 2026-09-22, reproduced against both cases). `tempfile.mkstemp`
+    itself (found in review, reproduced against both cases). `tempfile.mkstemp`
     is `O_CREAT | O_EXCL` under the hood, so it can only ever touch the file it creates.
     """
     import tempfile
@@ -1296,7 +1295,7 @@ def _redact_paths(text: str) -> str:
     diagnostic string before it's shown -- this tool promises never to leak one, but an
     underlying error (e.g. ChromaStore's embedder-mismatch RuntimeError, or a filesystem-valued
     LOCUS_LOCAL_MODEL setting) can otherwise embed the real data directory or model path
-    (Codex review finding, 2026-09-22)."""
+    (found in review)."""
     return _ABS_PATH_RE.sub("<redacted-path>", text)
 
 
@@ -1625,7 +1624,7 @@ def _run_http(*, host: str, port: int, path: str, token: str) -> None:
 
 # --- Hosted relay (`--transport relay`), protocol v2 ---------------------------------------------
 #
-# Wire contract shared with locus-web (app/api/relay/token, app/api/mcp/relay):
+# Wire contract shared with Locus's website (its /api/relay/token and /api/mcp/relay routes):
 # - POST /api/relay/token (Bearer LOCUS_API_KEY) -> {token, user_id, expires_in, issued_at,
 #   request_signing_keys?, realtime_public_key?}. 401 = key rejected/revoked, 402 = subscription or
 #   trial inactive. realtime_public_key is the project's PUBLIC key for the Realtime connection
@@ -1792,7 +1791,7 @@ async def _relay_fetch_jwt(
     carries `.public_key`. signing_keys are the public keys the relay signs requests with
     (`request_signing_keys`, SEC-021); () when the server published none or only malformed ones.
     Talks to the token-exchange endpoint
-    (locus-web/app/api/relay/token/route.ts), which validates the API key and the account's
+    (the website's /api/relay/token route), which validates the API key and the account's
     entitlement and mints a JWT scoped to exactly this user_id — this instance never sees or needs
     a long-lived Supabase credential of its own. issued_at (unix seconds) is the server's clock: it
     orders workers in RelayGuard and dates the token's expiry; if the server omits it, the JWT's own
@@ -2070,7 +2069,7 @@ def _invalid_arguments_error(exc: BaseException, tool: str) -> str | None:
 
 
 async def _relay_dispatch(data: dict[str, Any], *, device: str) -> dict[str, Any]:
-    """Answer one relay request. locus-web's /api/mcp/relay passes `result` through to the MCP
+    """Answer one relay request. the website's /api/mcp/relay passes `result` through to the MCP
     client unchanged, so it must already be MCP-spec JSON: by_alias gives the wire's camelCase
     keys (inputSchema, readOnlyHint, isError, structuredContent) instead of pydantic's snake_case
     field names, and exclude_none drops unset optionals the spec leaves absent rather than null.
@@ -3045,7 +3044,7 @@ def main(
     apply_tool_set()  # the account tool exists only when a Locus account key is set; the instructions follow
     if transport == "stdio":
         start_warmup()
-        mcp.run()  # stdio transport (ADR-003) — unchanged default
+        mcp.run()  # stdio transport — unchanged default
         return
     if transport == "relay":
         settings = get_settings()

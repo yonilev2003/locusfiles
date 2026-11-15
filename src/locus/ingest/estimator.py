@@ -13,7 +13,7 @@ compared with the ratios that produced it.
 
 No prices or plan budgets live here yet, so plan fit is reported as not available (in neutral user
 wording: user-facing copy never names an internal ADR). PLAN_TOKEN_BUDGETS_PENDING_A1 is the one
-table that turns it on. The pricing decision was since accepted as ADR-046 (monthly budgets plus a
+table that turns it on. The pricing decision was since made (monthly budgets plus a
 one-time first-index allowance); filling this table from it, and deciding how the allowance is shown,
 is an open follow-up (engine-pipeline pack report, review F6).
 """
@@ -114,7 +114,7 @@ MIN_SAMPLE_PER_KIND = 20
 DEFAULT_SAMPLE_SECONDS = 60.0
 
 # Monthly managed-token budget per plan, {plan name: tokens}. Empty on purpose: fill it only from
-# ADR-046 (accepted after this module was written), together with how the first-index allowance is
+# the pricing decision (made after this module was written), together with how the first-index allowance is
 # shown; never from the master plan's draft numbers. Follow-up from review F6.
 PLAN_TOKEN_BUDGETS_PENDING_A1: dict[str, int] = {}
 

@@ -92,7 +92,7 @@ def test_readme_tells_how_to_erase_the_index_and_that_it_is_readable_text():
     assert "secure wipe" in section  # what deleting does not do
 
 
-# --- founder decision 2026-11-14: hosted modes and Notion are off; plan, trial and refund pages are not public ---
+# --- decided 2026-11-14: hosted modes and Notion are off; plan, trial and refund pages are not public ---
 
 REMOVED_PAGES = ("plans-and-limits", "free-trial", "cancel-and-refunds", "api-keys", "teams-and-organizations")
 

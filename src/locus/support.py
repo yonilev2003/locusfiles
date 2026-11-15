@@ -11,9 +11,8 @@ packages every file under src/locus). Each starts with a small front-matter bloc
     updated: 2026-10-01             # when the text was last checked against the product
     ---
 
-This corpus is separate from the user's index on purpose (docs/design/customer-support-connector-
-tools-2026-09-21.md): nothing here reads ChromaStore or locus_search results, so text in an indexed
-file can never come back as "official Locus help". It needs no network and no account.
+This corpus is separate from the user's index on purpose: nothing here reads ChromaStore or locus_search results,
+so text in an indexed file can never come back as "official Locus help". It needs no network and no account.
 
 Scoring is BM25 over a weighted bag of words (title and keywords count three times, body once),
 with a light suffix stemmer so "indexing" finds "index". Small and dependency-free: the corpus is
@@ -205,7 +204,7 @@ def article_url(article: Article, base: str) -> str:
     return f"{base}{article.path}" if base else article.path
 
 
-# Founder proposal 2026-10-01 §5: the help and account tools answer in English, and the assistant
+# The help and account tools answer in English, and the assistant
 # relays them in the user's language. Product terms stay in English so they match the site and UI.
 RELAY_LANGUAGE_LINE = (
     "Relay this to the user in the language of the conversation; keep product terms in English in brackets."

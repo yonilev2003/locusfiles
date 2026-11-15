@@ -1,4 +1,4 @@
-"""Which chunk size a collection is built with (ADR-087 item 1).
+"""Which chunk size a collection is built with.
 
 A 700-token chunk does not fit a 512-token embedding window: the model reads only the head of it. On the
 2026-10-25 synthetic-course experiment, 300-token chunks beat 700 for multilingual-e5-small by +0.16 (same-
@@ -16,7 +16,7 @@ from typing import Any
 from ..config import Settings
 
 # Collection metadata key: the chunk size (in the chunker's ~4-characters-per-token units) a collection
-# was created with. Absent on a collection created before ADR-087.
+# was created with. Absent on a collection created before chunk sizes were recorded.
 CHUNK_TOKENS_KEY = "chunk_tokens"
 
 LEGACY_CHUNK_TOKENS = 700

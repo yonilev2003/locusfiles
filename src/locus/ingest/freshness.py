@@ -1,12 +1,12 @@
 """Index-on-demand: a bounded freshness step that `locus serve` runs before it answers a search.
 
-A cheap mtime scan of the allowed roots (ADR-092: policy roots, else the folders already indexed) finds files that were
+A cheap mtime scan of the allowed roots (policy roots, else the folders already indexed) finds files that were
 added or changed since they were indexed. Only those are touched: an unchanged file costs one `stat`, never an
 embedding. The whole step has a time budget; when it runs out the result says how many changed files are not indexed
 yet (counts only) and the next call continues. It runs inside the caller's request: no thread, no background work, and
 `locus watch` is not involved.
 
-On a root of tens of thousands of files one call cannot look at everything (ADR-097 draft), so the scan is resumable:
+On a root of tens of thousands of files one call cannot look at everything, so the scan is resumable:
 it walks in a fixed order, stops at its share of the budget and remembers where, and the next call carries on from
 there; changed files are indexed newest first, and the ones that did not fit in time are remembered too. A new file is
 therefore found within one scan cycle (a few calls on a big root), and then indexed before older changed files.
@@ -51,7 +51,7 @@ _SCAN_SHARE = 0.5
 # The exact pass (iter_files with the policy matcher on every file) runs only when a whole scan cycle fit in one call
 # and the pass is projected to fit in the time left. Its per-file cost without the matcher is about 15 us (MEASURED on
 # a synthetic tree, 2026-11-02); the matcher's share varies too much to assume (55 us per file there, about 340 us on
-# the founder's machine, 24.4 s for 62,495 files in all), so it is timed on a few indexed paths.
+# the maintainer's machine, 24.4 s for 62,495 files in all), so it is timed on a few indexed paths.
 _WALK_S_PER_FILE = 15e-6
 _COST_SAMPLE = 16
 # Changed files that were found but not indexed in time, newest first, that the next call remembers (paths and times).
@@ -75,8 +75,8 @@ class FreshnessReport:
     scan_complete: bool = True  # False: the budget ended the scan (the next call resumes it), or a folder is unreadable
     scanned: int = 0  # files whose modification time this call read
     removals_refused: int = 0  # vanished files whose rows were kept (most of a root gone at once, or the per-pass cap)
-    kept_denied: int = 0  # indexed files a deny rule matches now: kept (ADR-095), not refreshed
-    hosted_off: bool = False  # the embedder is hosted: freshness did nothing at all (ADR-095)
+    kept_denied: int = 0  # indexed files a deny rule matches now: kept, not refreshed
+    hosted_off: bool = False  # the embedder is hosted: freshness did nothing at all
 
     @property
     def cut_short(self) -> bool:
@@ -302,7 +302,7 @@ def freshen(
         if not _mtime_differs(indexed_mtime, path):  # None: gone since; False: indexed meanwhile, or put back
             continue
         if matcher is not None and not matcher.decide(path).allowed:
-            continue  # ADR-095: a file a deny rule matches is not indexed, and a changed one is not refreshed
+            continue  # a file a deny rule matches is not indexed, and a changed one is not refreshed
         if indexed_mtime is None and is_copy_of_indexed_content(key, path):
             continue
         try:
@@ -370,7 +370,7 @@ def _remove_vanished(
     report: FreshnessReport,
 ) -> None:
     """Drop rows of files that are gone from disk, with brakes: a file a deny rule matches now but that still exists is
-    kept and counted (ADR-095: freshness never deletes because of a rule; `--prune` does); most of a root vanishing at
+    kept and counted (freshness never deletes because of a rule; `--prune` does); most of a root vanishing at
     once is more likely a mount problem than a clean-up; one pass removes at most _MAX_REMOVALS_PER_PASS."""
     by_root: dict[str, list[str]] = {r: [] for r in root_texts}
     gone_by_root: dict[str, list[str]] = {r: [] for r in root_texts}

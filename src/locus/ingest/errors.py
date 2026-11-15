@@ -15,8 +15,7 @@ do from the class alone and never from a provider's exception name or HTTP text:
 | InputRejected         | this file fails; the run goes on (retrying the same request cannot help)  |
 | ClientOutdated        | stop the run once: the relay needs a newer Locus (426, OPS-007)           |
 
-The managed relay's error body is `{"error", "code", "reason"?, "retry_after"?}` (contract:
-docs/design/relay-error-shape.md, built on the web side as locus-web/lib/relay-errors.ts). `code`
+The managed relay's error body is `{"error", "code", "reason"?, "retry_after"?}` (the relay's error contract). `code`
 picks the class; `reason` only words the message. Relays deployed before that contract send only
 `{"error"}`, so `from_relay_http` also recognises today's refusal texts by HTTP status and wording.
 
@@ -155,8 +154,8 @@ UPDATE_COMMANDS = "`uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`)"
 
 
 class ClientOutdated(EmbedError):
-    """The relay requires a newer Locus than this one (HTTP 426, code client_outdated, OPS-007:
-    locus-web/lib/client-version.ts, set by the operator's MIN_CLIENT_VERSION). Waiting or retrying
+    """The relay requires a newer Locus than this one (HTTP 426, code client_outdated,
+    set by the operator's MIN_CLIENT_VERSION). Waiting or retrying
     cannot help; updating can. `detail` is the relay's own text, which names the minimum version."""
 
     kind = "client_outdated"
@@ -177,7 +176,7 @@ def client_outdated_message(status: int, detail: str | None, *, service: str = "
     return message
 
 
-# --- the managed relay (locus-web /api/embed-relay) ---------------------------------------------
+# --- the managed relay (its /api/embed-relay route) ---------------------------------------------
 
 _BUDGET_SCOPES = {
     "trial_token_budget_exceeded": "trial",

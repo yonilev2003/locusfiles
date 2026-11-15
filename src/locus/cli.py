@@ -119,8 +119,8 @@ def _consent_gate(
 
 
 def _index_roots(args: argparse.Namespace, settings: Settings) -> int:
-    """`locus index --roots A B --dry-run` (ADR-092): counts for several roots under the policy file.
-    Real multi-root indexing is not enabled yet; it follows once the founder has read a report."""
+    """`locus index --roots A B --dry-run`: counts for several roots under the policy file.
+    Real multi-root indexing is not enabled yet; it follows once the dry-run report has been reviewed."""
     from .policy import Matcher, PolicyError, load_policy
     from .rootscan import render_roots_report, scan_roots
 
@@ -381,7 +381,7 @@ def cmd_stats(_: argparse.Namespace) -> int:
     print(f"data_dir   : {settings.data_dir}")
     print(f"collection : {settings.collection}")
     print(f"embedder   : {embedder.name}")
-    if hasattr(embedder, "_ping"):  # the shared helper (ADR-089 draft): say whether it is running, never start it here
+    if hasattr(embedder, "_ping"):  # the shared helper: say whether it is running, never start it here
         info = embedder._ping()
         state = f"running (pid {info['pid']})" if info else "not running (starts on the first search)"
         print(f"helper     : shared, {state}")
@@ -563,7 +563,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--roots",
         nargs="+",
         metavar="ROOT",
-        help="several roots under the policy file's deny-list and profiles (ADR-092); staged, deduplicated, resumable",
+        help="several roots under the policy file's deny-list and profiles; staged, deduplicated, resumable",
     )
     p.add_argument("--kinds", metavar="EXT,EXT", help="with --roots: only these file types, e.g. md,txt,docx")
     p.add_argument("--skip-kinds", metavar="EXT,EXT", help="with --roots: leave these file types for a later run")

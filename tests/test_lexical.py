@@ -1,4 +1,4 @@
-"""Night 3 P3 (ADR-088 draft): the local lexical (BM25) leg prototype. Synthetic text only.
+"""Night 3 P3: the local lexical (BM25) leg prototype. Synthetic text only.
 
 It is opt-in (LOCUS_LEXICAL), off by default, and wired into nothing: the last tests assert that indexing and
 searching behave exactly as before whether or not the variable is set.

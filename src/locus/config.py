@@ -100,7 +100,7 @@ def _normalize_ext(raw: str) -> str:
 # remote-MCP connector URL, the billing page) derives from LOCUS_API_BASE. Nothing else in src/
 # may hard-code a Locus host; tests/test_config.py greps for it.
 #
-# The default mirrors locus-web/lib/site.ts's SITE_URL fallback. Since 0.1.1 it is the permanent
+# The default mirrors the website's own SITE_URL fallback. Since 0.1.1 it is the permanent
 # domain (runbook D19, after the 10-01 cutover; https://locusfiles.com/api/health answered 200 on
 # 2026-10-01). 0.1.0 shipped https://locus-rwhy.vercel.app, so keep that alias attached and serving
 # /api/* indefinitely: every engine installed before 0.1.1 keeps calling it (lib/canonical-host.ts
@@ -112,7 +112,7 @@ DEFAULT_API_BASE = "https://locusfiles.com"
 # Replaced the English-only BAAI/bge-small-en-v1.5 in 0.2.0 (which finds the right Hebrew passage for 13% of questions).
 DEFAULT_LOCAL_MODEL = "intfloat/multilingual-e5-small"
 
-# Paths under the API base. They are locus-web routes (locus-web/app/...), not configuration.
+# Paths under the API base. They are routes of Locus's website, not configuration.
 EMBED_RELAY_PATH = "/api/embed-relay"
 RELAY_TOKEN_PATH = "/api/relay/token"
 MCP_RELAY_PATH = "/api/mcp/relay"
@@ -121,7 +121,7 @@ BILLING_PATH = "/account/billing"
 
 _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
-# Features that are off in this version unless a user switches them on explicitly (founder decision 2026-11-14).
+# Features that are off in this version unless a user switches them on explicitly (decided 2026-11-14).
 # The hosted modes send text to Locus's servers; Notion sync copies page text as plaintext Markdown into the data
 # directory. Neither runs because a key or a credential happens to be present.
 HOSTED_ENABLE_ENV = "LOCUS_ENABLE_HOSTED"
@@ -190,7 +190,7 @@ def normalize_api_base(raw: str | None) -> str:
 
 
 def api_url(base: str, path: str) -> str:
-    """A locus-web URL under *base* (already normalized by normalize_api_base)."""
+    """A Locus website URL under *base* (already normalized by normalize_api_base)."""
     return f"{base}{path}"
 
 
@@ -207,7 +207,7 @@ class Settings:
     max_file_mb: float
     extensions: tuple[str, ...]
     managed_api_key: str | None = None
-    # True when LOCUS_CHUNK_TOKENS is set: it then wins over a collection's recorded chunk size (ADR-087).
+    # True when LOCUS_CHUNK_TOKENS is set: it then wins over a collection's recorded chunk size.
     chunk_tokens_explicit: bool = False
     api_base: str = DEFAULT_API_BASE
     managed_relay_url: str = api_url(DEFAULT_API_BASE, EMBED_RELAY_PATH)
@@ -220,7 +220,7 @@ class Settings:
     mcp_relay_verify_keys: str | None = None
     support_account_status_url: str = api_url(DEFAULT_API_BASE, ACCOUNT_STATUS_PATH)
     # Not called by the engine: the remote-MCP connector URL a user adds in a web AI app (served by
-    # locus-web), and the page a budget or billing stop points to.
+    # Locus's website), and the page a budget or billing stop points to.
     mcp_relay_url: str = api_url(DEFAULT_API_BASE, MCP_RELAY_PATH)
     billing_url: str = api_url(DEFAULT_API_BASE, BILLING_PATH)
     # Set when LOCUS_API_BASE is invalid. The URLs derived from it are then "" (never a URL a request

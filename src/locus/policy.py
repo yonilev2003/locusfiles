@@ -1,4 +1,4 @@
-"""Folder roots, the default deny-list and per-folder profiles (ADR-092 draft).
+"""Folder roots, the default deny-list and per-folder profiles.
 
 Pure: nothing here reads the disk except `load_policy` (one TOML file), and nothing guesses the home
 directory: the caller passes it in, so tests run over a fake home. `Matcher.decide(path)` is the one

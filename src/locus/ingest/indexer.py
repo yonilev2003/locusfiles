@@ -168,7 +168,7 @@ def iter_files(
     The single definition of eligibility: `locus index`, the watcher's full passes, the
     pre-index estimate and the consent preflight all walk through here. `on_skip(reason, path)`
     (reason from SKIP_REASONS) lets the last two count exclusions without re-implementing them.
-    A *policy* (policy.Matcher, ADR-092) is asked first about every folder and file and prunes what
+    A *policy* (policy.Matcher) is asked first about every folder and file and prunes what
     it denies, reporting `denied_<rule>`; without one behaviour is unchanged.
     """
     max_bytes = int(settings.max_file_mb * 1024 * 1024)

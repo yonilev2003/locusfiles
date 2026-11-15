@@ -1,5 +1,5 @@
 """Night 2, lane T3: the locus_search time filter around daylight-saving transitions, at the clock
-boundaries, and on odd inputs. Facts, not features (ADR-091 draft).
+boundaries, and on odd inputs. Facts, not features.
 
 Every test sets the process timezone itself ($TZ plus time.tzset(), restored afterwards), so the file
 passes whatever TZ the pytest process starts with; CI runs it as `TZ=Asia/Jerusalem`, `TZ=UTC` and

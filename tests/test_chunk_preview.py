@@ -1,4 +1,4 @@
-"""ADR-087 follow-up: `locus index --dry-run` and `locus estimate` report the chunk size the collection will really
+"""`locus index --dry-run` and `locus estimate` report the chunk size the collection will really
 use (LOCUS_CHUNK_TOKENS, the size the collection records, the legacy 700, or the window-aware default of a new
 collection with a known local model), and never load a model or create a collection to find out."""
 

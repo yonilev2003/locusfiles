@@ -5,9 +5,8 @@ name: Package
 # the documented path in docs/install.md) and prove it works offline: `locus --help`,
 # `locus doctor`, index + query on a tiny fixture, MCP stdio tools/list + a cited locus_search.
 #
-# This workflow NEVER publishes. Uploading to PyPI (Ch.8.10 E10) needs the founder's name pick
-# (E1), the licence ADR (A6), the domain in the engine (OPS-009) and a founder PyPI account with
-# Trusted Publishing; it will be a separate workflow.
+# This workflow NEVER publishes. Uploading to PyPI is a separate workflow (publish.yml), which needs the maintainer's
+# PyPI account with Trusted Publishing and an approving reviewer.
 #
 # CI minutes: ubuntu on pushes that touch the package. macOS and Windows run weekly (skipped when
 # nothing was committed in the last 7 days) or on manual dispatch only.

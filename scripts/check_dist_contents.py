@@ -4,8 +4,8 @@
     python scripts/check_dist_contents.py dist/
 
 Fails (exit 1) when:
-- an archive holds anything outside the allowlist. The repo is private and holds the master plan,
-  business docs, locus-web/ and supabase/; the sdist and wheel are public the moment they are
+- an archive holds anything outside the allowlist. The repo holds private planning, business and
+  website folders; the sdist and wheel are public the moment they are
   uploaded, so only the engine source and packaging metadata may be in them;
 - a file that looks like a secret (.env, keys, a Chroma index) is in either archive, even inside
   an allowed directory;

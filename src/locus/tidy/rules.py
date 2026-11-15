@@ -1,4 +1,4 @@
-"""Rules-only classification (draft ADR-082 item 4): extension, optional UTI, a few fixed name patterns.
+"""Rules-only classification: extension, optional UTI, a few fixed name patterns.
 
 `classify` returns one value of `labels.LABELS` for any input, including hostile names; it reads nothing
 but the name's suffix and the screenshot pattern, and never the file's contents."""

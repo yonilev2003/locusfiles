@@ -35,7 +35,7 @@ def test_first_512_characters_state_what_locus_is_and_when_to_use_it():
     assert "Locus searches the user's own files" in lead  # what it is
     assert "Use locus_search when a question could be answered from that material" in lead  # when to use it
     assert "cite the file paths" in lead  # how to answer
-    # ADR draft A1H: the trigger sentence measured to raise how often assistants call the tool.
+    # The trigger sentence measured to raise how often assistants call the tool.
     assert "it says my, our or we" in lead and "names one of their projects, clients, people or documents" in lead
 
 

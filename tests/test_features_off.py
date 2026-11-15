@@ -1,4 +1,4 @@
-"""Hosted modes and Notion sync are off in 0.2.0 unless switched on explicitly (founder decision 2026-11-14).
+"""Hosted modes and Notion sync are off in 0.2.0 unless switched on explicitly (decided 2026-11-14).
 
 LOCUS_ENABLE_HOSTED=1 is needed for managed embeddings, `locus setup --managed` and `locus serve --transport relay`;
 LOCUS_ENABLE_NOTION=1 for `locus sync-notion`. A key or a credential that happens to be present does not switch

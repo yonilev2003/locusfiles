@@ -36,7 +36,7 @@ from .ingest.indexer import file_sha256
 from .policy import Matcher
 
 # Canonical per-mode data-flow statements. tests/test_preflight.py pins that none of them claims that nothing leaves.
-# The website's /privacy page (locus-web/lib/data-flow-claims.ts) states the same sentences; no test in this
+# The website's /privacy page states the same sentences; no test in this
 # repository compares the two, so change both together.
 LOCAL = (
     "Indexing and embeddings run on your computer. When your AI assistant searches, the matching "

@@ -1,4 +1,4 @@
-"""Downloads assistant core, rules only (draft ADR-082, night 1 of keep-and-grow, 2026-10-24).
+"""Downloads assistant core, rules only.
 
 Plan -> approve -> execute -> undo for moving top-level files into fixed folders. Library code only:
 no command, no MCP tool and no model is wired to it, and nothing here is reachable from `locus serve`.

@@ -1,4 +1,4 @@
-"""Execute, recover and undo a plan (draft ADR-082 items 2 and 6).
+"""Execute, recover and undo a plan.
 
 Execution re-checks every row against its fingerprint and the root, journals `intent` before the move and
 `done` after it, and never overwrites. Approval is the caller's job and happens in a channel the model cannot

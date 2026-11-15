@@ -1,11 +1,11 @@
 """Embedding backends behind one small interface.
 
 - HashEmbedder: deterministic, offline, NO semantics — tests and smoke runs only.
-- VoyageEmbedder: Anthropic's recommended provider; best retrieval quality (ADR-001).
+- VoyageEmbedder: Anthropic's recommended provider; best retrieval quality.
 - OpenAIEmbedder: alternative API backend.
 - LocalEmbedder: on-device (fastembed/ONNX by default, sentence-transformers for models fastembed lacks);
   no chunk text leaves the machine for embedding.
-- ManagedEmbedder: v1-Light hosted relay (locus-web/app/api/embed-relay) — a paying user's LOCUS_API_KEY
+- ManagedEmbedder: Locus's hosted embedding relay (off unless LOCUS_ENABLE_HOSTED=1) — a paying user's LOCUS_API_KEY
   buys them Voyage-quality embeddings without holding their own Voyage key. Chunk text (when indexing)
   and search queries go through Locus's relay, hosted on Vercel, to Voyage AI under Locus's Voyage
   account — not the user's. Locus does not store that text; the relay keeps only usage counts for
@@ -57,7 +57,7 @@ def _typed_provider_call(provider: str, call: Callable[[], T]) -> T:
 
 
 # Longest search query the embed relay's query carve-out accepts, in Unicode code points. Must equal
-# QUERY_MAX_CHARS in locus-web/lib/quota.ts: a purpose "query" request over it is refused with HTTP 400.
+# the relay's own QUERY_MAX_CHARS: a purpose "query" request over it is refused with HTTP 400.
 QUERY_MAX_CHARS = 2000
 
 # RET-002 input_type policies, the values recorded under store.INPUT_TYPE_POLICY_KEY.
@@ -324,7 +324,7 @@ def local_model_error(model: str, exc: BaseException) -> str:
 
 # The English BGE v1.5 instruction belongs to the English `bge-{small,base,large}-en` models only. bge-m3 and
 # the other multilingual models were trained without it, and prepending an English instruction to a Hebrew
-# query shifts it (ADR-087 item 2). Matched on the last path segment so a local model folder works too.
+# query shifts it. Matched on the last path segment so a local model folder works too.
 _ENGLISH_BGE_MODEL = re.compile(r"^bge-[a-z]+-en(-v\d+(\.\d+)?)?$")
 
 
@@ -596,7 +596,7 @@ class LocalEmbedder:
 class ManagedEmbedder:
     """Calls Locus's own hosted embed-relay with a per-user LOCUS_API_KEY instead of a Voyage key.
 
-    Request/response shape must match locus-web/app/api/embed-relay/route.ts exactly:
+    Request/response shape must match the relay's embed route exactly:
     POST {relay_url} with header "Authorization: Bearer <key>", body {"texts": [...], "purpose":
     "document" | "query", "input_type": "document" | "query"}, expects {"embeddings": [[float, ...],
     ...]} in the same order as the input texts. `purpose` lets the relay keep search working (one
@@ -745,7 +745,7 @@ def get_embedder(settings: Settings) -> Embedder:
 
             if shared_embedder_enabled(
                 data_dir=settings.data_dir
-            ):  # ADR-089 draft: one model for every locus process (opt-in)
+            ):  # one model for every locus process (opt-in)
                 return SharedEmbedderClient(
                     settings.local_model,
                     socket_path_for(settings.data_dir, settings.local_model),

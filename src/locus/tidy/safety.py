@@ -1,4 +1,4 @@
-"""Which files are safe to propose moving, and how a file name is shown (draft ADR-082 items 2-3)."""
+"""Which files are safe to propose moving, and how a file name is shown."""
 
 from __future__ import annotations
 

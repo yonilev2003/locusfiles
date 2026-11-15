@@ -1,4 +1,4 @@
-"""ADR-092: policy file, default deny-list matcher, policy-aware walker and `locus index --roots --dry-run`.
+"""Policy file, default deny-list matcher, policy-aware walker and `locus index --roots --dry-run`.
 
 Everything runs over a fake home in tmp_path; nothing reads the real home directory.
 """

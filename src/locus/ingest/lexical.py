@@ -1,4 +1,4 @@
-"""Local lexical (BM25) leg: a prototype, off by default and wired into nothing (ADR-088 draft).
+"""Local lexical (BM25) leg: a prototype, off by default and wired into nothing.
 
 A SQLite FTS5 index next to the vector index (`<data_dir>/<collection>.lexical.sqlite`) that ranks chunks by
 BM25, plus a reciprocal-rank-fusion helper to combine its ranking with the dense one. SQLite and FTS5 are in
@@ -12,8 +12,8 @@ Two tokenisations, fixed in advance by the 2026-10-25 retrieval experiment and r
 
 Opt-in: `lexical_enabled()` reads `LOCUS_LEXICAL` (1/true/yes/on). Nothing in the engine calls this module yet:
 `index_file`, `locus query` and `locus_search` neither write nor read it, with or without the variable. Wiring it in
-(an index-time write beside the Chroma upsert, a query-time fusion) is the work ADR-088 proposes and needs its
-own change, a re-index of existing collections, and the real-file measurement the ADR lists.
+(an index-time write beside the Chroma upsert, a query-time fusion) is further work that needs its
+own change, a re-index of existing collections, and a measurement on real files.
 """
 
 from __future__ import annotations

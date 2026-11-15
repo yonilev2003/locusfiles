@@ -1,5 +1,5 @@
 # ruff: noqa: E501  (hostile file-name corpus lines are long on purpose)
-"""src/locus/tidy: the Downloads-assistant core, rules only (draft ADR-082, night 1 N8).
+"""src/locus/tidy: the Downloads-assistant core, rules only.
 
 Every test works on a fixture folder under tmp_path. Nothing here touches a real Downloads folder, calls a
 model or opens a network connection."""

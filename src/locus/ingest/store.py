@@ -1,4 +1,4 @@
-"""Vector store abstraction. v0 ships Chroma (embedded, on disk); LanceDB is the planned v1 swap (ADR-002).
+"""Vector store abstraction. v0 ships Chroma (embedded, on disk); LanceDB is the planned v1 swap.
 
 Invariant: one embedding model per collection. The model name is written into the collection
 metadata on creation and checked on every open. So is the embedder's document/query input_type
@@ -27,7 +27,7 @@ from typing import Any, Protocol
 # Collection metadata key for the RET-002 input_type policy ("v1" / "none", see embedder.py). Absent on
 # collections created before RET-002.
 INPUT_TYPE_POLICY_KEY = "input_type_policy"
-# Collection metadata key for the chunk size it was created with (ADR-087, chunk_policy.py). Absent on
+# Collection metadata key for the chunk size it was created with. Absent on
 # collections created before it: those keep the legacy chunk size.
 CHUNK_TOKENS_KEY = "chunk_tokens"
 # Collection metadata key (W5): present once every chunk carries the ancestor-directory keys below, so a
@@ -235,9 +235,9 @@ class ChromaStore:
         `input_type_policy_guard`, when set, is called with the newly recorded policy whenever a
         reopen finds it changed (another process re-created the collection); it raises to refuse.
 
-        `chunk_tokens` (ADR-087) works the same way for the chunk size: recorded on a collection this call
+        `chunk_tokens` works the same way for the chunk size: recorded on a collection this call
         creates, and on an empty one that records none. `self.chunk_tokens` is what the collection
-        records; None for one built before ADR-087, which keeps the legacy size."""
+        records; None for one built before chunk sizes were recorded, which keeps the legacy size."""
         data_dir = Path(data_dir).expanduser()
         data_dir.mkdir(parents=True, exist_ok=True)
         # 0700: this directory holds chunk text + vectors of the user's own files. mkdir's own
@@ -339,7 +339,7 @@ class ChromaStore:
         return wanted, True
 
     def _recorded_chunk_tokens(self, col: Any) -> tuple[int | None, bool]:
-        """The collection's recorded chunk size (ADR-087), recorded now on an empty collection that
+        """The collection's recorded chunk size, recorded now on an empty collection that
         has none, under the same first-open rule as the input_type policy. The flag says whether this
         call recorded it."""
         meta = dict(col.metadata or {})
@@ -564,7 +564,7 @@ class ChromaStore:
         order: str = "relevance",
     ) -> list[Hit]:
         """The k best chunks for *embedding*. `modified_after` (inclusive) and `modified_before`
-        (exclusive) are Unix times compared with the "mtime" metadata the indexer stored (ADR-091);
+        (exclusive) are Unix times compared with the "mtime" metadata the indexer stored;
         a chunk without one never passes a time filter. `order` "modified_desc" sorts the filtered
         chunks newest file first (ties by score) before taking k; "relevance" keeps the ranking."""
         timed = modified_after is not None or modified_before is not None
@@ -631,7 +631,7 @@ class ChromaStore:
         modified_before: float | None = None,
     ) -> list[Hit]:
         """No query: the files whose indexed modified time falls in the window, newest first, one
-        Hit per file (its first chunk; score 0.0 because nothing was ranked). ADR-091 "what did I
+        Hit per file (its first chunk; score 0.0 because nothing was ranked). "what did I
         touch yesterday". A file without a recorded modified time never passes a time filter."""
         return self._files_in_window(path_prefix, modified_after, modified_before)[: max(1, k)]
 
@@ -735,7 +735,7 @@ class ChromaStore:
     def _path_summary(self) -> tuple[dict[str, float | None], list[str]]:
         """(path -> mtime at indexing, distinct roots) from ONE paged read of every chunk's metadata (hold the
         lock, after _sync). Kept per generation token: `locus_search` asks for both on every call (freshness),
-        and re-reading all metadata took ~1.5 s of a 1.5 s search on 10.5k chunks (docs/metrics/day4-search-profile.md).
+        and re-reading all metadata took ~1.5 s of a 1.5 s search on 10.5k chunks.
         A write by another process moves the token, so the next call reads everything again. This store's own
         writes (upsert, delete_path, refresh_mtime) keep the summary and name the files they touched (_touch);
         the next call re-reads just those, which is what keeps a search that follows a freshness write cheap."""

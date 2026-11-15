@@ -4,7 +4,7 @@
     python scripts/dist_name.py get          # print it
     python scripts/dist_name.py set NAME     # rewrite it (validated), print the new name
 
-PENDING E1 (master plan Ch.8.10): the founder picks the public name. Candidates checked read-only
+The public name is the maintainer's pick. Candidates checked read-only
 on 2026-09-23 as unregistered on PyPI: locusfiles, locus-files, locus-engine (`locus` itself is
 taken by an unrelated spatial-index library). Until then the name stays `locus`, which cannot be
 published. `.github/workflows/package.yml` can rehearse a candidate with `set` in its own

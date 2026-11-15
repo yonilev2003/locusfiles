@@ -1,7 +1,7 @@
 """Hebrew PDF text-order repairs: a prototype, wired into nothing (night 3, P7).
 
 A PDF text layer stores glyphs in drawing order, and some Hebrew documents come out of the text extractor in visual
-order instead of reading order. Three defects were reproduced on 15 of the founder's course PDFs (night 3):
+order instead of reading order. Three defects were reproduced on 15 course PDFs:
 
 1. **A Latin phrase inside a Hebrew document comes out reversed**: the words in reverse order, each sentence's
    punctuation at the front of the next word, hyphenated names and apostrophe words turned around
@@ -14,11 +14,11 @@ that ordinary text does not produce, and `Repairs` counts what it changed so a c
 needs the glyph positions: a variable such as `p` that lands on its own line in the middle of a sentence, a currency
 sign displaced next to its number, or a reversed Latin line with no punctuation at all in a block that has none.
 Brackets inside a reversed Latin run are not repaired (see the research note). Those would need the character boxes
-(pypdfium2 `get_charbox`) and a real bidi reorder; see docs/research/2026-10-26-hebrew-pdf-text-order.md.
+(pypdfium2 `get_charbox`) and a real bidi reorder.
 
 Wired into the PDF reader (`parsers.read_pdf`, one page at a time) behind LOCUS_PDF_HEBREW_FIX, default on. A page
 without Hebrew letters comes back unchanged (tests/test_pdf_quality.py). Evidence on real Hebrew PDFs is by eye on 46
-files, with no ground truth: label questions as in docs/dogfood/pdf-quality-protocol.md before trusting it. A PDF
+files, with no ground truth: label questions and check the answers before trusting it. A PDF
 already indexed is not re-read until its bytes change, so turning this on needs a re-index of those files.
 """
 

@@ -1,4 +1,4 @@
-"""Write-ahead journal (draft ADR-082 item 6): one JSON line per state change, flushed and fsynced.
+"""Write-ahead journal: one JSON line per state change, flushed and fsynced.
 
 States per row: `intent` (about to move), `done` (moved), `failed` (move refused, nothing changed),
 `skipped` (row no longer matched its fingerprint), `undone`. A row whose last state is `intent` is an

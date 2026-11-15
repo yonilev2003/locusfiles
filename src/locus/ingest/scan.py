@@ -1,9 +1,10 @@
-"""A stat-first, resumable walk for the serve-time freshness step (ADR-097 draft, 2026-11-02).
+"""A stat-first, resumable walk for the serve-time freshness step.
 
 `indexer.iter_files` is the single definition of what may be indexed, and it asks the policy matcher about every
 single file before anything else: on a synthetic tree that was 55 of 69 microseconds per file, and a pass over about
-62,000 files took 24 s on the founder's machine. That is right for `locus index`, which then reads and embeds what the
-walk yields. It is the wrong price for a step that only wants to know which files changed since they were indexed.
+62,000 files took 24 s on the maintainer's machine. That is right for `locus index`, which then reads and embeds
+what the walk yields. It is the wrong price for a step that only wants to know which files changed since they were
+indexed.
 
 This walk applies the checks that cost nothing first (a name test, the extension, the folder entry's own type), then
 one `stat` per surviving file, and leaves the per-file policy question to the caller, who asks it only about files

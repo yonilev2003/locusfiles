@@ -1,4 +1,4 @@
-"""Build, save and load a plan (draft ADR-082 items 1, 6, 7). Building reads directory entries and stats;
+"""Build, save and load a plan. Building reads directory entries and stats;
 it never opens a file's contents except to hash same-size candidates for the duplicate flag."""
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""The fixed label enum and the folder each label maps to (draft ADR-082 item 4).
+"""The fixed label enum and the folder each label maps to.
 
 Labels are the only thing a classifier may output; folders are the only place a move may go. Both are
 constants here, not read from a file name, a file's contents or a model answer."""

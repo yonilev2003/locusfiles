@@ -1,4 +1,4 @@
-"""ADR-091 (2026-10-23): locus_search filters on the file's modified time, takes no query when a date
+"""locus_search filters on the file's modified time, takes no query when a date
 filter is set, starts every result with today's date and timezone, and shows each hit's modified time.
 
 Every test uses the offline HashEmbedder and a Chroma store under tmp_path, with real files whose mtimes

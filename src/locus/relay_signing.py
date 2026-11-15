@@ -3,7 +3,7 @@
 An entitled key holder can mint a Realtime JWT and publish `mcp_request` on the relay channel
 directly, skipping every check of the web's /api/mcp/relay (entitlement, kill switch, rate limit,
 64 KB body cap). The relay therefore signs each request it forwards with Ed25519
-(locus-web/lib/relay-signing.ts), and `locus serve --transport relay` runs only a request that:
+(the website's relay-signing module), and `locus serve --transport relay` runs only a request that:
 
 1. carries `signed` = {v: 1, alg: "Ed25519", kid, iat, exp, body, sig};
 2. is signed by a key this engine trusts: the public keys /api/relay/token returns as
@@ -142,7 +142,7 @@ def keys_from_token_response(value: Any) -> tuple[VerifyKey, ...]:
 
 
 def signing_message(*, kid: str, user_id: str, request_id: str, iat: int, exp: int, body: str) -> bytes:
-    """The exact bytes the relay signs (locus-web/lib/relay-signing.ts relaySigningMessage)."""
+    """The exact bytes the relay signs (the website's relaySigningMessage)."""
     body_sha256 = hashlib.sha256(body.encode("utf-8")).hexdigest()
     return "\n".join([SIGNING_CONTEXT, kid, user_id, request_id, str(iat), str(exp), body_sha256]).encode("utf-8")
 

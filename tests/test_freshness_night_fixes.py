@@ -113,7 +113,7 @@ def test_one_slow_empty_file_is_parsed_once_not_on_every_call(world, monkeypatch
 
     settings, embedder, store, tmp = world
     root = _folder(tmp, "docs", {"a_scan.md": "  ", "z_real.md": "Alpha plan: ship the zebra release in March."})
-    newer = time.time() + 60  # changed files are indexed newest first (ADR-097 draft): make the slow one the newest
+    newer = time.time() + 60  # changed files are indexed newest first: make the slow one the newest
     os.utime(root / "a_scan.md", (newer, newer))
     ticks = {"now": 0.0}
     real = indexer_module.parse_document
@@ -198,7 +198,7 @@ def test_a_newly_denied_secret_folder_is_kept_not_purged(world):
     assert len(store.list_paths()) == 5
     deny = Matcher(Policy(roots=(str(root),), deny_paths=(str(secret),)), tmp)
     report = freshen([root], deny, embedder, store, settings, budget_s=5.0)
-    assert report.removed == 0 and report.kept_denied == 3 and len(store.list_paths()) == 5  # ADR-095 (HYPOTHESIS)
+    assert report.removed == 0 and report.kept_denied == 3 and len(store.list_paths()) == 5  # (HYPOTHESIS)
     note = render_freshness_note(report, 2.0) or ""
     assert "3 indexed file(s) now match a deny rule" in note and "s1.md" not in note and str(secret) not in note
 

@@ -1,4 +1,4 @@
-"""The stat-first resumable walk behind the freshness step (src/locus/ingest/scan.py, ADR-097 draft).
+"""The stat-first resumable walk behind the freshness step (src/locus/ingest/scan.py).
 
 Two promises: it yields what `iter_files` yields minus the matcher's verdict on single files, in the same order; and a
 walk that is stopped anywhere and resumed from `resume_at` visits every file once, with nothing skipped and nothing

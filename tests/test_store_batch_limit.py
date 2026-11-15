@@ -1,4 +1,4 @@
-"""A single file can produce more chunks than Chroma accepts in one call (the founder's night index failed on two text
+"""A single file can produce more chunks than Chroma accepts in one call (a large index failed on two text
 files of 12,544 and 14,345 chunks: "Batch size ... is greater than max batch size of 5461"). `ChromaStore.upsert` now
 writes in slices and, if a later slice fails, removes the earlier ones so a file is never left half-indexed."""
 

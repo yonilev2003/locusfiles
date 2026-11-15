@@ -1,4 +1,4 @@
-"""Index several roots under the policy matcher: staged, deduplicated, resumable (ADR-092, W1).
+"""Index several roots under the policy matcher: staged, deduplicated, resumable.
 
 Same walker and deny-list as `locus index --roots --dry-run` (indexer.iter_files + policy.Matcher), one
 collection. A re-run skips what is already indexed, so a big home can be done in steps: `Stage` limits

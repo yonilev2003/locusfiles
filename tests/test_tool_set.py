@@ -1,6 +1,6 @@
 """The tool list is exactly what the server registers, and the account tool exists only with a Locus account key.
 
-Founder decision 2026-11-14: `locus_account_status` is registered only when LOCUS_API_KEY is set; the offline help and
+Decided 2026-11-14: `locus_account_status` is registered only when LOCUS_API_KEY is set; the offline help and
 diagnose tools stay; the server instructions, the README and these tests list exactly the tools registered, and the
 instructions never send the model to a tool that is not there (or to the account tool for general questions).
 """

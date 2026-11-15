@@ -98,7 +98,7 @@ def test_every_public_licence_text_says_commercial_use_needs_a_paid_licence_that
     assert re.search(not_yet, text, re.I), rel
 
 
-def test_the_faq_defines_commercial_in_the_founders_words_and_says_it_is_not_legal_advice():
+def test_the_faq_defines_commercial_in_the_licensors_words_and_says_it_is_not_legal_advice():
     faq = " ".join(_read("LICENSE-FAQ.md").split())
     assert "work for a company, paid client work, or use inside a product or service" in faq
     assert "including when you are one person" in faq
@@ -197,7 +197,7 @@ def test_a_yes_prints_the_stop_text_and_stops_and_is_not_remembered(tmp_path, an
     assert not (data / licence.ACK_FILE).exists()  # it will be asked again next time
 
 
-def test_the_question_and_the_stop_text_are_the_founders_words():
+def test_the_question_and_the_stop_text_are_the_licensors_words():
     assert licence.QUESTION == (
         "Will you use Locus for work at a company, for paid client work, or in a product or service? [y/N] "
     )

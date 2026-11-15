@@ -1,7 +1,7 @@
 """The public API key `locus serve --transport relay` connects to Locus's Realtime service with.
 
 Not a secret. It is the project's public key (the legacy "anon" JWT or an `sb_publishable_...` key),
-the same value locus-web already ships to every browser; what a holder can do is decided by the
+the same value Locus's website already ships to every browser; what a holder can do is decided by the
 relay's per-account row-level-security policies and the short-lived JWT /api/relay/token mints,
 never by keeping this key hidden.
 
@@ -29,9 +29,9 @@ import re
 from typing import Any
 
 PUBLIC_KEY_ENV = "LOCUS_MCP_RELAY_SUPABASE_ANON_KEY"
-PUBLIC_KEY_FIELD = "realtime_public_key"  # of the /api/relay/token answer (locus-web/lib/relay-public-key.ts)
+PUBLIC_KEY_FIELD = "realtime_public_key"  # of the /api/relay/token answer (the website's relay-public-key module)
 
-# Keep these two patterns identical to locus-web/lib/relay-public-key.ts (no test in this repository compares
+# Keep these two patterns identical to the website's relay-public-key module (no test in this repository compares
 # them; the relay is off in 0.2.0): the site publishes only what this engine accepts.
 MAX_KEY_CHARS = 2048
 JWT_PART_PATTERN = r"[A-Za-z0-9_-]{1,2048}"

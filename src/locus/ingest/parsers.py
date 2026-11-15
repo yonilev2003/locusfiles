@@ -31,7 +31,7 @@ TEXT_EXTENSIONS: frozenset[str] = frozenset(
         ".xml",
         ".sh",
         ".sql",
-        # Source and subtitle text added in W2 (docs/dogfood/file-type-coverage.md); noise guards below apply.
+        # Source and subtitle text added in engine 0.1.2; noise guards below apply.
         ".c",
         ".h",
         ".cc",
@@ -77,7 +77,7 @@ _DOCUMENT_READERS: dict[str, Callable[[Path], str]] = {
 
 # A workbook's text grows with every sheet (each is cut at 5,000 rows on its own), so one large
 # file could eat a large share of a monthly managed-token budget (2M on Starter). Spreadsheets
-# are capped per file by default (founder decision 2026-10-02: low unless the user raises it);
+# are capped per file by default (low unless the user raises it);
 # prose formats (books, decks) are left whole. The user opts in to more with
 # LOCUS_SPREADSHEET_MAX_CHARS (a higher number, or 0 for no limit) and re-indexes.
 DEFAULT_SPREADSHEET_MAX_CHARS = 200_000
@@ -283,7 +283,7 @@ def read_pdf(path: Path, only_pages: Iterable[int] | None = None) -> PdfRead:
     and the no-text check; the time budget always applies, after the first page."""
     # pypdfium2 wraps Google's PDFium (the engine behind Chrome's PDF viewer) via
     # ctypes bindings under Apache-2.0/BSD-3-Clause — no AGPL/commercial-license question
-    # (ADR-013), and real-engine text extraction quality close to PyMuPDF's MuPDF, unlike
+    # and real-engine text extraction quality close to PyMuPDF's MuPDF, unlike
     # pure-Python parsers (pypdf/pdfminer) which garble multi-column layouts and spacing.
     # This is plain text extraction only, matching the one call this parser ever made to
     # PyMuPDF (page.get_text()) — Locus is a RAG pipeline over text chunks, not an OCR tool.

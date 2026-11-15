@@ -49,7 +49,7 @@ EXIT_NOT_ACCEPTED = 1
 EXIT_CONFIG = 2
 
 # What `locus setup` may write. Values are checked against these before anything is written.
-# A Locus key is "locus_live_" + url-safe base64 (locus-web/lib/api-keys.ts); this accepts any
+# A Locus key is "locus_live_" + url-safe base64 (set by Locus's website); this accepts any
 # token of url-safe characters so a test or staging key works too, and refuses spaces, quotes, "#"
 # and "$", which would change how a .env line is read.
 _KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{8,512}$")

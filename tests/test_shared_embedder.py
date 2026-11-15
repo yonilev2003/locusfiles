@@ -1,5 +1,5 @@
 # ruff: noqa: E501 - long literals in test data
-"""ADR-089 draft: one on-device embedding model shared through a Unix socket (prototype, opt-in).
+"""One on-device embedding model shared through a Unix socket (prototype, opt-in).
 
 Offline: the helper serves the HashEmbedder (`--model hash`); no model is loaded. Sockets live in a short /tmp folder
 because AF_UNIX paths are limited to 104 bytes on macOS and the test scratch folders are longer.
@@ -351,7 +351,7 @@ def test_stats_reports_the_helper_without_starting_it(sockdir, tmp_path, monkeyp
 
 def test_only_the_helper_that_wins_the_lock_loads_the_model(sockdir):
     """Several clients starting together each spawn a helper. The losers must exit BEFORE loading the model (found on
-    the founder's Mac: four helpers loaded 1.5 GB each at once)."""
+    the maintainer's Mac: four helpers loaded 1.5 GB each at once)."""
     path = sockdir / "e.sock"
     cmd = [
         sys.executable,

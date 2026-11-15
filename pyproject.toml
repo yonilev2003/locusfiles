@@ -51,8 +51,8 @@ path = "src/locus/__init__.py"
 packages = ["src/locus"]
 
 # IP-008: the sdist is an allowlist. Hatchling's default sdist is "everything git tracks", which
-# for this private repo means the master plan, docs/, locus-web/, supabase/ and .claude/ would be
-# published with the package. scripts/check_dist_contents.py fails the package workflow if
+# for a repo that holds private planning and website folders means those folders would be published with the
+# package. scripts/check_dist_contents.py fails the package workflow if
 # anything outside this list (plus the PKG-INFO and .gitignore hatchling adds) gets in.
 [tool.hatch.build.targets.sdist]
 only-include = ["src/locus", "pyproject.toml", "docs/package/README.md"]
