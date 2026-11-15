@@ -102,6 +102,20 @@ Found in a protections review on 2026-11-14 and fixed before the repository open
 - **`.docx` files get the same zip-bomb and entity checks as the other Office formats.**
 - **Telemetry is switched off explicitly:** Chroma's setting and `HF_HUB_DISABLE_TELEMETRY=1` are set, not
   defaulted, and a test indexes and searches with Python's network calls refused.
+- **ONNX Runtime's own usage telemetry is switched off too.** ONNX Runtime 1.31 and later, the engine behind the
+  default on-device model, includes Microsoft's usage-telemetry uploader in its macOS and Linux builds (not the
+  Windows build), on by default and started when `onnxruntime` is imported. `import locus` now sets
+  `ORT_DISABLE_TELEMETRY=1` before any import of it, whatever the user's environment says. A test checks that no
+  device-ID file or event queue appears. Calling `onnxruntime.disable_telemetry_events()` later would not have been
+  enough: by then the uploader and those files exist.
+- **A named pipe, socket or device file in an indexed folder is never opened.** Opening a pipe for reading waits for a
+  writer and never returns, so `locus index` hung on one. Indexing, `locus watch`, the freshness step of a search and
+  `locus_read_file` now skip anything that is not a regular file before opening it; the index run says how many.
+- **A malformed RTF file can no longer hang indexing.** A negative `\bin` length made the reader loop for ever; it now
+  refuses that and any token that does not move forward, and the file is skipped with a message.
+- **A file with more than one hard link is not indexed**, because its other name may sit outside the folder.
+  `LOCUS_ALLOW_HARD_LINKS=1` allows them. A filesystem that does not report link counts (some FAT, exFAT and network
+  shares) cannot be checked; two linked names inside one folder are both skipped.
 - `server.json` asks for the same `fastembed` floor as the package (0.9); NOTICE and the licence inventory name the
   model the engine really downloads.
 - **Managed embeddings, the remote (relay) connection and Notion sync are off by default.** `LOCUS_EMBEDDER=managed`,
@@ -122,7 +136,8 @@ Found in a protections review on 2026-11-14 and fixed before the repository open
 
 - The README says per mode what leaves your computer (dated, checked against the code), how to erase `~/.locus`
   and that the index is readable text, where the deny-list applies, and the prompt-injection risk; SECURITY.md has
-  a "Known limits" section; installs from the repository are pinned to the `v0.2.0` tag.
+  a "Known limits" section; installs from the repository are pinned to the `v0.2.0` tag. The erase steps also say
+  that deleting `~/.locus` does not remove the downloaded embedding model in `~/.cache/locus/onnx`.
 - The README is rewritten for the public repository: a first screen that answers what it is, whether it
   works and how to try it, a runnable demo with real output, an architecture diagram with light and dark
   variants, and the same caveats as before. The PyPI page is updated for the new extras.
