@@ -116,7 +116,9 @@ you used `locus sync-notion`, your Notion access token (`notion_token.json`) and
 To erase what Locus keeps on this computer:
 
 1. Quit your AI app, and stop any `locus serve` or `locus watch` that is running.
-2. Delete the folder: `rm -rf ~/.locus` (your `LOCUS_DATA_DIR`, if you set one).
+2. Delete the folder: `rm -rf ~/.locus` (your `LOCUS_DATA_DIR`, if you set one). That does not remove the downloaded
+   embedding model, which is kept apart in `~/.cache/locus/onnx` (or the folder `FASTEMBED_CACHE_PATH` names): delete
+   it too if you want it gone (it is a public model, not your data).
 3. Delete any `.env` file you made with `locus setup` (it can hold an API key), remove the Locus entry from your
    AI app's MCP settings, then `uv tool uninstall locusfiles` (or `pipx uninstall locusfiles`).
 

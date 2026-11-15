@@ -90,6 +90,9 @@ def test_readme_tells_how_to_erase_the_index_and_that_it_is_readable_text():
     assert "readable text" in section and "rm -rf ~/.locus" in section
     assert "does not encrypt it" in section
     assert "secure wipe" in section  # what deleting does not do
+    assert "~/.cache/locus/onnx" in section  # the model cache is not inside the data folder
+    kb = (ROOT / "src" / "locus" / "support_kb" / "delete-account-or-data.md").read_text(encoding="utf-8")
+    assert "~/.cache/locus/onnx" in kb
 
 
 # --- decided 2026-11-14: hosted modes and Notion are off; plan, trial and refund pages are not public ---

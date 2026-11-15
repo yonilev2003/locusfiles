@@ -20,7 +20,8 @@ and stop any `locus serve` or `locus watch`, delete that folder (`rm -rf ~/.locu
 `.env` file you made with `locus setup` (it can hold an API key) and remove the Locus entry from
 your AI app's MCP settings. The folder also holds your policy file, a computer tag and, if you used
 `locus sync-notion`, your Notion token and the Notion pages as Markdown files; remove the
-integration's access in Notion too. Locus keeps no copy of your index.
+integration's access in Notion too. Locus keeps no copy of your index. The downloaded embedding model is kept apart, in `~/.cache/locus/onnx`
+(or the folder `FASTEMBED_CACHE_PATH` names), and deleting the data folder does not remove it.
 
 Deleting the folder does not reach excerpts your assistant already received (they stay in that
 app's conversation history), text already sent to a provider you used, copies in backups,
