@@ -2,16 +2,19 @@
 
 Three layers:
   1. the switches: Chroma gets `Settings(anonymized_telemetry=False)` and a forced environment variable, and
-     Hugging Face's telemetry variable is forced to 1, whatever the user's environment says;
+     Hugging Face's telemetry variable is forced to 1, whatever the user's environment says (ONNX Runtime's variable
+     is forced by `import locus` and checked in tests/test_ort_telemetry_off.py);
   2. a child process (not under pytest: Chroma turns telemetry off by itself when pytest is loaded, which would hide a
      regression) indexes a folder and searches it with every Python-level network entry point recording and refusing
      the call: `getaddrinfo`, `connect`, `connect_ex`, `create_connection`;
   3. a control in the same child shows that the recorder would have caught a connection.
 
 Limit, stated plainly: the recorder sees calls made through Python's `socket` module (urllib, requests, httpx, the
-huggingface_hub client). It cannot see a socket opened inside a native library. chromadb 1.5.9's telemetry class is an
-empty stub, and fastembed 0.9.1 contains no telemetry code (checked by reading both); layer 1 is what keeps that true if
-a later release changes.
+huggingface_hub client). It cannot see a socket opened inside a native library, and ONNX Runtime 1.31 and later has one
+(Microsoft's usage-telemetry uploader in the macOS and Linux builds); that one is switched off by its own variable and
+checked by the files it would create (tests/test_ort_telemetry_off.py), not by this recorder. chromadb 1.5.9's
+telemetry class is an empty stub, and fastembed 0.9.1 contains no telemetry code (checked by reading both); layer 1 is
+what keeps that true if a later release changes.
 """
 
 from __future__ import annotations

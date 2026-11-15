@@ -2,10 +2,10 @@
 
 Locus is licensed under the PolyForm Noncommercial License 1.0.0. Commercial use (work for a company, paid client
 work, or use inside a product or service, including by one person) needs a separate paid licence that cannot be bought
-yet. These are soft notices only: no licence key, no lock, no network call, no telemetry. The first time `locus setup`
-or `locus doctor` runs in a terminal it asks one question and keeps the answer in a small file in the data folder; a
-yes stops the command with a pointer to the page. The same words are in `locus license`, in the `locus_help` article
-`licence`, and (one sentence) in the server instructions.
+yet. These are soft notices only: no licence key, no lock, no network call from this module. The first time
+`locus setup` or `locus doctor` runs in a terminal it asks one question and keeps the answer in a small file in the
+data folder; a yes stops the command with a pointer to the page. The same words are in `locus license`, in the
+`locus_help` article `licence`, and (one sentence) in the server instructions.
 """
 
 from __future__ import annotations
