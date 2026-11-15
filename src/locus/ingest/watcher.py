@@ -28,7 +28,7 @@ from ..config import SKIP_DIRS, Settings
 from ..policy import Matcher
 from .embedder import Embedder
 from .errors import BudgetExhausted, EmbedError, as_embed_error
-from .indexer import file_sha256, index_file, remove_path
+from .indexer import file_sha256, index_file, not_indexable, remove_path
 from .retry import DEFAULT_RETRY, RetryPolicy, probe_service
 from .store import VectorStore
 
@@ -223,11 +223,14 @@ def watch_folder(
         if path.is_symlink():
             return False  # like `locus index`: a link can point anywhere, so it is never followed
         try:
+            st = path.stat()
+            if not_indexable(st) is not None:
+                return False  # a named pipe, socket or device is never opened (it could block a worker for ever)
             # `locus index` skips oversized files (indexer.iter_files); the watcher must
             # apply the same LOCUS_MAX_FILE_MB cap, not just the extension filter, or a
             # large file added while watching gets indexed when a full `locus index` run
             # of the same folder would have skipped it.
-            return path.stat().st_size <= int(settings.max_file_mb * 1024 * 1024)
+            return st.st_size <= int(settings.max_file_mb * 1024 * 1024)
         except OSError:
             return False
 

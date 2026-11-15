@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 import sys
 from collections import Counter
 from collections.abc import Callable, Iterator
@@ -98,9 +99,34 @@ class IndexStats:
         return line
 
 
+class NotRegularFile(OSError):
+    """The path is a named pipe, a socket or a device, not a regular file."""
+
+
+def not_indexable(st: os.stat_result) -> str | None:
+    """Why a file with this stat result must not be opened for indexing (a SKIP_REASONS name), or None.
+
+    Opening a named pipe for reading waits for a writer and never returns, so a FIFO in an indexed folder would hold
+    `locus index`, the file watcher and the freshness step of every search for ever. Only regular files are opened."""
+    if not stat.S_ISREG(st.st_mode):
+        return "not_regular"
+    return None
+
+
 def file_sha256(path: Path) -> str:
     h = hashlib.sha256()
-    with path.open("rb") as fh:
+    # O_NONBLOCK: opening a named pipe returns at once instead of waiting for a writer; fstat then refuses it, so the
+    # file that is hashed is the one that was checked (no gap between a stat and an open).
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+    fd = os.open(path, flags)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise NotRegularFile(f"{path} is not a regular file")
+        fh = os.fdopen(fd, "rb")
+    except BaseException:
+        os.close(fd)
+        raise
+    with fh:
         for block in iter(lambda: fh.read(1 << 20), b""):
             h.update(block)
     return h.hexdigest()
@@ -154,6 +180,7 @@ SKIP_REASONS: tuple[str, ...] = (
     "too_large",  # over LOCUS_MAX_FILE_MB
     "unreadable",  # stat() failed
     "unreadable_dir",  # a folder the OS would not list (macOS permission, ACL): its contents are not covered
+    "not_regular",  # a named pipe, socket or device: opening one for reading can wait for ever, so it is never opened
     *DENIED_SKIP_REASONS,  # policy.py: denied_<rule>, only when a Matcher is passed to iter_files
 )
 
@@ -218,11 +245,14 @@ def iter_files(
                 skip("unsupported_type", path)
                 continue
             try:
-                too_large = path.stat().st_size > max_bytes
+                st = path.stat()
             except OSError:
                 skip("unreadable", path)
                 continue
-            if too_large:
+            if (why := not_indexable(st)) is not None:
+                skip(why, path)
+                continue
+            if st.st_size > max_bytes:
                 skip("too_large", path)
                 continue
             yield path
@@ -274,6 +304,14 @@ def index_file(
     """
     stats = stats or IndexStats()
     path = Path(path)
+    try:
+        why = not_indexable(path.stat())
+    except OSError:
+        why = None  # unreadable or gone: the open below reports it, as before
+    if why is not None:
+        stats.files_skipped += 1
+        log(f"not indexed: {path} is not a regular file (a named pipe, socket or device is never opened)")
+        return 0
     digest = file_sha256(path)
     recorded_hash, recorded_mtime = _recorded_state(store, str(path))
     if recorded_hash == digest:
@@ -367,14 +405,18 @@ def index_folder(
     seen: set[str] = set()
     aborted = False
     too_large: list[Path] = []
+    not_regular = 0
     unreadable: list[Path] = []  # folders/files the OS would not list or stat: whether they still exist is unknown
     denied_by_rule: Counter[str] = Counter()  # deny-list rule -> files and folders refused (counts only, no names)
 
     def on_skip(reason: str, p: Path) -> None:
+        nonlocal not_regular
         if reason == "too_large":
             too_large.append(p)
         elif reason in ("unreadable_dir", "unreadable"):
             unreadable.append(p)
+        elif reason == "not_regular":
+            not_regular += 1
         elif reason in DENIED_SKIP_REASONS:
             stats.denied += 1
             denied_by_rule[reason.removeprefix("denied_")] += 1
@@ -457,6 +499,8 @@ def index_folder(
             f"{stats.denied} file(s) or folder(s), by rule: {rules}. They are not indexed; "
             "`--prune` removes any index entries an earlier run made for them."
         )
+    if not_regular:
+        log(f"not indexed: {not_regular} named pipe(s), socket(s) or device file(s): they are never opened")
     for big in too_large:
         # A real run used to skip these without a word; only `--dry-run` counted them, without a name.
         log(

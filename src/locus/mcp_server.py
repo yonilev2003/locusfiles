@@ -39,6 +39,7 @@ import math
 import os
 import random
 import re
+import stat
 import sys
 import threading
 import time
@@ -1038,6 +1039,13 @@ async def locus_list_sources(
 def _confinement_refusal(path: str, indexed_nfc: set[str]) -> str | None:
     """Why *path* (a path the index lists) may not be read right now, or None. Constraint 3: only what the index
     holds, never arbitrary file-system access, and never through a link."""
+    try:
+        regular = stat.S_ISREG(os.stat(path).st_mode)
+    except OSError:
+        regular = True  # gone or unreadable: the read below reports it
+    if not regular:
+        # Opening a named pipe for reading waits for a writer for ever: refuse before anything is opened.
+        return f"Error: {path!r} is no longer a regular file (a pipe, socket or device), so it was not opened."
     if Path(path).is_symlink():
         # The recorded path string still matches, but the file on disk has been
         # replaced by a symlink since indexing — refuse rather than follow it

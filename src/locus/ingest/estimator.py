@@ -368,6 +368,7 @@ _REASON_LABELS = {  # (one, many)
     "unsupported_type": ("file of an unsupported type", "files of unsupported types"),
     "too_large": ("file over the size limit (LOCUS_MAX_FILE_MB)", "files over the size limit (LOCUS_MAX_FILE_MB)"),
     "hidden_file": ("hidden file", "hidden files"),
+    "not_regular": ("named pipe, socket or device", "named pipes, sockets or devices"),
     "symlink": ("symbolic link", "symbolic links"),
     "unreadable": ("unreadable file", "unreadable files"),
 }

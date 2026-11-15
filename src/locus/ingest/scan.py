@@ -25,7 +25,7 @@ from pathlib import Path
 
 from ..config import SKIP_DIRS, Settings
 from ..policy import Matcher
-from .indexer import SkipHook
+from .indexer import SkipHook, not_indexable
 
 # () is the start of a folder. ((0, "b.md"),) is the file b.md of this folder. ((1, "sub"), (0, "b.md")) is the file
 # b.md of the subfolder sub. ((1, "sub"),) is the start of sub. Files come before subfolders at every level.
@@ -169,6 +169,8 @@ class StatScan:
             st = entry.stat(follow_symlinks=False)
         except OSError:
             self._skip("unreadable", Path(entry.path))
+            return None
+        if not_indexable(st) is not None:  # a named pipe, socket or device: never opened (indexer.not_indexable)
             return None
         if st.st_size > self._max_bytes:
             return None
