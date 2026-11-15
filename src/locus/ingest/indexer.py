@@ -30,7 +30,7 @@ from datetime import UTC
 from pathlib import Path
 from typing import Any
 
-from ..config import SKIP_DIRS, Settings
+from ..config import HARD_LINKS_ENV, SKIP_DIRS, Settings, feature_enabled
 from ..policy import DENIED_SKIP_REASONS, Matcher
 from .chunk_policy import effective_chunk_tokens
 from .chunker import chunk_pages, chunk_text
@@ -110,7 +110,18 @@ def not_indexable(st: os.stat_result) -> str | None:
     `locus index`, the file watcher and the freshness step of every search for ever. Only regular files are opened."""
     if not stat.S_ISREG(st.st_mode):
         return "not_regular"
+    if st.st_nlink > 1 and not feature_enabled(HARD_LINKS_ENV):
+        # A hard link is the same file under a second name. Someone who can write into an indexed folder can link a
+        # file from elsewhere on the same disk into it under a harmless name, and its text would become searchable.
+        # No name-based rule can see that, so a file with more than one link is not indexed unless the user allows it.
+        return "hard_link"
     return None
+
+
+_WHY_NOT_INDEXED = {
+    "not_regular": "is not a regular file (a named pipe, socket or device is never opened)",
+    "hard_link": f"has more than one hard link, so its other name may be outside the folder (set {HARD_LINKS_ENV}=1)",
+}
 
 
 def file_sha256(path: Path) -> str:
@@ -181,6 +192,7 @@ SKIP_REASONS: tuple[str, ...] = (
     "unreadable",  # stat() failed
     "unreadable_dir",  # a folder the OS would not list (macOS permission, ACL): its contents are not covered
     "not_regular",  # a named pipe, socket or device: opening one for reading can wait for ever, so it is never opened
+    "hard_link",  # more than one hard link: the other name may sit outside the folder (LOCUS_ALLOW_HARD_LINKS)
     *DENIED_SKIP_REASONS,  # policy.py: denied_<rule>, only when a Matcher is passed to iter_files
 )
 
@@ -310,7 +322,7 @@ def index_file(
         why = None  # unreadable or gone: the open below reports it, as before
     if why is not None:
         stats.files_skipped += 1
-        log(f"not indexed: {path} is not a regular file (a named pipe, socket or device is never opened)")
+        log(f"not indexed: {path} {_WHY_NOT_INDEXED[why]}")
         return 0
     digest = file_sha256(path)
     recorded_hash, recorded_mtime = _recorded_state(store, str(path))
@@ -406,17 +418,20 @@ def index_folder(
     aborted = False
     too_large: list[Path] = []
     not_regular = 0
+    hard_linked = 0
     unreadable: list[Path] = []  # folders/files the OS would not list or stat: whether they still exist is unknown
     denied_by_rule: Counter[str] = Counter()  # deny-list rule -> files and folders refused (counts only, no names)
 
     def on_skip(reason: str, p: Path) -> None:
-        nonlocal not_regular
+        nonlocal not_regular, hard_linked
         if reason == "too_large":
             too_large.append(p)
         elif reason in ("unreadable_dir", "unreadable"):
             unreadable.append(p)
         elif reason == "not_regular":
             not_regular += 1
+        elif reason == "hard_link":
+            hard_linked += 1
         elif reason in DENIED_SKIP_REASONS:
             stats.denied += 1
             denied_by_rule[reason.removeprefix("denied_")] += 1
@@ -501,6 +516,11 @@ def index_folder(
         )
     if not_regular:
         log(f"not indexed: {not_regular} named pipe(s), socket(s) or device file(s): they are never opened")
+    if hard_linked:
+        log(
+            f"not indexed: {hard_linked} file(s) with more than one hard link (the other name may sit outside this "
+            f"folder); set {HARD_LINKS_ENV}=1 to index them"
+        )
     for big in too_large:
         # A real run used to skip these without a word; only `--dry-run` counted them, without a name.
         log(

@@ -150,3 +150,12 @@ def test_the_notion_copy_is_disclosed_in_every_place_that_says_where_data_sits()
     assert "plaintext Markdown" in _section(readme, "Your data on disk, and how to erase it")
     kb = (ROOT / "src" / "locus" / "support_kb" / "what-leaves-your-computer.md").read_text(encoding="utf-8")
     assert "plaintext Markdown files into `~/.locus/sources/notion/`" in kb
+
+
+def test_the_readme_and_security_policy_state_the_hard_link_rule_and_its_limits():
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").split())
+    security = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+    assert "more than one hard link" in readme and "LOCUS_ALLOW_HARD_LINKS=1" in readme
+    assert "does not report link counts" in readme and "both are skipped" in readme
+    assert "named pipe" in readme
+    assert "more than one hard link" in security and "LOCUS_ALLOW_HARD_LINKS=1" in security

@@ -62,6 +62,8 @@ described here is welcome.
 - **The deny-list works on names and places, not contents.** It applies to `locus index <folder>`, `locus watch`,
   `--prune` and `--roots`, not to `locus sync-notion`, and a password inside an ordinary note is indexed. A file
   indexed by an earlier version stays in the index until `locus index <folder> --prune`.
+- **Hard links.** A file with more than one hard link is not indexed (its other name may be outside the folder),
+  unless `LOCUS_ALLOW_HARD_LINKS=1`. A filesystem that does not report link counts cannot be checked.
 - **A file swapped for a link during a read.** `locus_read_file` refuses a path that is not in the index or that
   has become a link, and checks again after reading and drops the text if the path changed. A swap that is undone
   before the second check is not detected.

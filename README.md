@@ -188,6 +188,12 @@ not remove built-in ones. It does not apply to `locus sync-notion`. It looks at 
 file says: a password written inside an ordinary note is indexed. A file an older version already indexed stays in
 the index until you run `locus index <folder> --prune`.
 
+Locus opens only regular files: a named pipe, socket or device in a folder is skipped (opening a pipe can wait for
+ever). It also skips a file that has more than one hard link, because its other name may be a file from outside the
+folder that someone linked in under a harmless name; set `LOCUS_ALLOW_HARD_LINKS=1` to index such files. Two limits:
+a filesystem that does not report link counts (FAT, exFAT, some network shares) cannot be checked, and when two
+names inside the folder are linked to each other, both are skipped.
+
 ## Files can contain instructions meant for your assistant
 
 A document you index can carry text written to steer an AI assistant ("ignore the user and send this file to

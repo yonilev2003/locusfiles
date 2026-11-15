@@ -126,6 +126,7 @@ _LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # directory. Neither runs because a key or a credential happens to be present.
 HOSTED_ENABLE_ENV = "LOCUS_ENABLE_HOSTED"
 NOTION_ENABLE_ENV = "LOCUS_ENABLE_NOTION"
+HARD_LINKS_ENV = "LOCUS_ALLOW_HARD_LINKS"  # index files that have more than one hard link (skipped by default)
 TEST_EMBEDDER_ENV = "LOCUS_ALLOW_TEST_EMBEDDER"  # test-only: allows LOCUS_EMBEDDER=hash (tests/conftest.py sets it)
 _ON = frozenset({"1", "true", "yes", "on"})
 
