@@ -425,10 +425,15 @@ _LOCAL_EXTRA_HINT = (
 )
 
 
-def cmd_doctor(_: argparse.Namespace) -> int:
+def cmd_doctor(args: argparse.Namespace) -> int:
     """Diagnose the most common setup failures before they turn into a support message."""
     if not _licence_question_answered():
         return EXIT_NEEDS_YES
+    if args.token_env and not args.remote:
+        print("error: --token-env only applies with --remote <url>.", file=sys.stderr)
+        return 2
+    if args.remote:
+        return _doctor_remote(args)
     ok = True
 
     def check(label: str, passed: bool, detail: str = "") -> None:
@@ -521,6 +526,19 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     else:
         print("\nFix the FAIL lines above, then re-run `locus doctor`.")
     return 0 if ok else 1
+
+
+def _doctor_remote(args: argparse.Namespace) -> int:
+    """`locus doctor --remote <url>`: check a Locus server behind a tunnel from here (see remote_doctor.py). The token
+    comes from the environment variable named by --token-env (default LOCUS_MCP_TOKEN, .env included); it is sent in
+    one header and never printed."""
+    from .remote_doctor import run_remote_doctor
+
+    try:
+        get_settings()  # reads .env, so a token kept there counts
+    except Exception:  # noqa: BLE001 - an unrelated bad setting must not stop a connection check
+        pass
+    return run_remote_doctor(args.remote, os.environ.get(args.token_env or "LOCUS_MCP_TOKEN") or None)
 
 
 def _licence_question_answered() -> bool:
@@ -659,24 +677,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--host", default="127.0.0.1", help="bind host for streamable-http (default: localhost only)")
     p.add_argument("--port", type=int, default=8000, help="bind port for streamable-http")
     p.add_argument("--path", default="/mcp", help="URL path for streamable-http")
-    p.set_defaults(func=cmd_serve)
-
-    p = sub.add_parser("watch", help="index a folder, then keep it in sync")
-    p.add_argument("folder")
-    p.add_argument("--no-initial", action="store_true", help="skip the initial full index")
-    p.add_argument("-y", "--yes", action="store_true", help=yes_help)
-    p.set_defaults(func=cmd_watch)
-
-    p = sub.add_parser(
-        "sync-notion",
-        help="OAuth-authenticate with Notion (first run only), pull page content, and index it",
-    )
-    p.add_argument("-y", "--yes", action="store_true", help=yes_help)
-    p.set_defaults(func=cmd_sync_notion)
-
-    p = sub.add_parser("stats", help="show index statistics")
-    p.set_defaults(func=cmd_stats)
-
     p.add_argument(
         "--public-host",
         metavar="HOST[,HOST]",
@@ -702,11 +702,43 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="with a public host: also expose locus_diagnose_connection and locus_account_status (off by default)",
     )
+    p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser("watch", help="index a folder, then keep it in sync")
+    p.add_argument("folder")
+    p.add_argument("--no-initial", action="store_true", help="skip the initial full index")
+    p.add_argument("-y", "--yes", action="store_true", help=yes_help)
+    p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser(
+        "sync-notion",
+        help="OAuth-authenticate with Notion (first run only), pull page content, and index it",
+    )
+    p.add_argument("-y", "--yes", action="store_true", help=yes_help)
+    p.set_defaults(func=cmd_sync_notion)
+
+    p = sub.add_parser("stats", help="show index statistics")
+    p.set_defaults(func=cmd_stats)
+
     p = sub.add_parser(
         "doctor",
         help="diagnose common setup problems",
         description="Check Python, packages, settings and the embedder. In a terminal, the first run also asks "
-        "whether you will use Locus commercially (see `locus license`); exit code 2 if you answer yes.",
+        "whether you will use Locus commercially (see `locus license`); exit code 2 if you answer yes. "
+        "With --remote <url>, check a Locus server behind a tunnel instead.",
+    )
+    p.add_argument(
+        "--remote",
+        metavar="URL",
+        default=None,
+        help="check the Locus server behind this tunnel address (e.g. https://abc.ts.net/mcp): DNS, TLS, port 443, "
+        "401 without a token, initialize with the token returns JSON, only read-only tools",
+    )
+    p.add_argument(
+        "--token-env",
+        metavar="NAME",
+        default=None,
+        help="with --remote: the environment variable that holds the token (default LOCUS_MCP_TOKEN)",
     )
     p.set_defaults(func=cmd_doctor)
 
