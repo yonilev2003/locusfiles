@@ -7,10 +7,8 @@ is `locus`). Versions follow [Semantic Versioning](https://semver.org/); while t
 
 ## [0.2.0] - unreleased
 
-The release date is added when the `v0.2.0` tag publishes it. The 0.1.3 and 0.1.4 sections below are
-still marked unreleased; if they are not published first, their changes ship in 0.2.0 as well. Update
-an existing install with `uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your
-AI app.
+The release date is added when the `v0.2.0` tag publishes it. Update an existing install with
+`uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your AI app.
 
 **Migration:** the default on-device model changed (see below), and a collection records the model it was
 built with, so an existing collection built with the old default stops with a message that names the fix.
@@ -52,7 +50,8 @@ already held files from Downloads, Locus carries that over once and says so on s
   client work, and use inside a product or service, including by one person, need a separate paid commercial licence,
   which cannot be bought yet (<https://locusfiles.com/commercial>). `LICENSE` is the official PolyForm text, unchanged,
   with the line `Required Notice: Copyright 2026 Yonathan Levy (https://locusfiles.com)`. There is no later
-  open-source licence. Releases 0.1.0, 0.1.3 and 0.1.4 on PyPI were released under FSL-1.1-ALv2 and stay under it.
+  open-source licence. Releases 0.1.0, 0.1.3 (yanked) and 0.1.4 on PyPI were released under FSL-1.1-ALv2 and stay
+  under it.
 - **Soft notices, no lock:** `locus license` prints the licence in two sentences and the page; the first time
   `locus setup` or `locus doctor` runs in a terminal it asks "Will you use Locus for work at a company, for paid client
   work, or in a product or service?" (a yes stops with a pointer to the page; the answer is kept in a file in the
@@ -70,27 +69,28 @@ already held files from Downloads, Locus carries that over once and says so on s
   most 0.33 points on the same questions (no McNemar p below 0.37) and the English-Hebrew gap stayed under the
   margin. On Locus's own code path (prefixes, stripping, sorted batches, the int8 file) the same test gave English
   96.9% and Hebrew 89.3% at recall@5 (gap 7.6). In 12 other languages the full-precision file averaged 93% at
-  recall@5 with a gap under 10 points in 11 (not Swahili). First-run download 134 MB. Queries get the `query: ` prefix and passages the `passage: ` prefix the
+  recall@5, with the upper end of the gap's 95% interval under 10 points in 11 of them (not Swahili: gap 9.2,
+  interval 6.9 to 11.5). First-run download 134 MB. Queries get the `query: ` prefix and passages the `passage: ` prefix the
   model was trained with, text is stripped before embedding, and batches are sorted by length (fastembed pads each
   batch to its longest text).
-- **The `local` extra now runs on ONNX Runtime (through `fastembed`) instead of PyTorch.** Measured on
-  one Mac (Apple silicon, fast network, other jobs running) on 2026-11-12, one run each:
+- **The `local` extra now runs on ONNX Runtime (through `fastembed`) instead of PyTorch.** The whole
+  environment (`locusfiles[local]`) is about 399 MB plus a 134 MB model; the PyTorch route was 1.1 GB plus a
+  133 MB model. Timings, measured on 2026-11-15 on one Apple-silicon Mac (fast network, cold package cache, on
+  battery power, inside a sandbox; 1 to 7 runs per step): install about 17 s, first `locus doctor` about 11 s
+  including the model download, 4.0 and 4.7 s to index the 21-file demo folder, 3.5 to 4.4 s per `locus query` from
+  the command line (median 4.0 s, 7 runs). A figure of about 2.6 s per query from an earlier run was not
+  reproduced. Timings of the PyTorch route were not re-measured. These are first measurements, to be repeated on
+  mains power and outside a sandbox.
 
-  | | before (PyTorch, bge-small) | now (ONNX Runtime, multilingual-e5-small int8) |
-  |---|---|---|
-  | whole environment (`locusfiles[local]`) | 1.1 GB, plus a 133 MB model | 399 MB, plus a 134 MB model |
-  | install, cold package cache | 58 s | about 15 s |
-  | first `locus doctor`, with the model download | 54 s | about 33 s |
-  | first index of the 21-file demo folder | 26 s | about 4 s |
-  | each `locus query` from the CLI | about 18.5 s (the model reloads per command) | about 2.6 s |
-
-  Parity of the two routes for bge-small on 60 real passages and 22 queries (public documents, each document's own
-  title as the query): cosine similarity within 2.3e-6 of 1 for every passage (worst angle 0.12 degrees), top-5 overlap 1.000, file-level recall@5 18 of 22
-  for both. This is a small sample and a check that the two routes agree, not a quality claim.
-- **New extra `local-torch`** keeps the PyTorch route (`sentence-transformers`) for models the default
-  route does not offer: `bge-m3`, `multilingual-e5` and model folders. `LOCUS_LOCAL_BACKEND` (`auto`,
-  `onnx` or `torch`) overrides the choice. The error for a missing dependency names `local-torch` when
-  your model needs it.
+  Parity of the two routes for the default model (multilingual-e5-small, full-precision file; the ONNX vectors
+  against the PyTorch vectors of the public benchmark): minimum cosine similarity 0.99999988 over 976 passages and
+  1,800 queries, and recall@5 reproduced exactly (English 97.22, Hebrew 89.67). This is a check that the two routes
+  agree, not a quality claim.
+- **New extra `local-torch`** keeps the PyTorch route (`sentence-transformers`) for local models that fastembed
+  does not list (checked against fastembed 0.9.1 on 2026-11-17): `BAAI/bge-m3`, `intfloat/multilingual-e5-base` and
+  local model folders; the default `multilingual-e5-small` (which Locus adds itself) and `multilingual-e5-large`
+  use the default route. `LOCUS_LOCAL_BACKEND` (`auto`, `onnx` or `torch`) overrides the choice. The error for a
+  missing dependency names `local-torch` when your model needs it.
 - **ONNX models are cached in `~/.cache/locus/onnx`** (`FASTEMBED_CACHE_PATH` overrides it), because
   `fastembed`'s own default is the system temp folder, which a restart empties.
 
@@ -107,8 +107,8 @@ already held files from Downloads, Locus carries that over once and says so on s
 ### Fixed
 
 - **A first-run model download could hang with no output (Hugging Face's Xet transfer path).** Plain
-  HTTP is now the default (`HF_HUB_DISABLE_XET=1` is set unless you set it yourself): on a clean machine
-  the Xet path stalled for over ten minutes where plain HTTP fetched the 133 MB model in 40 s.
+  HTTP is now the default (`HF_HUB_DISABLE_XET=1` is set unless you set it yourself): on one clean machine
+  (2026-11-12) the Xet path stalled with no output where plain HTTP fetched the model. Not re-measured.
 - **`locus doctor` and `locus setup --local` recognise `fastembed`**, not only `sentence-transformers`.
 
 ### Security
@@ -171,10 +171,10 @@ Found in a protections review on 2026-11-14 and fixed before the repository open
 - `LICENSE.md` is removed; `LICENSE` is the binding text and its copyright line now sits at the top of
   `LICENSE-FAQ.md`.
 
-## [0.1.4] - unreleased
+## [0.1.4] - 2026-10-07
 
-The release date is added when the `v0.1.4` tag publishes it. Update an existing install with
-`uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your AI app.
+Update an existing install with `uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your
+AI app.
 
 ### Fixed
 
@@ -209,13 +209,12 @@ The release date is added when the `v0.1.4` tag publishes it. Update an existing
 - **The assistant is told to search in both languages for Hebrew or mixed material** (one sentence in the server's
   guidance).
 
-## [0.1.3] - unreleased
+## [0.1.3] - 2026-10-04 (yanked)
 
-The release date is added when the `v0.1.3` tag publishes it. **Versions 0.1.1 and 0.1.2 were never
-published:** PyPI goes from 0.1.0 straight to 0.1.3, so every change listed under 0.1.1 and 0.1.2
-below first ships here, together with the changes in this section. Update an existing install with
-`uv tool upgrade locusfiles` (or `pipx upgrade locusfiles`), then restart your AI app. Files of the
-new types are picked up the next time you run `locus index <folder>`.
+**Yanked from PyPI** (reason given there: first-call hang or crash on macOS MPS, use 0.1.4); 0.1.4 fixes it.
+**Versions 0.1.1 and 0.1.2 were never published:** PyPI goes from 0.1.0 straight to 0.1.3, so every change listed
+under 0.1.1 and 0.1.2 below first shipped here, together with the changes in this section. Files of the new types
+are picked up the next time you run `locus index <folder>`.
 
 ### Added
 
