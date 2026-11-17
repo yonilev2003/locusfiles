@@ -58,8 +58,9 @@ described here is welcome.
   tools for folders that hold files from other people. Whether such wording protects the maintainer in law has
   not been reviewed by a lawyer.
 - **The index is readable text.** `~/.locus` holds the text of every indexed chunk, unencrypted, next to the
-  vectors. It is created owner-only on macOS and Linux (not checked on Windows). Anything that can read the
-  folder, including backups and synced drives, can read the text.
+  vectors. The code sets it to owner-only (mode 0700) on macOS and Linux; that was tried once on a scratch folder, not
+  checked on a live install, and Windows is not verified. Anything that can read the folder, including backups and
+  synced drives, can read the text.
 - **The deny-list works on names and places, not contents.** It applies to `locus index <folder>`, `locus watch`,
   `--prune` and `--roots`, not to `locus sync-notion`, and a password inside an ordinary note is indexed. A file
   indexed by an earlier version is hidden at once from what an assistant can search, list and read as soon as a rule

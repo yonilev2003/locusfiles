@@ -5,21 +5,22 @@
 </picture>
 </p>
 
-**Ask your AI assistant about your own files. Every answer names the file it came from.**
+**Ask your AI assistant about your own files. Search results name the file they came from.**
 
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: PolyForm Noncommercial 1.0.0, source-available](https://img.shields.io/badge/licence-PolyForm%20Noncommercial%201.0.0-0B7A75?style=flat-square&labelColor=1F2937) ![macOS tested (one machine)](https://img.shields.io/badge/macOS-tested-0B7A75?style=flat-square&labelColor=1F2937)
 
-Locus indexes folders you choose on your own computer and gives an MCP client that can start a local
-server a search tool over them (setup pages exist for Claude Code, Claude Desktop and Cursor; on this version
-we have tested Claude Code only). Indexing and embeddings can run entirely on
+Locus indexes folders you choose on your own computer and gives MCP clients that can start a local
+server a search tool over them (setup pages exist for Claude Code, Claude Desktop and Cursor, and only Claude
+Code has a recorded run on this version). Indexing and embeddings can run entirely on
 your machine; the excerpts your assistant retrieves go to the assistant you chose, like text you
-pasted in. Locus is **source-available** under the PolyForm Noncommercial License 1.0.0: free for personal,
-educational, charitable and public-body use, **not for work at a company, paid client work, or use inside a product
-or service**. It is not open source (see [Licence](#licence)).
+pasted in. Locus is **source-available** under the PolyForm Noncommercial License 1.0.0: free for noncommercial
+use (personal, educational, charitable and public-body use). The licensor reads that as excluding **work at a
+company, paid client work, and use inside a product or service** (see [Licence](#licence) and
+[LICENSE-FAQ.md](LICENSE-FAQ.md)). It is not open source.
 
 ## Which user are you?
 
-Locus lets an AI assistant look through folders you choose and point to the file each answer came from. Pick
+Locus lets an AI assistant look through folders you choose; each search result names the file it came from. Pick
 the description that fits you; each one stands alone. The demo, install and licence sections below are for
 everyone.
 
@@ -68,8 +69,8 @@ flowchart LR
 
 - The index stays on your computer. It is a readable copy of the text of your files, not encrypted. Anyone who can
   open your user folder can read it.
-- The excerpts Locus returns go to your AI assistant, and on to the company that runs it. That company may be
-  online.
+- The excerpts Locus returns go to your AI assistant, and on to the company that runs it, usually over the
+  internet.
 - The first time you use it, Locus downloads a search model (134 MB) from Hugging Face.
 
 Setting it up today means typing a few commands in a terminal (see the demo below); there is no installer yet.
@@ -90,7 +91,7 @@ publish no measurement of how any assistant behaves with it.
 ```mermaid
 flowchart LR
     F["Folder"] --> P["Parse<br/>md, txt, rst, csv, html, code, subtitles,<br/>PDF, DOCX, PPTX, XLSX, ODT, ODS, ODP,<br/>EPUB, RTF, IPYNB"]
-    P --> K["Chunk<br/>default 700 tokens (4 chars each, estimated)"]
+    P --> K["Chunk<br/>300 tokens for a new default collection<br/>(4 chars each, estimated; 700 for older or large-window setups)"]
     K --> E["Embed<br/>multilingual-e5-small<br/>ONNX Runtime"]
     E --> S[("Chroma store<br/>~/.locus<br/>chunk text + vectors + metadata")]
 ```
@@ -118,7 +119,8 @@ The parse list is the default extension list in `src/locus/config.py` (`DEFAULT_
 - **The excerpts a search returns go to the MCP client and on to that client's model provider.** That is the
   feature. Locus does not upload raw files.
 - The index is a readable, unencrypted local copy of the chunk text in `~/.locus`. The code sets the folder to mode
-  0700 (`store.py`); not checked on a live install, and Windows is not verified.
+  0700 on macOS and Linux (`store.py`; tried once on a scratch folder, not checked on a live install); Windows is
+  not verified.
 - Hosted modes and Notion sync refuse to run unless `LOCUS_ENABLE_HOSTED=1` or `LOCUS_ENABLE_NOTION=1`. Read from
   the source on 2026-11-14 in an AI-assisted review run by us; **no independent audit**.
 - The library that runs the embedding model (ONNX Runtime 1.31 and later) has its own usage telemetry on macOS and
@@ -141,8 +143,10 @@ The parse list is the default extension list in `src/locus/config.py` (`DEFAULT_
   collection.
 - **Default model.** `intfloat/multilingual-e5-small` through ONNX Runtime: about 400 MB of environment plus a
   134 MB model downloaded on first use, stored in `~/.cache/locus/onnx`, outside `~/.locus`.
-- **Chunk size.** 700 "tokens" is an estimate of 4 characters per token, not the model's tokenizer. The benchmark
-  below ranks whole passages, not Locus's chunks.
+- **Chunk size.** A new collection made with the default model uses 300 "tokens" per chunk (an estimate of about 4
+  characters per token, not the model's tokenizer). 700 applies to collections made before 0.1.4, to a model with a
+  large window (`bge-m3`) or a hosted provider, and when `LOCUS_CHUNK_TOKENS=700` is set; `locus index --dry-run`
+  says which size a collection will use. The benchmark below ranks whole passages, not Locus's chunks.
 - **Not read.** PDFs averaging under 20 characters per page are treated as scans and skipped. There is no OCR.
   Images are not indexed.
 - **Text layers only.** Formulas and tables in PDFs can be dropped or scrambled by text extraction (seen in spot
@@ -161,7 +165,7 @@ not a final answer. Run by us; not replicated by anyone else.
 | Model (shipped default in bold) | English | Hebrew | Gap, EN minus HE (95% interval, cluster bootstrap) |
 |---|---|---|---|
 | bge-small-en-v1.5 (previous default) | 95.0% | 12.9% | 82.1 pts [79.0, 85.1] |
-| **multilingual-e5-small** | **97.2%** | **89.7%** | **7.6 pts [5.5, 9.6]** |
+| **multilingual-e5-small** (full-precision file; the int8 file that ships: 96.9% and 89.7%) | **97.2%** | **89.7%** | **7.6 pts [5.5, 9.6]** |
 | bge-m3 (optional, about 2.3 GB download) | 98.3% | 95.0% | 3.3 pts [2.1, 4.7] |
 
 - Gaps are computed from unrounded values (97.22 minus 89.67 = 7.56). The 10-point margin was set before the
@@ -170,19 +174,21 @@ not a final answer. Run by us; not replicated by anyone else.
   questions share passages, so they are slightly too narrow): default EN 95.9 to 98.1, default HE 87.5 to 91.5,
   bge-m3 HE 93.4 to 96.2, bge-small HE 10.9 to 15.2.
 - 12 other languages, the same 900 questions translated: default 88.0% to 95.8% (mean 93.4%); previous default 4.8%
-  to 77.2% (mean 40.1%). These 12 are not independent samples. The default's gap to English is under 10 points in
-  11 of the 12 (Swahili is not: 9.2 points behind, interval 6.9 to 11.5); `bge-m3` is within 10 points in all 12.
-  Those runs used the full-precision file of the model; the smaller file that ships was checked on English and
-  Hebrew only, where it differed from full precision by at most 0.4 points.
+  to 77.2% (mean 40.1%). These 12 are not independent samples. The 10-point test is on the upper end of the gap's
+  95% interval: for the default it is under 10 points in 11 of the 12; Swahili is the exception (gap 9.2, interval
+  6.9 to 11.5, so not shown to be under 10). For `bge-m3` the upper end is under 10 in all 12. Those runs used the
+  full-precision file of the model; the smaller file that ships was checked on English and Hebrew only, where its
+  recall@5 differed from full precision by at most 0.33 points (at top-1 by up to 0.78, in Hebrew).
 - At top-1 the English-to-Hebrew gap of the default is larger: 11.6 pts [9.0, 14.1].
 - Across languages (a question in one language, passages in the other): default EN to HE 83.4%, HE to EN 71.1%;
   bge-m3 94.3% and 91.2%. No intervals computed. Searching in one language over files in another is weaker than
   searching in the same language.
-- Volume: 65,700 per-question rows in 73 files, from the same 900 questions per language re-run across models,
-  variants and languages. **Not** 65,700 independent tests.
+- Volume: 65,700 per-question rows in 73 files for the model runs, plus 17,100 rows in 19 files for the BM25
+  baseline below, from the same 900 questions per language re-run across models, variants, languages and a keyword
+  baseline. **Not** that many independent tests.
 - On the same public Belebele benchmark (900 questions per language, recall@5, retrieval only), a basic BM25
   keyword baseline scored 91.9% in English and 86.0% in Hebrew (with a simple Hebrew prefix-stripping heuristic),
-  against 97.2% and 89.7% for the default model: differences of +5.3 pts [+3.3, +7.4] and +3.7 pts [+1.1, +6.2]
+  against 97.2% and 89.7% for the default model (full-precision file): differences of +5.3 pts [+3.3, +7.4] and +3.7 pts [+1.1, +6.2]
   (cluster bootstrap, 95%). This says nothing about your own files, and no hybrid (keyword plus embeddings) was
   tested.
 - **Not tested:** search over a real folder of thousands of chunks, so these numbers do not transfer to scale or to
@@ -192,8 +198,9 @@ not a final answer. Run by us; not replicated by anyone else.
 ### Limits worth knowing
 
 - macOS (Apple silicon) was tested on one machine in a clean-install run on 2026-11-15. On Linux (arm64, Debian 13)
-  the test suite and a clean install of the wheel passed inside a container on 2026-11-17, one run: not a real Linux
-  machine, not x86_64, and no assistant was tried there. Windows is not verified by us.
+  the test suite (no failures, 8 tests skipped; it needs `procps` and a raised open-file limit) and a clean
+  install of the wheel passed inside a container on 2026-11-17, one run: not a real Linux machine, not x86_64, and
+  no assistant was tried there. Windows is not verified by us.
 - A file can contain text written to steer an assistant. Locus labels results as untrusted file content. That is a
   request to the model, not a barrier.
 - The default model was chosen among 8 settings on the same dataset it is reported on, so its benchmark numbers are
@@ -206,8 +213,8 @@ A document with the method, statistics and limits will be published with the ben
 <details>
 <summary><strong>Businessperson</strong></summary>
 
-**What it is.** Locus lets your AI assistant answer questions about your own documents and point to the file each
-answer came from.
+**What it is.** Locus lets your AI assistant search your own documents; each search result names the file it came
+from.
 
 **The problem it solves.** Teams keep knowledge in folders: contracts, notes, reports. An assistant that cannot see
 them guesses. An assistant that can search them can quote them. Locus is the part that looks for the passages that
@@ -230,8 +237,9 @@ probably hold the answer. It can miss, and it can return the wrong passage.
 - Locus keeps a readable, unencrypted copy of the text of your files (cut into pieces) in a folder on your
   computer. Anyone who can read that folder can read the text. Use disk encryption and keep the folder out of
   cloud-sync folders.
-- Locus's own online services (hosted search, remote connection, Notion sync) are switched off in this version
-  unless you turn them on.
+- Locus offers no hosted service in this version. The earlier hosted relay (managed embeddings and the remote
+  connection) is off by default (`LOCUS_ENABLE_HOSTED=1`) and still in testing, and Notion sync is off unless you
+  turn it on.
 
 **Who may use it.** Summary, not legal advice. The binding text is the [LICENSE](LICENSE) file.
 
@@ -254,8 +262,8 @@ probably hold the answer. It can miss, and it can return the wrong passage.
 **How good is it, in plain words.**
 
 - Label: **retrieval only, public passages.** On a public set of 900 questions, which we ran ourselves and nobody
-  has repeated, the default search puts the right passage among the first five results for 97.2% of English
-  questions and 89.7% of Hebrew ones. That measures search only, not whether an assistant's final answer is
+  has repeated, the default search puts the right passage among the first five results for about 97% of English
+  questions and about 90% of Hebrew ones. That measures search only, not whether an assistant's final answer is
   correct.
 - Same label and source: in 12 other languages, between 88% and 96%.
 - That test uses short public texts, not your documents. With your documents, results can be better or worse.
@@ -298,7 +306,7 @@ the MCP tool, with the path and chunk number, so it can cite them.
 Connect Claude Code, then ask it "Using Locus, why did the annual discount change?":
 
 ```bash
-locus doctor        # every line should say OK
+locus doctor        # every line should say OK; the first run asks one question about commercial use (see Licence)
 claude mcp add --scope user locus -- "$(command -v locus)" serve
 ```
 
@@ -325,16 +333,19 @@ including the model download, 4.0 and 4.7 s to index the demo folder, and 3.5 to
 command line (median 4.0 s, 7 runs). These are first measurements, to be repeated on mains power and outside a
 sandbox. Slower networks take longer.
 
-PyTorch is optional: `locusfiles[local-torch]` is for models the default route lacks
-(`bge-m3`, `multilingual-e5-base` and larger, model folders). `LOCUS_LOCAL_MODEL=BAAI/bge-m3` is the
-most accurate choice for Hebrew and mixed-language files, at a 2.3 GB download. To embed with your own provider key instead, use the
+PyTorch is optional: `locusfiles[local-torch]` is for local models that fastembed does not list (checked against
+fastembed 0.9.1 on 2026-11-17): `BAAI/bge-m3`, `intfloat/multilingual-e5-base` and local model folders; the default
+`multilingual-e5-small` (which Locus adds itself) and `multilingual-e5-large` use the default route.
+`LOCUS_LOCAL_MODEL=BAAI/bge-m3` scored higher on Hebrew than the default in our benchmark (95.0% against 89.7%,
+recall@5, measured through ONNX Runtime, while Locus runs it through PyTorch), at a 2.3 GB download; mixed-language
+files were not tested. To embed with your own provider key instead, use the
 `voyage` or `openai` extra and set `LOCUS_EMBEDDER`. `locus setup --local` picks the embedder and
 prints the `claude mcp add` line with your settings filled in.
 
-Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite and a clean install of the
-wheel passed inside a container on 2026-11-17 (one run; running the suite needs more open files than a container's
-default of 1024). That is not a real Linux machine, not x86_64, and no assistant was tried there. Windows is not
-verified.
+Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite (no failures, 8 tests skipped)
+and a clean install of the wheel passed inside a container on 2026-11-17 (one run; running the suite needs `procps`
+and more open files than a container's default of 1024). That is not a real Linux machine, not x86_64, and no
+assistant was tried there. Windows is not verified.
 
 ## Connect your assistant
 
@@ -343,8 +354,9 @@ verified.
 - Cursor: [setup](src/locus/support_kb/connect-cursor.md).
 - Other MCP clients that can start a local server: [guide](src/locus/support_kb/other-ai-apps.md).
 
-On this version we have recorded tests with Claude Code only (one Mac). The Claude Desktop and Cursor pages are
-written but not tested on this version, and we make no claim about any other client.
+On this version we have a recorded run with Claude Code only: automated Claude Code sub-agents on one Mac on
+2026-11-14, a handful of runs, not an interactive session. The Claude Desktop and Cursor pages are written but not
+tested on this version, and we make no claim about any other client.
 
 `locus setup --list` shows the clients that `locus setup --client NAME` knows. By default it only prints the
 configuration for that client and where it goes; `--write` adds the `locus` entry to the client's own config file,
@@ -362,7 +374,8 @@ goes to whatever program asked for it.
 
 ### Web and phone assistants (claude.ai, ChatGPT, cloud agents)
 
-These cannot start a program on your computer, and Locus does not run a service for them. Claude.ai and ChatGPT ask
+These cannot start a program on your computer, and Locus offers no hosted service for them in this version: the
+earlier relay is off by default (`LOCUS_ENABLE_HOSTED=1`) and still in testing (see "What leaves your computer"). Claude.ai and ChatGPT ask
 for a kind of sign-in (OAuth) that Locus 0.2.0 does not have, so they are not supported yet. For a client that
 accepts a fixed token, [docs/remote-tunnel.md](docs/remote-tunnel.md) describes how to put `locus serve
 --transport streamable-http` behind a tunnel you run yourself (`locus doctor --remote URL` checks it). Nothing in
@@ -402,10 +415,13 @@ is readable text:** it stores the text of every chunk Locus cut from your files,
 Chroma database. Locus does not encrypt it. Anyone or anything that can read that folder (another program running
 as you, a backup, a synced or shared drive that includes it) can read those chunks. Use your system's disk
 encryption (FileVault, BitLocker, LUKS) and keep the folder out of cloud-sync and shared folders. On macOS and
-Linux Locus creates the folder readable by your account only (mode 0700); that has not been checked on Windows.
-The same folder holds your policy file (`policy.toml`), a random 8-character computer tag (`device_id`) and, if
-you used `locus sync-notion`, your Notion access token (`notion_token.json`) and the pages as plaintext Markdown files
-(`sources/notion/`).
+Linux the code sets the folder to readable by your account only (mode 0700; tried once on a scratch folder, not
+checked on a live install); Windows is not verified. The same folder may also hold your policy file (`policy.toml`,
+once you have a rule or an opened folder), the audit log (`audit/`), the pause flag (`PAUSED`), the answer to the
+first-run licence question (`licence-ack`), a note that the one-time upgrade check for closed folders has run
+(`closed-folders.json`), a random
+8-character computer tag (`device_id`, only if you used the remote connection) and, if you used `locus sync-notion`,
+your Notion access token (`notion_token.json`) and the pages as plaintext Markdown files (`sources/notion/`).
 
 To erase what Locus keeps on this computer:
 
@@ -485,9 +501,11 @@ each would send or write if you do.
 
 ## Which folders are closed
 
-Locus indexes the folders you point it at, with a built-in deny-list (keys, passwords, browser profiles, system
-folders) that is always on. One folder is **closed** until you open it on purpose: **Downloads**. It mixes files you
-wrote with files other people wrote, and any of those may contain text meant to steer an AI assistant.
+Locus indexes the folders you point it at, with a built-in deny-list (keys, passwords, keychains, browser profiles,
+`~/Library`, package caches) that is always on. One folder is **closed** until you open it on purpose:
+**`~/Downloads`** (only that folder in your home folder; another folder that merely has that name is not closed). It
+mixes files you wrote with files other people wrote, and any of those may contain text meant to steer an AI
+assistant.
 
 - `locus index ~`, a parent folder, `--roots` and a `roots` list in `policy.toml` all leave Downloads out. The run
   says how many files it left out and which command opens them.
@@ -513,14 +531,17 @@ has already received. See [SECURITY.md](SECURITY.md).
 
 ## Stop everything, and see what was handed over
 
-- `locus pause` stops `locus_search`, `locus_list_sources`, `locus_read_file`, the local API and `locus query --json`:
-  they answer with one fixed sentence and no file name or text. `locus resume` undoes it; no restart is needed.
-  `LOCUS_DISABLED=1` does the same from the environment. Indexing and watching are not stopped.
+- `locus pause` stops `locus_search`, `locus_list_sources`, `locus_read_file`, the `search` and `fetch` tools of the
+  tunnel mode, the local API, `locus query --json`, `locus sources` and `locus read`: they answer with one fixed
+  sentence and no file name or text. `locus resume` takes effect at once, with no restart. `LOCUS_DISABLED=1` does the
+  same from the environment, but a running app keeps the environment it was started with: unset it in the app's
+  settings and restart the app. Indexing and watching are not stopped.
 - Locus keeps an audit log in `~/.locus/audit/`: one line per call with the time, the tool, the name the AI app gave
   itself, the file paths returned, how many characters, whether the answer was cut and how many results your rules
   hid. It never holds file text, and it does not hold your question unless you set `[audit] queries = true`. Files
   older than 90 days are deleted. `locus audit --since 7d` summarises it. The log lists file paths, which can
-  themselves be sensitive, and sits in the same folder as the index.
+  themselves be sensitive, and sits in the same folder as the index. The local API and the tunnel mode keep their own
+  counts-only logs in the same folder (see their pages).
 
 ## File types
 
@@ -578,7 +599,8 @@ client work, or use inside a product or service, including when you are one pers
 **Commercial use needs a separate paid licence. None can be bought yet: join the waitlist at
 <https://locusfiles.com/commercial>** (see [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md)). `locus license` prints
 this in two sentences. The first time you run `locus setup` or `locus doctor` in a terminal, Locus asks one question
-about commercial use; your answer stays on your computer.
+about commercial use; your answer stays on your computer. If you answer yes, that one command stops with a pointer
+to the page and nothing else changes; searching never depends on the answer.
 
 This licence is source-available, not open source, and it has no later open-source licence: versions do not turn
 into Apache-2.0. Releases published before 0.2.0 (0.1.x on PyPI) were released under FSL-1.1-ALv2 and stay under

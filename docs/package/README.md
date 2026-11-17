@@ -1,11 +1,12 @@
 # Locus
 
-Your files, your machine, the MCP clients you already use.
+Ask your AI assistant about your own files. Search results name the file they came from.
 
 Locus indexes folders you choose on your own computer and gives MCP clients that can start a local
-server (setup pages exist for Claude Code, Claude Desktop and Cursor; on this version we have tested Claude
-Code only) a semantic search tool over them. Every
-result carries the file path, so the assistant can cite its sources.
+server a semantic search tool over them (setup pages exist for Claude Code, Claude Desktop and Cursor, and
+only Claude Code has a recorded run on this version; the recorded run is automated Claude Code sub-agents on one
+Mac, 2026-11-14, not an interactive session). Every search result carries the file path, so an assistant can cite
+its sources; whether it searches and cites is up to the assistant.
 
 The package is `locusfiles`; the command it installs is `locus` (and `locusfiles` as an alias of it,
 so `uvx --from "locusfiles[local]" locusfiles serve` runs the server without installing it).
@@ -30,13 +31,14 @@ uv tool update-shell               # adds ~/.local/bin to PATH; open a new termi
 pipx install "locusfiles[local]"
 ```
 
-Other extras: `voyage` or `openai` to embed with your own provider key, and `local-torch` for
-on-device models the default route lacks (`bge-m3`, `multilingual-e5`, model folders), which adds
-PyTorch (the environment is about 1.1 GB).
+Other extras: `voyage` or `openai` to embed with your own provider key, and `local-torch`, which adds PyTorch
+(the environment is about 1.1 GB) for local models that fastembed does not list (checked against fastembed 0.9.1 on
+2026-11-17): `BAAI/bge-m3`, `intfloat/multilingual-e5-base` and local model folders; the default
+`multilingual-e5-small` (which Locus adds itself) and `multilingual-e5-large` use the default route.
 
-Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite and a clean install passed inside
-a container on 2026-11-17 (one run); that is not a real Linux machine, not x86_64, and no assistant was tried there.
-Windows is not verified.
+Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite (no failures, 8 tests skipped;
+it needs `procps` and a raised open-file limit) and a clean install passed inside a container on 2026-11-17 (one
+run); that is not a real Linux machine, not x86_64, and no assistant was tried there. Windows is not verified.
 
 ## First search
 
@@ -48,7 +50,7 @@ locus query "what did I decide about pricing" -k 5
 ```
 
 Then connect your AI assistant: it runs `locus serve` (MCP over stdio). Setup steps for each
-client are on the Locus website's Connect page (`/docs/connect`).
+client are on the Locus website's Connect page (https://locusfiles.com/docs/connect).
 
 ## What leaves your computer
 
@@ -68,6 +70,11 @@ Checked against the code of version 0.2.0 on 2026-11-14. The repository README h
   the package's code cannot show.
 - Remote (off by default: needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key): When you reach your computer from a web AI app, your question and the
   matching excerpts travel through Locus's relay. Locus says they are encrypted in transit and not stored.
+- Your own tunnel (`locus serve --transport streamable-http`): by default the server listens on `127.0.0.1` only
+  and will not start without a token in `LOCUS_MCP_TOKEN`. If you put a tunnel in front of it, whoever runs the
+  tunnel carries your traffic, and anyone who has the token can search your index.
+- Local API (`locus api`): a small web server on your own computer, protected by a token you choose. Every result is
+  an excerpt of your files and goes to whatever program asked for it.
 - Notion sync (off by default: needs `LOCUS_ENABLE_NOTION=1`): the text of the pages you pull is copied as
   plaintext Markdown files into `~/.locus/sources/notion/` and then indexed.
 - Account status: the `locus_account_status` tool exists only when `LOCUS_API_KEY` is set; it sends that key to
@@ -78,6 +85,11 @@ Checked against the code of version 0.2.0 on 2026-11-14. The repository README h
 The index in `~/.locus` is readable, unencrypted text (the text of every indexed chunk). To erase it, delete
 that folder.
 
+Controls: `~/Downloads` is closed until you open it on purpose (`locus index ~/Downloads`); `locus pause` stops
+the file tools until `locus resume`; Locus keeps an audit log in `~/.locus/audit/` (paths and counts, never file
+text). These limit what an assistant can reach through Locus. They do not stop other programs running as you. The
+repository README has the details.
+
 Indexes live in `~/.locus` (set `LOCUS_DATA_DIR` to move them). Settings are environment
 variables, or a `.env` file in the directory you run `locus` from or one of its parents.
 
@@ -87,9 +99,10 @@ The `locusfiles` package is licensed under the **PolyForm Noncommercial License 
 (`PolyForm-Noncommercial-1.0.0`). The full text ships inside the package as its `LICENSE` file, and that text
 is the binding version. In short, the engine is **source-available**: you may use, copy, modify and redistribute
 it for noncommercial purposes (personal use, study and research, hobby projects, and use by charitable,
-educational, public-research, public-safety or health, environmental-protection and government organisations),
-and not for work at a company, paid client work, or use inside a product or service. Commercial use needs a
+educational, public-research, public-safety or health, environmental-protection and government organisations).
+The licence text does not define "commercial"; the licensor's reading is that work at a company, paid client work,
+and use inside a product or service count as commercial. Commercial use needs a
 separate paid licence, which cannot be bought yet: leave your details at https://locusfiles.com/commercial.
-`locus license` prints this. Releases before 0.2.0 were released under FSL-1.1-ALv2 and stay under it. The hosted
-services (the relay, the website and billing) are not part of the package and are not licensed by it. This is a
+`locus license` prints this. Releases before 0.2.0 were released under FSL-1.1-ALv2 and stay under it. The earlier
+hosted relay and the website are not part of the package and are not licensed by it. This is a
 summary, not legal advice.
