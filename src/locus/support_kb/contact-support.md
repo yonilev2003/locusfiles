@@ -3,10 +3,11 @@ id: contact-support
 title: Get help from a person
 url: /support
 keywords: contact, contact us, support, help, human, person, email, telephone, call, talk to someone, ticket, report a bug, bug, feedback, complaint, response time, hours, escalate
-updated: 2026-10-01
+updated: 2026-11-17
 ---
-A person reads every message. The support page lists the current support email address and
-telephone number; calls are answered Sunday to Thursday, 09:00-17:00 Israel time.
+Locus is maintained by one person. To reach the maintainer, open an issue on the project's
+repository (see CONTRIBUTING.md there); replies can take a day or two. Security problems: do not open
+a public issue with details; follow SECURITY.md.
 
 To get an answer in one round trip, include:
 
@@ -16,12 +17,12 @@ To get an answer in one round trip, include:
 - which AI app you use and how you installed Locus (pipx, uv or a source checkout);
 - the exact error message you see.
 
-Never send your API key, your `.env` file or your own files to support. Nobody at Locus will ask for
+Never post your API key, your `.env` file or your own files in an issue. Nobody at Locus will ask for
 them.
 
-For privacy requests (a copy of your data, corrections, deletion), email from the address on your
-account; see "Delete your account or your local data".
+For a question about data you gave to the earlier hosted relay, see "Delete your local data (and what
+about an account)".
 
 Your AI app can also help directly, from inside the chat: `locus_help` answers questions from these
-articles, `locus_account_status` (present only when `LOCUS_API_KEY` is set) shows the state of your Locus account, and `locus_diagnose_connection`
-checks this computer's setup.
+articles, and `locus_diagnose_connection` checks this computer's setup (`locus_account_status` exists
+only when `LOCUS_API_KEY` is set, which ordinary use does not need).

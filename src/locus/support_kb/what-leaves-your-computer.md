@@ -3,7 +3,7 @@ id: what-leaves-your-computer
 title: What leaves your computer, by mode
 url: /privacy
 keywords: privacy, private, data, data flow, leave, leaves, upload, uploaded, send, sends, sent, share, store, stored, cloud, server, servers, security, secure, encrypted, voyage, vercel, supabase, hugging face, files, excerpts, who sees, safe, confidential
-updated: 2026-11-14
+updated: 2026-11-17
 ---
 What leaves your computer depends on the mode you use. This was checked against the engine's code
 (version 0.2.0) on 2026-11-14. Statements about what Locus's hosted servers do or do not keep are
@@ -31,7 +31,9 @@ Locus's own and cannot be checked from the engine's code.
   `locus setup --managed` (off by default) and `locus_diagnose_connection` with `check_remote` on
   send your account key to Locus's account-status endpoint (a read-only check), only when a key
   is set.
-- **Account:** Your account details are stored with Supabase. Your files are not.
+- **Account (only with the earlier hosted relay, which is off by default):** Locus says account details are
+  stored with Supabase and your files are not; that is behaviour of its hosted servers, which the engine's
+  code cannot show.
 - **In every mode:** Locus does not upload your raw files. That is not the same as saying no data
   leaves your computer: the next paragraph says what your assistant receives.
 

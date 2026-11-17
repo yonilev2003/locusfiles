@@ -3,8 +3,11 @@ id: relay-troubleshooting
 title: The remote connection stopped or will not start
 url: /docs/connect
 keywords: relay, transport relay, locus serve --transport relay, remote, remote connection, stopped, exit code, exit 1, exit 2, exit 3, superseded, another computer, took over, offline, asleep, did not answer, timeout, older engine, update, web app not working, too old, 426, LOCUS_MCP_RELAY_SUPABASE_ANON_KEY, public key
-updated: 2026-10-03
+updated: 2026-11-17
 ---
+This applies only if you turned on the earlier hosted relay (`LOCUS_ENABLE_HOSTED=1`): Locus offers no
+hosted service in this version, and the relay is off by default.
+
 `locus serve --transport relay` exits with a code that says what happened:
 
 - **Exit 1:** it lost the relay channel and could not get it back, or could not refresh its token in
