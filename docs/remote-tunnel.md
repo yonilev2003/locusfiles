@@ -1,6 +1,6 @@
 # Using Locus from a cloud assistant through a tunnel
 
-Most people never need this page. If you use Locus from Claude Desktop, Claude Code, Codex, Cursor or another program that runs on your own computer, Locus already works over a private connection on your machine, with no address on the internet. Read on only if you want an assistant that runs in a company's cloud (for example a chat website) to ask Locus questions about your files.
+Most people never need this page. A program that runs on your own computer (Claude Code, Claude Desktop, Codex, Cursor and others) can start Locus over a private connection on your machine, with no address on the internet; `docs/clients.md` says what has been tested with each. Read on only if you want an assistant that runs in a company's cloud (for example a chat website) to ask Locus questions about your files.
 
 This page describes what Locus does in this mode and how to start it. It does not promise that any particular assistant will accept the connection. The table near the end says, client by client, what has been tested. Today that is almost nothing.
 
@@ -10,7 +10,7 @@ Claude and ChatGPT run on their companies' servers. They cannot reach a program 
 
 ## Read this before you start
 
-- **Excerpts leave your computer.** When the assistant searches, Locus sends back text from your files: excerpts of up to about 19,000 characters per search, file paths, and the full text of any file the assistant asks to read. That text goes to the assistant's provider and is handled under that provider's own rules. Indexing can stay on your computer; this part cannot. Locus never claims that nothing leaves your machine in this setup.
+- **Excerpts leave your computer.** When the assistant searches, Locus sends back text from your files: excerpts of up to 19,500 characters per search, file paths, and the full text of any file the assistant asks to read. That text goes to the assistant's provider and is handled under that provider's own rules. Indexing can stay on your computer; this part cannot. Locus never claims that nothing leaves your machine in this setup.
 - **Whoever runs the tunnel carries the traffic.** Tailscale Funnel is built so that Tailscale's relay cannot read the traffic; the TLS connection ends on your own device. With Cloudflare Tunnel and ngrok the company's edge ends the TLS connection and can see the requests and answers in the clear, by design of how those products work. Locus does not control any of this.
 - **The address is public.** Anyone who finds it can knock on it. The only things that keep strangers out are the secret token (below) and the limits Locus puts in front of it. Treat the token like a password.
 - **A file can try to steer the assistant.** Locus labels everything it returns as untrusted file content, but a label cannot stop every attempt. If the same chat also has a connector that can send mail or write files, text inside one of your files could try to push content there. Use Locus alone for sensitive questions and keep the assistant's per-tool approval switched on.
@@ -31,7 +31,7 @@ With a public host name set, Locus:
 | Shows only read-only tools | `locus_search`, `locus_list_sources`, `locus_read_file`, `locus_help`, plus `search` and `fetch` (ChatGPT's names for the same job). `locus_diagnose_connection` and `locus_account_status` are not listed and cannot be called. `--all-tools` puts them back. Set `LOCUS_CHATGPT_TOOLS=0` to leave out `search` and `fetch`. |
 | Limits the request rate | 120 requests a minute per token by default (`LOCUS_MCP_RATE_PER_MIN`), then `429` with a `Retry-After` header. Ten failed token attempts a minute from one address get `429` too. |
 | Writes a counts-only log | One line per request in `audit/` inside your Locus data folder (`~/.locus/audit/` by default), readable only by you: time, method, tool name, status, number of results, bytes returned and the indexed paths returned. Never the question, never any text from your files, never the token. |
-| Has an off switch | While a file named `REMOTE_OFF` exists in `~/.locus` (or in the folder `LOCUS_DATA_DIR` names), every request gets `503`. |
+| Has an off switch | While a file named `REMOTE_OFF` exists in `~/.locus` (or in the folder `LOCUS_DATA_DIR` names), every request gets `503`. `locus pause` (or `LOCUS_DISABLED=1`) also stops the file tools in this mode: they refuse with the fixed paused sentence, and `locus resume` undoes it. |
 | Expires | After 8 hours every request gets `401` and you restart Locus to continue. `--expires 2h` changes the time, `--expires 0` turns the expiry off. |
 
 `locus_read_file` and `fetch` only read files that are already in the index. Nothing else on your computer can be reached through them.

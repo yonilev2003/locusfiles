@@ -18,7 +18,7 @@
 
 ## Notes
 
-- **claude-code**: There is no file to edit by default: Claude Code keeps its own list. Run the printed command yourself; Locus never runs `claude`. Inside Claude Code, `/mcp` lists the servers it has. Vendor pages (read 2026-11-17): https://code.claude.com/docs/en/mcp.
+- **claude-code**: There is no file to edit by default: Claude Code keeps its own list. Run the printed command yourself; Locus never runs `claude`. Inside Claude Code, `/mcp` lists the servers it has. The recorded run is automated Claude Code sub-agents on one Mac (2026-11-14), not an interactive session. Vendor pages (read 2026-11-17): https://code.claude.com/docs/en/mcp.
 - **claude-desktop**: On Linux the folder is $XDG_CONFIG_HOME/Claude when that variable is set, else ~/.config/Claude. Vendor pages (read 2026-11-17): https://modelcontextprotocol.io/docs/develop/connect-local-servers; https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop.
 - **cursor**: This is the global file; a project can have its own .cursor/mcp.json, which this command does not touch. Vendor pages (read 2026-11-17): https://cursor.com/docs/mcp.
 - **codex**: Per the vendor page, the Codex IDE extension and the ChatGPT desktop app read the same file. Only the CLI has an earlier record; the others were not tested. The vendor page also offers `codex mcp add NAME -- command args`. Vendor pages (read 2026-11-17): https://learn.chatgpt.com/docs/extend/mcp.

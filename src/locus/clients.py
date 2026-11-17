@@ -137,6 +137,7 @@ REGISTRY: tuple[Client, ...] = (
             "There is no file to edit by default: Claude Code keeps its own list. Run the printed command yourself; "
             "Locus never runs `claude`.",
             "Inside Claude Code, `/mcp` lists the servers it has.",
+            "The recorded run is automated Claude Code sub-agents on one Mac (2026-11-14), not an interactive session.",
         ),
         no_file="none: prints a command",
     ),

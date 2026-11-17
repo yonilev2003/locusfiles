@@ -5,7 +5,9 @@ that can run a command or make a web request can use the two interfaces on this 
 the same freshness step and the same confinement as the MCP tools (`locus_search`, `locus_list_sources`,
 `locus_read_file`), so they return the same file paths and chunk indexes for the same question.
 
-- **Command line:** `locus query --json`, `locus sources`, `locus read`. Nothing to start and no network.
+- **Command line:** `locus query --json`, `locus sources`, `locus read`. Nothing to start. With the default
+  on-device embedder and the model already downloaded, no network request is made (the first run downloads the
+  model, and `voyage` or `openai` send the query to that provider).
 - **Local API:** `locus api`. A small web server on your computer, protected by a token you choose.
 
 Every search result carries the file `path` and the `chunk_index` it came from. Cite them.
@@ -43,8 +45,8 @@ a `locus.error.v1` document on standard output and one line on standard error.
 | 0 | ok (a search that found nothing is still 0, with `"results": []`) |
 | 1 | unexpected error: a bug, an index that cannot be read, an indexed file that can no longer be read |
 | 2 | usage error: a bad argument or parameter |
-| 3 | not configured (embedder, key, collection), or nothing is indexed yet |
-| 4 | refused: the path is not in the index (this includes every file the deny-list kept out), or the confinement check failed |
+| 3 | not configured (embedder, key, collection), nothing is indexed yet, or the folder rules (`policy.toml`) cannot be read |
+| 4 | refused: the path is not in the index (this includes every file the deny-list kept out), or a folder rule closes it (the deny-list, an excluded or closed folder), or the confinement check failed (the file is now a link or outside the indexed files), or Locus is paused |
 | 5 | embedder error: the query could not be embedded, or the on-device model could not be loaded |
 
 `locus api` uses 3 when it refuses to start (no token, a setting that is wrong, an audit folder it cannot write), 2
