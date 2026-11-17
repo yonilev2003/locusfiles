@@ -27,7 +27,7 @@ With a public host name set, Locus:
 | Still listens on 127.0.0.1 only | The tunnel program runs on your computer and connects to it. Locus refuses `--host 0.0.0.0` in this mode. |
 | Accepts the public host name and no other | The protection against DNS-rebinding stays on. A request for any other host name gets `421`. A browser-style `Origin` header must be `https://<your host>`; a request with no `Origin` header (cloud servers send none) is fine. |
 | Needs a token of at least 32 characters | It refuses to start with a shorter one and never prints the token. Every request must carry `Authorization: Bearer <token>`. |
-| Answers in plain JSON and keeps no sessions | Cloudflare quick tunnels cannot carry Server-Sent Events. `--sse` switches back to event streams and sessions. |
+| Answers in plain JSON and keeps no sessions | Cloudflare quick tunnels cannot carry Server-Sent Events. A `GET` request (which would open an event stream) is answered with `405`. `--sse` switches back to event streams and sessions. |
 | Shows only read-only tools | `locus_search`, `locus_list_sources`, `locus_read_file`, `locus_help`, plus `search` and `fetch` (ChatGPT's names for the same job). `locus_diagnose_connection` and `locus_account_status` are not listed and cannot be called. `--all-tools` puts them back. Set `LOCUS_CHATGPT_TOOLS=0` to leave out `search` and `fetch`. |
 | Limits the request rate | 120 requests a minute per token by default (`LOCUS_MCP_RATE_PER_MIN`), then `429` with a `Retry-After` header. Ten failed token attempts a minute from one address get `429` too. |
 | Writes a counts-only log | One line per request in `audit/` inside your Locus data folder (`~/.locus/audit/` by default), readable only by you: time, method, tool name, status, number of results, bytes returned and the indexed paths returned. Never the question, never any text from your files, never the token. |
@@ -98,13 +98,13 @@ An extra Cloudflare access rule that requires special headers will block assista
 
 If ngrok does not pass your public host name on to Locus, `locus doctor --remote` shows a `421` and tells you which setting to check.
 
-## Which assistants work
+## What each assistant says, and what has been tested
 
 "Not tested" means what it says: Locus has not been run against that assistant through a tunnel, so nothing here should be read as "it works". The "What its documentation says" column is the vendor's own description as read on 2026-11-17 and may have changed.
 
 | Client | Needs a tunnel? | What its documentation says about connecting | Tested with Locus through a tunnel |
 |---|---|---|---|
-| Claude Code | No: it runs on your computer and can use `http://127.0.0.1:8000/mcp` with a fixed token | Accepts a fixed authorization header | Not tested through a tunnel. The compatibility record shows a pass for Claude Code on Locus 0.2.0 over the local connection (macOS, 2026-11-14) |
+| Claude Code | No: it runs on your computer, so it can use Locus's normal local connection | Not checked for this page | Not tested through a tunnel. Locus's help article on other apps lists one recorded Claude Code run on Locus 0.2.0 (2026-11-14) over the normal local connection, which is not this mode |
 | Claude Desktop, custom connector | Yes: Claude's cloud makes the call, on port 443 | Sign-in (OAuth) or "no sign-in"; fixed request headers are described as available only to some organizations, so check in the app | Not tested |
 | claude.ai (web) and Claude on phones | Yes | As above | Not tested |
 | ChatGPT (custom MCP server, web) | Yes | Sign-in (OAuth) or no authentication; a fixed token is not offered. Locus has no OAuth yet | Not tested |
