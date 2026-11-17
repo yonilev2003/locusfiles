@@ -1627,10 +1627,31 @@ def _require_bearer_token(app: Any, token: str) -> Any:
     return _app
 
 
+_KNOWN_PATHS_CACHE: dict[str, Any] = {}
+_KNOWN_PATHS_TTL_S = 30.0  # only used when the store has no generation token to compare
+
+
 def _known_paths() -> set[str]:
-    """The indexed paths, for the remote audit log (a path is logged only when it is one of these). Never raises."""
+    """The indexed paths, for the remote audit log (a path is logged only when it is one of these). Never raises.
+
+    Listing every path reads the metadata of every chunk: MEASURED 2026-11-17 at about 52 microseconds per chunk
+    (157 ms for 3,000 chunks, so about 2.8 s for a 54,000-chunk index and 5 s for 103,000). Doing that on every audited
+    call would slow every remote answer, so the set is kept until the index generation token changes (the store
+    rewrites it on every index change) or, when there is no token, for 30 seconds."""
     try:
-        return set(_components()[1].list_paths())
+        store = _components()[1]
+        read_generation = getattr(store, "_read_generation", None)
+        stamp = read_generation() if callable(read_generation) else None
+        now = time.monotonic()
+        cached = _KNOWN_PATHS_CACHE.get("v")
+        if cached is not None and cached["store"] is store:
+            if stamp is not None and cached["stamp"] == stamp:
+                return cached["paths"]
+            if stamp is None and now - cached["at"] < _KNOWN_PATHS_TTL_S:
+                return cached["paths"]
+        paths = set(store.list_paths())
+        _KNOWN_PATHS_CACHE["v"] = {"store": store, "stamp": stamp, "at": now, "paths": paths}
+        return paths
     except Exception:  # noqa: BLE001 - the audit log is best effort
         return set()
 
