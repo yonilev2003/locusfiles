@@ -481,3 +481,88 @@ def test_the_startup_banner_never_prints_the_token(wired, tmp_path, capsys):
     srv._print_remote_banner(host="127.0.0.1", port=8000, path="/mcp", remote=options)
     err = capsys.readouterr().err
     assert TOKEN not in err and f"https://{PUBLIC}/mcp" in err and "kill switch" in err
+
+
+# --- a GET: nothing to push without sessions, so no event stream that never ends ------------------------------------
+
+
+def test_a_get_with_the_token_answers_405_at_once_in_json_mode(server):
+    """The SDK would answer this GET with an event stream that stays open until the client leaves (found in a real run:
+    curl waited for minutes). Cloudflare quick tunnels cannot carry such a stream, so JSON mode refuses it."""
+    reply = http_call(
+        server.port,
+        "GET",
+        "/mcp",
+        headers={"Host": PUBLIC, "Authorization": f"Bearer {TOKEN}", "Accept": "text/event-stream"},
+    )
+    assert reply.status == 405 and reply.headers["allow"] == "POST"
+    assert http_call(server.port, "GET", "/mcp", headers={"Host": PUBLIC, "Accept": "text/event-stream"}).status == 401
+    assert any(line["http"] == "GET" and line["status"] == 405 for line in _audit_lines(server.data_dir))
+
+
+# --- loopback mode (no public host) is exactly what it was ----------------------------------------------------------
+
+
+def _sse_json(reply) -> dict:
+    data = [line[5:].strip() for line in reply.text.splitlines() if line.startswith("data:")]
+    assert data, reply.text
+    return json.loads(data[-1])
+
+
+def test_loopback_mode_keeps_the_localhost_guard_event_streams_sessions_and_every_tool(wired, monkeypatch):
+    import uvicorn
+
+    started: dict = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kwargs: started.update(app=app, **kwargs))
+    srv._run_http(host="127.0.0.1", port=8000, path="/mcp", token=TOKEN)
+    assert started["host"] == "127.0.0.1" and not isinstance(started["app"], remote_guard.RemoteGuard)
+    with serve_app(started["app"]) as port:
+        local = f"127.0.0.1:{port}"
+        assert rpc(port, INITIALIZE, host=PUBLIC).status == 421  # the tunnel's name is refused without a public host
+        assert rpc(port, INITIALIZE, host="evil.test").status == 421
+        assert rpc(port, INITIALIZE, host=f"localhost:{port}").status == 200
+        assert rpc(port, INITIALIZE, token="wrong", host=local).status == 401
+        reply = rpc(port, INITIALIZE, host=local)
+        assert reply.status == 200 and reply.headers["content-type"].startswith("text/event-stream")
+        session = reply.headers["mcp-session-id"]
+        extra = {"Mcp-Session-Id": session}
+        rpc(port, {"jsonrpc": "2.0", "method": "notifications/initialized"}, host=local, extra=extra)
+        listed = rpc(port, TOOLS_LIST, host=local, extra=extra)
+        names = {t["name"] for t in _sse_json(listed)["result"]["tools"]}
+        assert names == {
+            "locus_search",
+            "locus_list_sources",
+            "locus_read_file",
+            "locus_help",
+            "locus_diagnose_connection",
+        }
+
+
+# --- the token is never written anywhere ----------------------------------------------------------------------------
+
+
+def test_the_token_is_in_no_reply_no_log_line_and_no_audit_file(server, capfd):
+    wrong = "wrong-token-value-8888"
+    bodies = [
+        rpc(server.port, INITIALIZE),
+        rpc(server.port, INITIALIZE, token=wrong),
+        rpc(server.port, INITIALIZE, host="evil.test"),
+        rpc(server.port, INITIALIZE, extra={"Origin": "https://evil.test"}),
+        call_tool(server.port, "fetch", {"id": "not-an-id"}),
+        call_tool(server.port, "locus_read_file", {"path": "/etc/hosts"}),
+        call_tool(server.port, "locus_diagnose_connection", {}),
+        http_call(server.port, "GET", "/mcp", headers={"Host": PUBLIC, "Authorization": f"Bearer {TOKEN}"}),
+    ]
+    server.data_dir.mkdir(parents=True, exist_ok=True)
+    switch = server.data_dir / remote_guard.KILL_SWITCH_FILE
+    switch.write_text("")
+    try:
+        bodies.append(rpc(server.port, INITIALIZE))
+    finally:
+        switch.unlink()
+    srv._print_remote_banner(host="127.0.0.1", port=8000, path="/mcp", remote=server.options)
+    seen = capfd.readouterr()
+    everything = [seen.out, seen.err] + [f"{r.status} {r.headers} {r.text}" for r in bodies]
+    everything += [f.read_text(encoding="utf-8") for f in (server.data_dir / "audit").glob("*.jsonl")]
+    for text in everything:
+        assert TOKEN not in text and wrong not in text

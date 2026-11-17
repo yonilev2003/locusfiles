@@ -493,6 +493,23 @@ async def _respond(send: Any, status: int, text: str, extra: Iterable[tuple[byte
     return len(body)
 
 
+def without_event_stream(app: Any) -> Any:
+    """ASGI middleware for JSON, stateless replies: a GET answers 405 (`Allow: POST`). Such a server never has
+    anything to push, and the SDK would answer a GET with an event stream that stays open until the client leaves, which
+    a Cloudflare quick tunnel cannot carry and which would hold a connection for nothing. The MCP transport spec lets a
+    server answer a GET with 405. Other methods and lifespan events pass through to the SDK."""
+
+    async def guarded(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope["type"] == "http" and scope.get("method") == "GET":
+            await _respond(
+                send, 405, "Method Not Allowed: this server answers POST requests only.", [(b"allow", b"POST")]
+            )
+            return
+        await app(scope, receive, send)
+
+    return guarded
+
+
 class RemoteGuard:
     """ASGI middleware around the MCP app. Order of the checks on every HTTP request: kill switch (503), expiry
     (401), failed-authentication throttle (429), bearer token (401), per-token rate limit (429). Only then is the

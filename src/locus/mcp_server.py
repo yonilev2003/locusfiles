@@ -1675,8 +1675,8 @@ def configure_remote_tools(*, all_tools: bool = False, chatgpt_tools: bool = Tru
 
 def build_remote_app(*, path: str, token: str, remote: remote_guard.RemoteOptions) -> Any:
     """The streamable-http app for public-host mode: the tool list for a tunnel, the SDK's Host/Origin guard with the
-    public hostnames added, JSON replies and no session state unless `sse`, all behind `remote_guard.RemoteGuard`
-    (kill switch, expiry, bearer token, rate limits, audit log). Always bound to 127.0.0.1."""
+    public hostnames added, JSON replies and no session state (a GET gets 405) unless `sse`, all behind
+    `remote_guard.RemoteGuard` (kill switch, expiry, bearer token, rate limits, audit log). Always on 127.0.0.1."""
     configure_remote_tools(all_tools=remote.all_tools, chatgpt_tools=remote.chatgpt_tools)
     app = mcp.streamable_http_app(
         streamable_http_path=path,
@@ -1685,6 +1685,8 @@ def build_remote_app(*, path: str, token: str, remote: remote_guard.RemoteOption
         stateless_http=not remote.sse,  # nothing to lose when the server restarts: no session id to go stale
         transport_security=remote_guard.transport_security(remote.public_hosts),
     )
+    if not remote.sse:  # no sessions, so nothing to push: a GET would open an event stream that never ends
+        app = remote_guard.without_event_stream(app)
     return remote_guard.RemoteGuard(
         app,
         authenticate=remote_guard.static_token_authenticator(token),
