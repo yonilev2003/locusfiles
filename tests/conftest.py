@@ -34,6 +34,29 @@ def _never_touch_the_real_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path_fac
     get_settings.cache_clear()
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _stop_the_chroma_systems_a_test_module_opened():
+    """Every Chroma system keeps about 13 native threads until it is stopped, and nothing in the suite stopped them.
+    macOS allows 4,096 threads in one process; with several hundred stores opened over a run the suite reached it, and
+    the next `PersistentClient(...)` waited for ever. Stopping what a module opened, when the module is done, keeps
+    the count where it was. The shared demo index (session scope) stays up."""
+    try:
+        from chromadb.api.shared_system_client import SharedSystemClient as shared
+    except ImportError:
+        yield
+        return
+    before = set(shared._identifier_to_system)
+    yield
+    for ident in set(shared._identifier_to_system) - before:
+        if "demo-index" in str(ident):
+            continue
+        try:
+            shared._identifier_to_system.pop(ident).stop()
+        except Exception:  # noqa: BLE001 - a store a test left half open is not this fixture's problem
+            pass
+        shared._identifier_to_refcount.pop(ident, None)
+
+
 @pytest.fixture(autouse=True)
 def _account_tool_is_off_again_after_each_test():
     """`mcp_server.main()` registers `locus_account_status` when a key is set; a test that did so must not change the
