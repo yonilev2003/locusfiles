@@ -28,7 +28,7 @@ import pytest
 
 pytest.importorskip("chromadb")
 
-from locus import cli  # noqa: E402
+from locus import cli, killswitch  # noqa: E402
 from locus import mcp_server as srv  # noqa: E402
 from locus.config import DEFAULT_EXTENSIONS, Settings, get_settings  # noqa: E402
 from locus.ingest.embedder import HashEmbedder  # noqa: E402
@@ -181,6 +181,29 @@ def test_A5_the_recheck_keeps_an_opened_downloads_and_hides_it_when_the_entry_go
     assert lecture in store.list_paths()  # hidden, not deleted
     entry.write_text(opened, encoding="utf-8")  # and put back
     assert sees_it()
+
+
+# --- A6 -------------------------------------------------------------------------------------------------------
+
+
+def test_A6_while_paused_the_tools_refuse_and_after_resume_they_work_in_the_same_process(world, capsys, monkeypatch):
+    home, settings = world
+    assert run(capsys, "index", str(home / "Downloads"), "--yes")[0] == 0
+    wire_mcp(monkeypatch, settings, store_of(settings))
+    lecture = str(home / "Downloads" / "lecture1.md")
+
+    def tools() -> list[str]:
+        return [
+            asyncio.run(srv.locus_search(query="eigenvalues zebras lecture")),
+            asyncio.run(srv.locus_list_sources()),
+            asyncio.run(srv.locus_read_file(path=lecture)),
+        ]
+
+    assert all(lecture in out for out in tools())
+    assert run(capsys, "pause")[0] == 0
+    assert tools() == [killswitch.PAUSED_SENTENCE] * 3  # nothing else: no path, no text
+    assert run(capsys, "resume")[0] == 0
+    assert all(lecture in out for out in tools())
 
 
 # --- A4 -------------------------------------------------------------------------------------------------------

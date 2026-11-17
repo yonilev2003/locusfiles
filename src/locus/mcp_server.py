@@ -56,7 +56,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
-from . import __version__, closed_folders, support
+from . import __version__, closed_folders, killswitch, support
 from . import restrictions as _restr
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
@@ -1437,6 +1437,7 @@ async def locus_diagnose_connection(
         lines.append("  required API key: not required (local/offline embedder)")
 
     lines.append(f"data directory: {_diagnose_data_directory(settings.data_dir)}")
+    lines += [_redact_paths(line) for line in _restr.state_lines(settings.data_dir)]
 
     if not settings.data_dir.exists():
         # Don't trigger _components()'s lazy init (which would create the directory) just to
@@ -1558,6 +1559,13 @@ def _account_access(settings: Settings) -> str:
     return f"no access: the plan is not active (status {status}{ended})"
 
 
+def _state_data_dir() -> Path:
+    try:
+        return get_settings().data_dir
+    except Exception:  # noqa: BLE001 - help must answer when a setting is broken
+        return _announce_data_dir()
+
+
 def _help_articles_status() -> str:
     """'<n> bundled (...)' or 'unavailable (<error class>)' -- never a path (diagnostics rule)."""
     try:
@@ -1619,7 +1627,9 @@ async def locus_help(
             "`pipx reinstall locusfiles`. Then restart the AI app. The Locus website's /support and "
             "/docs/connect pages cover the same topics."
         )
-    return support.format_help(query, results, base=base, version=__version__)
+    answer = support.format_help(query, results, base=base, version=__version__)
+    paused = killswitch.state_line(_state_data_dir())  # help keeps answering while paused, and says so
+    return f"{paused}\n\n{answer}" if paused else answer
 
 
 def _require_bearer_token(app: Any, token: str) -> Any:

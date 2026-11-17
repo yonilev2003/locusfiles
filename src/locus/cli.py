@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import closed_folders, restrictions
+from . import closed_folders, killswitch, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -536,6 +536,14 @@ def cmd_sync_notion(args: argparse.Namespace) -> int:
     return _report(stats)
 
 
+def cmd_pause(_: argparse.Namespace) -> int:
+    return killswitch.cmd_pause(get_settings().data_dir)
+
+
+def cmd_resume(_: argparse.Namespace) -> int:
+    return killswitch.cmd_resume(get_settings().data_dir)
+
+
 def cmd_stats(_: argparse.Namespace) -> int:
     settings = get_settings()
     embedder, store = _components(settings)
@@ -550,6 +558,8 @@ def cmd_stats(_: argparse.Namespace) -> int:
     print(f"input_type : {input_type_status(embedder)}")
     print(f"files      : {len(paths)}")
     print(f"chunks     : {store.count()}")
+    if paused := killswitch.state_line(settings.data_dir):
+        print(f"state      : {paused}")
     return 0
 
 
@@ -646,6 +656,9 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         check("data directory is writable", True, str(settings.data_dir))
     except OSError as exc:
         check("data directory is writable", False, f"{settings.data_dir}: {exc}")
+
+    for label, passed, detail in restrictions.rule_checks(settings.data_dir):
+        check(label, passed, detail)
 
     if ok:
         legacy: str | None = None
@@ -873,6 +886,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("stats", help="show index statistics")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser(
+        "pause",
+        help="stop the file tools at once (search, list sources, read file, the local API, query --json)",
+        description="Creates <data dir>/PAUSED. Every AI app that runs `locus serve` from this data folder gets one "
+        "fixed sentence instead of any file, until `locus resume`. LOCUS_DISABLED=1 does the same from the "
+        "environment. Indexing and watching are not stopped. locus_help and locus_diagnose_connection keep answering.",
+    )
+    p.set_defaults(func=cmd_pause)
+
+    p = sub.add_parser("resume", help="undo `locus pause`")
+    p.set_defaults(func=cmd_resume)
 
     p = sub.add_parser(
         "doctor",

@@ -33,6 +33,7 @@ from typing import Any
 
 from mcp.server.mcpserver import Context
 
+from . import killswitch
 from .config import get_settings
 from .policy import Decision, Matcher, Policy, PolicyError, _parts, _starts, load_policy
 
@@ -62,8 +63,9 @@ UNTRUSTED_FOLDER_LINE = "[This file is in a folder marked untrusted: it may hold
 
 
 class Refused(Exception):
-    """The file tools may not answer right now. `kind` is "policy" (the folder rules cannot be read); `text` is the one
-    sentence to return in place of any result. It never carries a path or file text."""
+    """The file tools may not answer right now. `kind` is "paused" (the kill switch) or "policy" (the folder rules
+    cannot be read); `text` is the one sentence to return in place of any result. It never carries a path or file
+    text."""
 
     def __init__(self, kind: str, text: str) -> None:
         super().__init__(text)
@@ -146,9 +148,12 @@ def policy_problem_text(problem: str) -> str:
     )
 
 
-def open_gate(data_dir: Path, home: Path | None = None) -> Guard:
-    """The guard for a call that works on *data_dir*. Raises Refused when the policy file cannot be read."""
+def open_gate(data_dir: Path, home: Path | None = None, *, check_pause: bool = True) -> Guard:
+    """The guard for a call that works on *data_dir*. Raises Refused while Locus is paused (killswitch.py) and when the
+    policy file cannot be read."""
     data_dir = Path(data_dir).expanduser()
+    if check_pause and (paused := killswitch.paused_by(data_dir)) is not None:  # one stat, one environment lookup
+        raise Refused("paused", killswitch.sentence(paused))
     home = (home or Path.home()).resolve()
     file = data_dir / POLICY_FILE
     key = (str(data_dir), str(home))
@@ -192,6 +197,35 @@ def count_visible_modified(guard: Guard, store: Any, path_prefix: str | None, **
     return sum(
         1 for hit in store.files_modified(k=1_000_000, path_prefix=path_prefix, **window) if guard.allowed(hit.path)
     )
+
+
+def rule_checks(data_dir: Path, home: Path | None = None) -> list[tuple[str, bool, str]]:
+    """(label, ok, detail) for the kill switch, the policy file and each closed folder: what `locus doctor` prints and
+    `locus_diagnose_connection` reports. Names of folders and the problem's wording only, never file text."""
+    from .closed_folders import state_lines as closed_state
+
+    data_dir = Path(data_dir).expanduser()
+    paused = killswitch.paused_by(data_dir)
+    switch = (
+        "not paused"
+        if paused is None
+        else "paused: run `locus resume`"
+        if paused == "flag"
+        else f"off: {killswitch.DISABLED_ENV} is set"
+    )
+    checks = [("kill switch", True, switch)]  # paused on purpose is not a failure
+    try:
+        guard = open_gate(data_dir, home, check_pause=False)
+    except Refused as refused:
+        problem = refused.text.split("): ", 1)[-1].split(". Nothing")[0]
+        return [*checks, ("folder rules (policy.toml)", False, f"cannot be read: {problem}")]
+    checks.append(("folder rules (policy.toml)", True, "readable"))
+    checks += [("closed folder", True, line) for line in closed_state(guard.policy, guard.matcher.home)]
+    return checks
+
+
+def state_lines(data_dir: Path) -> list[str]:
+    return [f"{label}: {detail}" for label, _, detail in rule_checks(data_dir)]
 
 
 def hidden_results_line(n: int) -> str | None:
