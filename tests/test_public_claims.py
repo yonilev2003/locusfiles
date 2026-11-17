@@ -162,3 +162,54 @@ def test_the_readme_and_security_policy_state_the_hard_link_rule_and_its_limits(
     assert "does not report link counts" in readme and "both are skipped" in readme
     assert "named pipe" in readme
     assert "more than one hard link" in security and "LOCUS_ALLOW_HARD_LINKS=1" in security
+
+
+# --- decided 2026-11-17 after the claims audit: what the first lines, numbers and help articles may say ---
+
+
+def test_the_first_lines_promise_search_results_that_name_a_file_not_answers_or_every_client():
+    import tomllib
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    pypi = (ROOT / "docs" / "package" / "README.md").read_text(encoding="utf-8")
+    description = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["description"]
+    for text in (readme, pypi, description):
+        assert "Every answer names" not in text and "MCP clients you already use" not in text
+        assert "such as Claude Desktop, Claude Code and Cursor" not in text
+    assert "Search results name the file they came from." in readme
+    assert "Search results name the file they came from." in pypi
+
+
+def test_the_readme_gives_the_chunk_size_a_new_default_collection_gets():
+    from locus.ingest.chunk_policy import LEGACY_CHUNK_TOKENS, WINDOW_AWARE_CHUNK_TOKENS
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert f'{WINDOW_AWARE_CHUNK_TOKENS} "tokens"' in readme and f"{WINDOW_AWARE_CHUNK_TOKENS} tokens" in readme
+    assert "default 700" not in readme
+    assert f"{LEGACY_CHUNK_TOKENS} applies to collections made before 0.1.4" in " ".join(readme.split())
+
+
+def test_the_api_doc_exit_code_rows_say_what_help_says():
+    from locus import cli
+
+    doc = " ".join((ROOT / "docs" / "api.md").read_text(encoding="utf-8").split())
+    help_text = " ".join(cli.EXIT_CODES_EPILOG.split())
+    for phrase in ("a folder rule closes it", "or Locus is paused", "the confinement check failed"):
+        assert phrase in help_text and phrase in doc, phrase
+    assert "folder rules" in help_text and "folder rules (`policy.toml`) cannot be read" in doc
+
+
+def test_no_help_article_sends_an_ordinary_user_to_a_hosted_service_or_a_person_by_telephone():
+    from locus import support
+
+    forbidden = re.compile(
+        r"your dashboard|Delete your account|telephone|Sunday to Thursday|00:00 UTC|Locus plan", re.I
+    )
+    for article in support.load_articles():
+        assert not forbidden.search(article.body), (article.id, forbidden.search(article.body).group(0))
+
+
+def test_the_changelog_dates_the_versions_that_are_on_pypi():
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [0.1.4] - 2026-10-07" in text and "## [0.1.3] - 2026-10-04 (yanked)" in text
+    assert "still marked unreleased" not in text
