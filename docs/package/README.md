@@ -34,7 +34,9 @@ Other extras: `voyage` or `openai` to embed with your own provider key, and `loc
 on-device models the default route lacks (`bge-m3`, `multilingual-e5`, model folders), which adds
 PyTorch (the environment is about 1.1 GB).
 
-Tested on one Mac (Apple silicon, macOS) only. Linux and Windows are not verified.
+Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite and a clean install passed inside
+a container on 2026-11-17 (one run); that is not a real Linux machine, not x86_64, and no assistant was tried there.
+Windows is not verified.
 
 ## First search
 

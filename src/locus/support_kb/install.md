@@ -6,7 +6,8 @@ keywords: install, installation, setup, set up, locus setup, configure, first ru
 updated: 2026-10-02
 ---
 Locus runs on your own computer. You need a terminal. The package is `locusfiles`; the command it
-installs is `locus`. These steps were tested on one Mac (macOS) only; Linux and Windows are not verified.
+installs is `locus`. These steps were tested on one Mac (macOS); on Linux only inside an arm64 Debian container
+(2026-11-17), not on a real Linux machine. Windows is not verified.
 
 We recommend `uv`: you do not need Python installed first, because it installs its own. Get it with
 `curl -LsSf https://astral.sh/uv/install.sh | sh`, then open a new terminal so `uv` is found

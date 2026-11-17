@@ -191,8 +191,9 @@ not a final answer. Run by us; not replicated by anyone else.
 
 ### Limits worth knowing
 
-- macOS (Apple silicon) was tested on one machine in a clean-install run on 2026-11-15. Linux and Windows are not
-  verified by us.
+- macOS (Apple silicon) was tested on one machine in a clean-install run on 2026-11-15. On Linux (arm64, Debian 13)
+  the test suite and a clean install of the wheel passed inside a container on 2026-11-17, one run: not a real Linux
+  machine, not x86_64, and no assistant was tried there. Windows is not verified by us.
 - A file can contain text written to steer an assistant. Locus labels results as untrusted file content. That is a
   request to the model, not a barrier.
 - The default model was chosen among 8 settings on the same dataset it is reported on, so its benchmark numbers are
@@ -268,7 +269,8 @@ probably hold the answer. It can miss, and it can return the wrong passage.
   folder this can take several searches.
 
 **Status.** Early software. No independent security audit: the data-flow statements come from our own AI-assisted
-reading of the source on 2026-11-14. Linux and Windows are not verified.
+reading of the source on 2026-11-14. Linux was tried only inside a container (the tests and a clean install,
+2026-11-17); Windows is not verified.
 
 </details>
 
@@ -329,7 +331,10 @@ most accurate choice for Hebrew and mixed-language files, at a 2.3 GB download. 
 `voyage` or `openai` extra and set `LOCUS_EMBEDDER`. `locus setup --local` picks the embedder and
 prints the `claude mcp add` line with your settings filled in.
 
-Tested on one Mac (Apple silicon, macOS) only. Linux and Windows are not verified.
+Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite and a clean install of the
+wheel passed inside a container on 2026-11-17 (one run; running the suite needs more open files than a container's
+default of 1024). That is not a real Linux machine, not x86_64, and no assistant was tried there. Windows is not
+verified.
 
 ## Connect your assistant
 
@@ -340,6 +345,28 @@ Tested on one Mac (Apple silicon, macOS) only. Linux and Windows are not verifie
 
 On this version we have recorded tests with Claude Code only (one Mac). The Claude Desktop and Cursor pages are
 written but not tested on this version, and we make no claim about any other client.
+
+`locus setup --list` shows the clients that `locus setup --client NAME` knows. By default it only prints the
+configuration for that client and where it goes; `--write` adds the `locus` entry to the client's own config file,
+after asking and with a backup of the file first. Setup writes a configuration. It does not mean Locus has been
+tested with that client.
+
+### Without an MCP client
+
+Anything that can run a command or make a web request can use the same index, with the same folder rules as the MCP
+tools. `locus query "..." --json`, `locus sources --json` and `locus read PATH --json` print JSON with a file path
+and chunk number on every result and use stable exit codes. `locus api` starts a small web server on your own
+computer (OpenAPI 3.1 description, a token you choose, Host and Origin checks, a rate limit, and a log of which
+paths were returned, never the text): see [docs/api.md](docs/api.md). Every result is an excerpt of your files and
+goes to whatever program asked for it.
+
+### Web and phone assistants (claude.ai, ChatGPT, cloud agents)
+
+These cannot start a program on your computer, and Locus does not run a service for them. Claude.ai and ChatGPT ask
+for a kind of sign-in (OAuth) that Locus 0.2.0 does not have, so they are not supported yet. For a client that
+accepts a fixed token, [docs/remote-tunnel.md](docs/remote-tunnel.md) describes how to put `locus serve
+--transport streamable-http` behind a tunnel you run yourself (`locus doctor --remote URL` checks it). Nothing in
+that guide has been tried with a real client yet, and whoever runs the tunnel carries your traffic.
 
 The three file tools are `locus_search`, `locus_list_sources` and `locus_read_file`. Every result
 carries a file path and a chunk number. `locus_read_file` only reads files that are already in the
