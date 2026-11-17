@@ -720,6 +720,33 @@ def test_an_existing_env_block_in_the_locus_entry_is_kept_and_hidden(run, home, 
     }  # fmt: skip
 
 
+@pytest.mark.parametrize("name", JSON_CLIENTS)
+def test_a_remote_locus_entry_is_replaced_not_mixed_and_its_headers_are_hidden(run, home, exe, name):
+    path = config_path(name, home)
+    remote = {"url": "http://127.0.0.1:8765/mcp", "headers": {"Authorization": "Bearer private-token"}}
+    write_json(path, {"mcpServers": {**OTHER_SERVERS, "locus": remote}})
+    code, out, err = run("--client", name, "--write", "--yes", "--command", exe)
+    assert code == 0 and "private-token" not in out + err and "<hidden>" in out
+    servers = json.loads(path.read_text())["mcpServers"]
+    assert servers["locus"] == {"command": exe, "args": ["serve"]}
+    assert {k: v for k, v in servers.items() if k != "locus"} == OTHER_SERVERS
+
+
+def test_a_remote_locus_table_in_toml_is_replaced_not_mixed(run, home, exe):
+    path = config_path("codex", home)
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        'model = "gpt-5"\n\n[mcp_servers.locus]\nurl = "http://127.0.0.1:8765/mcp"\n\n'
+        '[mcp_servers.locus.http_headers]\nAuthorization = "Bearer private-token"\n\n'
+        '[mcp_servers.other]\ncommand = "other"\n'
+    )
+    code, out, err = run("--client", "codex", "--write", "--yes", "--command", exe)
+    assert code == 0 and "private-token" not in out + err
+    data = tomllib.loads(path.read_text())
+    assert data["mcp_servers"] == {"locus": {"command": exe, "args": ["serve"]}, "other": {"command": "other"}}
+    assert data["model"] == "gpt-5"
+
+
 def test_toml_env_goes_in_a_sub_table(run, home, exe, monkeypatch):
     monkeypatch.setenv("LOCUS_TEST_VALUE", 'quo"te\\slash')
     path = config_path("codex", home)

@@ -14,7 +14,8 @@ after the file has been checked with tomllib), command-only (a command to run; L
 (print-only: the config location is not settled or is edited inside the app).
 
 The `locus` entry has no env block unless `--env NAME` is given: the value is read from the environment at write time
-and never printed (the change is shown with the value hidden). Keys already in an existing `locus` entry are kept.
+and never printed (the change is shown with the value hidden). Keys already in an existing `locus` entry are kept,
+except that an entry which points at a URL (a remote `locus`) is replaced whole; env and header values are hidden.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, TextIO
 
 ENTRY = "locus"
+REMOTE_KEYS = ("url", "httpUrl", "serverUrl", "headers", "http_headers")  # a `locus` entry that has one is remote
 DOCS_READ = "2026-11-17"
 MACOS, LINUX, WINDOWS = "macos", "linux", "windows"
 OS_NAMES = (MACOS, LINUX, WINDOWS)
@@ -201,7 +203,9 @@ REGISTRY: tuple[Client, ...] = (
             "Copilot's hosted model); VS Code with GitHub Copilot: not tested.",
             "The file is $COPILOT_HOME/mcp-config.json when COPILOT_HOME is set, else ~/.copilot/mcp-config.json. "
             "The older .vscode/mcp.json is deprecated and is not written.",
-            "Only command, args and env are written; whether Copilot CLI wants more fields was not checked.",
+            "Only command, args and env are written. Copilot CLI 1.0.96 reads such an entry as a local server with "
+            "all tools (checked with `copilot mcp get locus` in a scratch folder on 2026-11-17: that shows how the "
+            "file is read, not a connection).",
         ),
     ),
     Client(
@@ -332,10 +336,13 @@ def detect_command() -> str | None:
 
 
 def _masked(entry: Any, fresh: Mapping[str, str] | None = None) -> Any:
-    """*entry* with every env value hidden: a value just taken from the environment says where it came from."""
+    """*entry* with every env and header value hidden (a value just taken from the environment says so)."""
     if not isinstance(entry, dict):
         return entry
     out = dict(entry)
+    for key in ("headers", "http_headers"):  # a remote entry can carry a bearer token
+        if isinstance(out.get(key), dict):
+            out[key] = {k: "<hidden>" for k in out[key]}
     env = out.get("env")
     if isinstance(env, dict):
         out["env"] = {k: (f"<value of {k} from your environment>" if fresh and k in fresh else "<hidden>") for k in env}
@@ -474,6 +481,8 @@ def _indent_of(text: str) -> Any:
 def _merge_entry(current: Any, command: str, fresh: Mapping[str, str]) -> dict[str, Any]:
     """The `locus` entry after setup: command and args set, `--env` names added, anything else kept as it was."""
     base = dict(current) if isinstance(current, dict) else {}
+    if any(key in base for key in REMOTE_KEYS):  # an entry that points at a URL is replaced, not mixed with a command
+        base = {}
     desired = {**base, "command": command, "args": ["serve"]}
     if fresh:
         old_env = base.get("env")
