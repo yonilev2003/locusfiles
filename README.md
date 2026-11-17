@@ -483,6 +483,45 @@ each would send or write if you do.
   pasting the text into that assistant; that provider's policies apply to it. Locus does not upload your raw
   files, and nothing here means that no data leaves your computer when you use an assistant.
 
+## Which folders are closed
+
+Locus indexes the folders you point it at, with a built-in deny-list (keys, passwords, browser profiles, system
+folders) that is always on. One folder is **closed** until you open it on purpose: **Downloads**. It mixes files you
+wrote with files other people wrote, and any of those may contain text meant to steer an AI assistant.
+
+- `locus index ~`, a parent folder, `--roots` and a `roots` list in `policy.toml` all leave Downloads out. The run
+  says how many files it left out and which command opens them.
+- To open it, run `locus index ~/Downloads` (or `locus watch ~/Downloads`). Locus shows how many files that would
+  index and asks once; `--yes` answers for scripts. Without a terminal and without `--yes` it does nothing and prints
+  the exact command.
+- Opening adds one marked block to `~/.locus/policy.toml` (a `[[folder]]` entry with `profile = "untrusted"`; the old
+  file is kept as `policy.toml.bak`). You can write the same block by hand. Delete the block to close the folder again.
+- Closing, and any new rule you add (`[deny]`, an `excluded` folder), applies **at once** to what an assistant can
+  search, list and read, with no re-index and no restart. The index rows stay until you run
+  `locus index <folder> --prune`.
+- If your index already held files from Downloads when you upgraded, Locus opened the folder for you once and said so
+  on stderr, so nothing you had indexed disappeared.
+- Hits from an opened Downloads (and from the Notion sync folder) are marked "untrusted" when their text is handed to
+  an assistant. That is a request to the assistant to be careful. It is not a barrier.
+- If `policy.toml` has a mistake, the file tools return nothing until you fix it (the message names the key);
+  `locus_help` and `locus_diagnose_connection` keep answering. `locus doctor` lists the rules.
+
+These controls limit what an assistant can reach **through Locus**. They do not stop other programs running as you
+(anything that runs as you can read `~/.locus` and your files directly, and an assistant that can run shell commands
+can run `locus index ~/Downloads --yes` itself), and they are not a defence against an assistant following text it
+has already received. See [SECURITY.md](SECURITY.md).
+
+## Stop everything, and see what was handed over
+
+- `locus pause` stops `locus_search`, `locus_list_sources`, `locus_read_file`, the local API and `locus query --json`:
+  they answer with one fixed sentence and no file name or text. `locus resume` undoes it; no restart is needed.
+  `LOCUS_DISABLED=1` does the same from the environment. Indexing and watching are not stopped.
+- Locus keeps an audit log in `~/.locus/audit/`: one line per call with the time, the tool, the name the AI app gave
+  itself, the file paths returned, how many characters, whether the answer was cut and how many results your rules
+  hid. It never holds file text, and it does not hold your question unless you set `[audit] queries = true`. Files
+  older than 90 days are deleted. `locus audit --since 7d` summarises it. The log lists file paths, which can
+  themselves be sensitive, and sits in the same folder as the index.
+
 ## File types
 
 Markdown, text, code, CSV, HTML, PDF, DOCX, PPTX, XLSX, ODS, ODT, RTF, EPUB, IPYNB and subtitle files.
@@ -493,8 +532,9 @@ key and certificate files (`.pem`, `.key`, `.p12` and similar), `~/.ssh`, `~/.aw
 keychains, browser profiles, `~/Library` and package caches. It applies to `locus index <folder>` (with or
 without `--prune`), `locus watch` and `locus index --roots`; you can add rules in `~/.locus/policy.toml` but
 not remove built-in ones. It does not apply to `locus sync-notion`. It looks at names and places, not at what a
-file says: a password written inside an ordinary note is indexed. A file an older version already indexed stays in
-the index until you run `locus index <folder> --prune`.
+file says: a password written inside an ordinary note is indexed. A file an older version already indexed is hidden
+at once from what an assistant can search, list and read as soon as a rule covers it; its rows stay in the index until
+you run `locus index <folder> --prune`.
 
 Locus opens only regular files: a named pipe, socket or device in a folder is skipped (opening a pipe can wait for
 ever). It also skips a file that has more than one hard link, because its other name may be a file from outside the

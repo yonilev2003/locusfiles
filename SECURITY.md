@@ -62,7 +62,18 @@ described here is welcome.
   folder, including backups and synced drives, can read the text.
 - **The deny-list works on names and places, not contents.** It applies to `locus index <folder>`, `locus watch`,
   `--prune` and `--roots`, not to `locus sync-notion`, and a password inside an ordinary note is indexed. A file
-  indexed by an earlier version stays in the index until `locus index <folder> --prune`.
+  indexed by an earlier version is hidden at once from what an assistant can search, list and read as soon as a rule
+  covers it; its rows stay in the index until `locus index <folder> --prune`.
+- **What the folder controls do not do.** Downloads is closed until you open it, `locus pause` stops the file tools
+  and the audit log lists what was returned. These limit what an assistant can reach **through Locus**. They do not
+  stop other programs running as you: anything that runs as your user can read `~/.locus` (the index, the audit log,
+  `policy.toml`) and your files directly, and an assistant that can run shell commands can run
+  `locus index ~/Downloads --yes` itself. The "untrusted" label and the notice on each result are requests to the
+  model, not a defence against prompt injection, and Locus does not detect it. A second hard link of a file in a
+  closed folder indexed under another name (only with `LOCUS_ALLOW_HARD_LINKS=1`) is an ordinary file as far as Locus
+  can tell. Pausing or closing a folder stops later answers; it cannot take back text an assistant already has. The
+  client name in the audit log is what the app says about itself and is not checked. Only Downloads is closed by
+  default.
 - **Hard links.** A file with more than one hard link is not indexed (its other name may be outside the folder),
   unless `LOCUS_ALLOW_HARD_LINKS=1`. A filesystem that does not report link counts cannot be checked.
 - **A file swapped for a link during a read.** `locus_read_file` refuses a path that is not in the index or that
