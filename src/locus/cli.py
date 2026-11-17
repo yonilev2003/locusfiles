@@ -527,12 +527,16 @@ def cmd_license(_: argparse.Namespace) -> int:
 
 
 def cmd_setup(args: argparse.Namespace) -> int:
-    """`locus setup --managed | --local`: the embedder in one step (configure.py says how)."""
+    """`locus setup --managed | --local`: the embedder in one step (configure.py says how); `--client NAME | --list`
+    connect an AI app (clients.py says how)."""
+    from .clients import client_flags_used, run_client_setup
     from .configure import run_setup
 
     if not _licence_question_answered():
         return EXIT_NEEDS_YES
 
+    if args.client or args.list_clients or client_flags_used(args):
+        return run_client_setup(args)
     mode = "managed" if args.managed else "local"
     return run_setup(mode, collection=args.collection, new_key=args.new_key, skip_check=args.skip_check).code
 
@@ -676,17 +680,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser(
         "setup",
-        help="choose the embedder in one step: --managed (a Locus plan) or --local (on this computer)",
-        description="Write LOCUS_EMBEDDER (and, for --managed, LOCUS_API_KEY) into the .env file Locus reads "
+        help="choose the embedder in one step (--managed, --local), or connect an AI app (--client NAME, --list)",
+        description="With --client NAME or --list: print, or with --write add, the Locus entry in an AI app's MCP "
+        "config (a backup first; nothing is written without --write). With --managed or --local: "
+        "write LOCUS_EMBEDDER (and, for --managed, LOCUS_API_KEY) into the .env file Locus reads "
         "from this folder, owner-only, keeping every other line. --managed takes LOCUS_API_KEY if it is "
         "already set, else asks for it without showing it, and checks it with Locus's account-status "
         "endpoint (no embedding call, nothing spent). An index built with another embedder is never "
         "switched silently: setup stops and asks for a new collection. Exit codes: 0 saved, 1 key not "
         "accepted or not checked (nothing saved), 2 configuration problem (nothing saved).",
     )
+    from .clients import add_client_arguments
+
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--managed", action="store_true", help="managed embeddings with your Locus plan's API key")
     mode.add_argument("--local", action="store_true", help="on-device embeddings, no account and no key")
+    add_client_arguments(p, mode)
     p.add_argument(
         "--collection",
         default=None,
