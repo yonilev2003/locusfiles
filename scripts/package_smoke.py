@@ -266,7 +266,12 @@ def mcp_smoke(locus: list[str], env: dict[str, str], cwd: Path, version: str | N
 
 def smoke(locus: list[str], work: Path, *, installed: bool, version: str | None = None) -> None:
     env = base_env(installed=installed)
-    env.update({"LOCUS_EMBEDDER": "hash", "LOCUS_DATA_DIR": str(work / "data"), "PYTHONIOENCODING": "utf-8"})
+    env.update({
+        "LOCUS_EMBEDDER": "hash",
+        "LOCUS_ALLOW_TEST_EMBEDDER": "1",  # the engine refuses the offline test embedder unless this is set (A9)
+        "LOCUS_DATA_DIR": str(work / "data"),
+        "PYTHONIOENCODING": "utf-8",
+    })
     help_text = run([*locus, "--help"], env=env, cwd=work)
     for word in ("index", "query", "serve", "doctor"):
         if word not in help_text:
