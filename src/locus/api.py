@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import json
 import math
 import os
 import re
@@ -32,7 +31,6 @@ import threading
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
@@ -42,6 +40,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 from . import __version__
+from .audit import AuditLog
 from .service import (
     CONTENT_NOTICE,
     DEFAULT_READ_CHARS,
@@ -108,6 +107,8 @@ HTTP_STATUS: dict[str, int] = {
     "not_configured": 503,
     "embedder_unavailable": 503,
     "index_error": 503,
+    "paused": 503,
+    "policy_error": 503,
 }
 
 
@@ -292,42 +293,6 @@ class _Bucket:
             self.level -= 1.0
             return 0.0
         return (1.0 - self.level) / self.per_second
-
-
-class AuditLog:
-    """Append-only: one JSON object per line in `api-YYYY-MM-DD.jsonl` (UTC day), opened with O_APPEND and never
-    rewritten. Only the fields below are ever written: no query, no file text, no token, no request path."""
-
-    FIELDS = ("ts", "method", "route", "status", "results", "bytes", "paths", "error")
-
-    def __init__(self, directory: Path) -> None:
-        self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(self.directory, 0o700)
-        except OSError:
-            pass  # not ours to change (a shared folder): the files are still created owner-only
-        self._lock = threading.Lock()
-        self.write_probe()
-
-    def write_probe(self) -> None:
-        """Fail at start-up, not at the first request, when the log cannot be written."""
-        with self._lock:
-            os.close(os.open(self._file(datetime.now(UTC)), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600))
-
-    def _file(self, when: datetime) -> str:
-        return str(self.directory / f"api-{when:%Y-%m-%d}.jsonl")
-
-    def write(self, record: dict[str, Any]) -> None:
-        when = datetime.now(UTC)
-        entry = {"ts": when.isoformat(timespec="seconds")} | {k: record[k] for k in self.FIELDS[1:] if k in record}
-        line = (json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
-        with self._lock:
-            fd = os.open(self._file(when), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
-            try:
-                os.write(fd, line)
-            finally:
-                os.close(fd)
 
 
 # --- the application --------------------------------------------------------------------------------------------

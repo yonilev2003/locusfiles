@@ -13,6 +13,7 @@ not fail open.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import os
 import re
 import tomllib
@@ -35,9 +36,16 @@ DENY_REASONS: tuple[str, ...] = (
     "secret_file",
     "user_deny",
     "profile_excluded",
+    "closed_folder",
     "outside_roots",
 )
 DENIED_SKIP_REASONS: tuple[str, ...] = tuple(f"denied_{r}" for r in DENY_REASONS)
+
+# Folders below the home directory that stay closed until the user opens them (closed_folders.py says how): they mix
+# files the user wrote with files other people wrote. Only Downloads (on Windows `%USERPROFILE%\Downloads`, which is
+# the same name below the home directory). A parent root never opens one; only a `[[folder]]` entry for that folder, or
+# for a folder inside it, does.
+CLOSED_FOLDER_NAMES: tuple[str, ...] = ("Downloads",)
 
 # Folders below the home directory (case-insensitive: macOS volumes usually are).
 _SECRETS_DIRS = (
@@ -116,6 +124,7 @@ class Policy:
     folders: tuple[FolderProfile, ...] = ()
     library_allow: tuple[str, ...] = ()
     deny_paths: tuple[str, ...] = ()
+    audit_queries: bool = False  # `[audit] queries = true`: the audit log also records the query text (default off)
 
 
 @dataclass(frozen=True)
@@ -150,7 +159,7 @@ def parse_policy(text: str) -> Policy:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as err:
         raise PolicyError(f"not valid TOML: {err}") from err
-    _only_keys(data, {"version", "roots", "folder", "library", "deny"}, "the policy file")
+    _only_keys(data, {"version", "roots", "folder", "library", "deny", "audit"}, "the policy file")
     if data.get("version", 1) != 1:
         raise PolicyError(f"version {data['version']!r} is not supported (this Locus reads version 1)")
     roots = _str_list(data, "roots", "")
@@ -169,11 +178,18 @@ def parse_policy(text: str) -> Policy:
     library, deny = data.get("library", {}), data.get("deny", {})
     _only_keys(library, {"allow"}, "[library]")
     _only_keys(deny, {"paths"}, "[deny]")
+    audit = data.get("audit", {})
+    if not isinstance(audit, dict):
+        raise PolicyError("[audit] must be a table")
+    _only_keys(audit, {"queries"}, "[audit]")
+    if not isinstance(audit.get("queries", False), bool):
+        raise PolicyError("[audit] queries must be true or false")
     return Policy(
         roots=roots,
         folders=tuple(folders),
         library_allow=_str_list(library, "allow", "[library] "),
         deny_paths=_str_list(deny, "paths", "[deny] "),
+        audit_queries=audit.get("queries", False),
     )
 
 
@@ -186,6 +202,7 @@ def load_policy(path: Path) -> Policy:
     return parse_policy(text)
 
 
+@functools.lru_cache(maxsize=1 << 17)  # the same folder names come back in every path of a big index
 def _fold(text: str) -> str:
     # NFC first: APFS keeps the spelling of whoever created a name, so "Café" may arrive composed or decomposed (F5).
     return unicodedata.normalize("NFC", unicodedata.normalize("NFC", text).casefold())
@@ -195,8 +212,17 @@ def _parts(path: Path | str) -> tuple[str, ...]:
     return tuple(_fold(p) for p in Path(path).parts)
 
 
+def _raw(text: str, home: Path) -> Path:
+    return home if text == "~" else home / text[2:] if text.startswith("~/") else Path(text)
+
+
 def _expand(text: str, home: Path) -> tuple[str, ...]:
-    return _parts(home if text == "~" else home / text[2:] if text.startswith("~/") else text)
+    return _parts(_raw(text, home))
+
+
+def _variants(path: Path) -> tuple[tuple[str, ...], ...]:
+    """*path* as written and as the file system resolves it (a link leads somewhere else), as folded components."""
+    return tuple(dict.fromkeys((_parts(path), _parts(os.path.realpath(path)))))
 
 
 def _starts(parts: tuple[str, ...], prefix: tuple[str, ...]) -> bool:
@@ -207,6 +233,23 @@ def _contains(parts: tuple[str, ...], seq: tuple[str, ...]) -> bool:
     """True when *seq* occurs as consecutive path components anywhere in *parts*."""
     n = len(seq)
     return any(parts[i : i + n] == seq for i in range(len(parts) - n + 1))
+
+
+def _by_first(seqs: tuple[tuple[str, ...], ...]) -> dict[str, tuple[tuple[str, ...], ...]]:
+    index: dict[str, list[tuple[str, ...]]] = {}
+    for seq in seqs:
+        index.setdefault(seq[0], []).append(seq)
+    return {first: tuple(group) for first, group in index.items()}
+
+
+def _contains_any(parts: tuple[str, ...], index: dict[str, tuple[tuple[str, ...], ...]]) -> bool:
+    """`any(_contains(parts, s) for s in seqs)` for the sequences behind *index* (`_by_first`), looking only where a
+    sequence can start. The same answer, a few times faster on the long paths of a big index (query-time re-check)."""
+    for i, part in enumerate(parts):
+        for seq in index.get(part, ()):
+            if parts[i : i + len(seq)] == seq:
+                return True
+    return False
 
 
 def _foreign_library(parts: tuple[str, ...]) -> bool:
@@ -239,21 +282,48 @@ class Matcher:
         self._roots = tuple(dict.fromkeys([*expanded, *resolved]))
         # Matched as a tail anywhere in the path, not only under this home: a backup disk, a Time Machine copy or
         # another user's home holds the same credential and browser folders (F6).
-        self._secrets = tuple(tuple(_fold(x) for x in t) for t in _SECRETS_DIRS)
-        self._keychain = tuple(tuple(_fold(x) for x in t) for t in _KEYCHAIN_DIRS)
-        self._browsers = tuple(tuple(_fold(x) for x in t) for t in _BROWSER_DIRS)
+        self._secrets = _by_first(tuple(tuple(_fold(x) for x in t) for t in _SECRETS_DIRS))
+        self._keychain = _by_first(tuple(tuple(_fold(x) for x in t) for t in _KEYCHAIN_DIRS))
+        self._browsers = _by_first(tuple(tuple(_fold(x) for x in t) for t in _BROWSER_DIRS))
         self._library = h + ("library",)
         self._library_allow = tuple(_expand(a, self.home) for a in policy.library_allow)
         self._user_deny = tuple(_expand(d, self.home) for d in policy.deny_paths)
         folders = [(_expand(f.path, self.home), f.profile) for f in policy.folders]
         self._folders = sorted(folders, key=lambda fp: len(fp[0]), reverse=True)  # deepest first
+        # Closed folders (CLOSED_FOLDER_NAMES below this home) and the `[[folder]]` entries that open them (any entry
+        # that is not `excluded`), each as written and as the file system resolves it: `~/Downloads` may be a link.
+        self._closed = tuple(dict.fromkeys(v for n in CLOSED_FOLDER_NAMES for v in _variants(self.home / n)))
+        self._openers = tuple(
+            dict.fromkeys(
+                v for f in policy.folders if f.profile != "excluded" for v in _variants(_raw(f.path, self.home))
+            )
+        )
 
-    def profile_of(self, path: Path | str) -> str:
+    def closed_dirs(self) -> tuple[Path, ...]:
+        """The closed folders of this home, as written (not case-folded), for messages and counts."""
+        return tuple(self.home / n for n in CLOSED_FOLDER_NAMES)
+
+    def _closed_by(self, parts: tuple[str, ...], is_dir: bool) -> bool:
+        """True when *parts* is at or below a closed folder that no `[[folder]]` entry opens. An entry opens its own
+        folder and everything below it; a folder on the way to an entry may be walked through (its own files stay
+        closed)."""
+        for closed in self._closed:
+            if _starts(parts, closed):
+                return not any(
+                    _starts(e, closed) and (_starts(parts, e) or (is_dir and _starts(e, parts))) for e in self._openers
+                )
+        return False
+
+    def explicit_profile(self, path: Path | str) -> str | None:
+        """The profile of the deepest `[[folder]]` entry that covers *path*, or None when no entry does."""
         parts = _parts(path)
         for prefix, profile in self._folders:
             if _starts(parts, prefix):
                 return profile
-        return DEFAULT_PROFILE
+        return None
+
+    def profile_of(self, path: Path | str) -> str:
+        return self.explicit_profile(path) or DEFAULT_PROFILE
 
     def _library_denied(self, parts: tuple[str, ...], is_dir: bool) -> bool:
         if not _starts(parts, self._library):
@@ -274,11 +344,11 @@ class Matcher:
 
         if self._roots and not any(_starts(parts, r) for r in self._roots):
             return no("outside_roots")
-        if any(_contains(parts, p) for p in self._secrets):
+        if _contains_any(parts, self._secrets):
             return no("secrets_dir")
-        if any(_contains(parts, p) for p in self._keychain):
+        if _contains_any(parts, self._keychain):
             return no("keychain")
-        if any(_contains(parts, p) for p in self._browsers):
+        if _contains_any(parts, self._browsers):
             return no("browser_profile")
         if self._library_denied(parts, is_dir):
             return no("library")
@@ -296,6 +366,8 @@ class Matcher:
             return no("user_deny")
         if profile == "excluded":
             return no("profile_excluded")
+        if self._closed_by(parts, is_dir):
+            return no("closed_folder")
         return Decision(True, None, profile)
 
 

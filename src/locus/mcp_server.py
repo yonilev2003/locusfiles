@@ -51,12 +51,13 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
-from . import __version__, remote_guard, support
+from . import __version__, closed_folders, killswitch, remote_guard, support
+from . import restrictions as _restr
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
@@ -262,6 +263,7 @@ def _components() -> tuple[Embedder, VectorStore, Settings]:
                     raise NotConfigured(_state["error"]) from exc
                 _state["settings"] = settings
                 _state["embedder"] = embedder
+                closed_folders.mark_if_new(settings, store)
                 _state["store"] = store  # last: the fast path above reads "store" without the lock
                 print(f"locus_mcp: {embedder.name} @ {settings.data_dir}", file=sys.stderr)
                 if legacy:  # RET-002: a legacy managed collection; search works as before (stderr only, never stdout)
@@ -405,6 +407,7 @@ def _announced(tool: str) -> Any:
 
 @mcp.tool(name="locus_search", annotations={"title": "Search my local files", **READ_ONLY})
 @_announced("locus_search")
+@_restr.guarded("locus_search")
 @_dedent_doc
 async def locus_search(
     query: Annotated[
@@ -462,6 +465,7 @@ async def locus_search(
             )
         ),
     ] = "relevance",
+    ctx: Context | None = None,  # filled in by the SDK: only to name the client in the audit log (restrictions.py)
 ) -> str:
     """Search the user's own documents, notes and files on their computer, indexed by Locus: PDFs,
     Word and Markdown files, plans, meeting notes, drafts, reports and code they wrote or saved.
@@ -521,15 +525,24 @@ async def locus_search(
         embedder, store, settings = _components()
     except NotConfigured as exc:
         return str(exc)
+    try:
+        guard = _restr.guard_for(settings)  # the folder rules, re-read when policy.toml changes
+    except _restr.Refused as refused:
+        return refused.text
     fresh = freshen_for_serve(embedder, store, settings)  # bounded index-on-demand; a note only if cut short
+    hidden = 0  # results the folder rules keep back (counted, never named)
 
     def done(text: str) -> str:
+        if extra := _restr.hidden_results_line(hidden):
+            text = f"{text}\n\n{extra}"
         return f"{text}\n\n{fresh}" if fresh else text
 
     more_files = False
     if query is None:
         try:
-            hits = store.files_modified(k=top_k + 1, path_prefix=path_prefix, **time_kwargs)
+            hits, hidden = _restr.visible_hits(
+                guard, lambda n: store.files_modified(k=n, path_prefix=path_prefix, **time_kwargs), top_k + 1
+            )
             more_files = len(hits) > top_k  # one past top_k: tells "exactly top_k files" from "top_k of more"
             hits = hits[:top_k]
         except Exception as exc:  # the local index; see below
@@ -550,7 +563,9 @@ async def locus_search(
         if order == "modified_desc":
             time_kwargs["order"] = "modified_desc"
         try:
-            hits = store.query(query_embedding, k=top_k, path_prefix=path_prefix, **time_kwargs)
+            hits, hidden = _restr.visible_hits(
+                guard, lambda n: store.query(query_embedding, k=n, path_prefix=path_prefix, **time_kwargs), top_k
+            )
         except Exception as exc:  # the local index, not the embedder: never blame the API key for it
             return _index_error_text(exc)
     order_note = None
@@ -558,15 +573,24 @@ async def locus_search(
         order_note = "modified_desc (no query: files in the window, newest first)"
     elif order == "modified_desc":
         order_note = "modified_desc"
+    _restr.note(
+        paths=[h.path for h in hits], hidden=hidden, truncated=sum(len(h.text) for h in hits) > SEARCH_CHAR_BUDGET
+    )
     header = _search_header(after_ts, before_ts, path_prefix, order_note)
     if not hits:
         if timed:
             return done(f"{header}\n\n{_no_hits_in_window_text(store, path_prefix, after_ts, before_ts)}")
         return done(_no_hits_text(store, path_prefix))
-    text = _format_search_results(query, hits, scored=query is not None, title_newest_first=newest_first)
+    text = _format_search_results(
+        query,
+        hits,
+        scored=query is not None,
+        title_newest_first=newest_first,
+        untrusted=guard.untrusted([h.path for h in hits]),
+    )
     if query is None and more_files:
         try:
-            total = store.count_files_modified(path_prefix=path_prefix, **time_kwargs)
+            total = _restr.count_visible_modified(guard, store, path_prefix, **time_kwargs)
             of_total = f" ({total:,} file(s) in the window in all: that is the count)"
         except Exception:  # the count is a convenience; the listing above stands without it
             of_total = ""
@@ -877,6 +901,7 @@ def _format_search_results(
     *,
     scored: bool = True,
     title_newest_first: bool = False,
+    untrusted: frozenset[str] = frozenset(),
 ) -> str:
     """Markdown for locus_search: path-first headers, full chunk text within `budget` (RET-004).
 
@@ -886,7 +911,8 @@ def _format_search_results(
 
     Each header also carries the file's modified time (`modified_at`, local time with its
     offset) when the index recorded one. `scored=False` (a search with no query ranked nothing)
-    leaves the score out; `title_newest_first` says the list is ordered by modified time.
+    leaves the score out; `title_newest_first` says the list is ordered by modified time. A hit whose path is in
+    `untrusted` (a folder marked untrusted) gets one more line under its header; its text is never touched.
     """
     if query is None:
         lines = [f"# {len(hits)} file(s) modified in the window, newest first", UNTRUSTED_NOTICE, ""]
@@ -903,21 +929,23 @@ def _format_search_results(
         # PDF chunks only; after the score, so "chunk N, score" still parses as before
         page = f", p.{hit.page}" if hit.page is not None else ""
         head = f"## {i}. {hit.path}  (chunk {hit.chunk_index}{score}{page}{when}, {size:,} chars"
+        mark = [_restr.UNTRUSTED_FOLDER_LINE] if hit.path in untrusted else []
         if full == i - 1 and used + size <= budget:
             full = i
             used += size
-            lines += [head + ")", hit.text, ""]
+            lines += [head + ")", *mark, hit.text, ""]
         elif i == 1:  # a single chunk larger than the whole budget: deliver its head, say where it stops
             cut_top = True
             lines += [
                 head + f"; first {budget:,} shown)",
+                *mark,
                 hit.text[:budget],
                 f"[… chunk continues for {size - budget:,} more chars past this call's budget; "
                 f"read the rest with locus_read_file on {hit.path}]",
                 "",
             ]
         else:
-            lines += [head + "; text not included: over this call's evidence budget)", ""]
+            lines += [head + "; text not included: over this call's evidence budget)", *mark, ""]
     if full == len(hits):
         lines.append(f"Complete chunk text for all {len(hits)} result(s).")
     else:
@@ -967,6 +995,7 @@ _MEMORY_HINT_LINE = (
 
 @mcp.tool(name="locus_list_sources", annotations={"title": "List indexed files", **READ_ONLY})
 @_announced("locus_list_sources")
+@_restr.guarded("locus_list_sources")
 @_dedent_doc
 async def locus_list_sources(
     path_prefix: Annotated[
@@ -986,6 +1015,7 @@ async def locus_list_sources(
             json_schema_extra={"deprecated": True},
         ),
     ] = None,
+    ctx: Context | None = None,
 ) -> str:
     """Show what is in the user's indexed folders on their computer: the files locus_search can
     search (paths only). Use this when the user asks what Locus can see or what they have indexed,
@@ -1008,11 +1038,16 @@ async def locus_list_sources(
         embedder, store, settings = _components()
     except NotConfigured as exc:
         return str(exc)
+    try:
+        guard = _restr.guard_for(settings)
+    except _restr.Refused as refused:
+        return refused.text
     fresh = freshen_for_serve(embedder, store, settings)
-    all_paths = store.list_paths()
+    all_paths, hidden = guard.visible(store.list_paths())  # what the folder rules keep back: not listed, not counted
     paths = [p for p in all_paths if _under(p, scope)] if scope else all_paths
     total = len(paths)
     shown = paths[:limit]
+    _restr.note(paths=shown, hidden=hidden, truncated=total > len(shown))
     source = f"collection {settings.collection!r}, embedder {store.embedder_name!r}"
     if scope:
         lines = [
@@ -1022,6 +1057,8 @@ async def locus_list_sources(
     else:
         lines = ["# Indexed files", f"total: {total} file(s) ({source})"]
     lines.append(_COVERAGE_LINE.format(n=len(all_paths)))
+    if extra := _restr.hidden_files_line(hidden):
+        lines.append(extra)
     lines.append(_MEMORY_HINT_LINE)
     if not all_paths:
         lines.append("Nothing indexed yet — run `locus index <folder>`.")
@@ -1070,6 +1107,7 @@ def _confinement_refusal(path: str, indexed_nfc: set[str]) -> str | None:
 
 @mcp.tool(name="locus_read_file", annotations={"title": "Read an indexed file", **READ_ONLY})
 @_announced("locus_read_file")
+@_restr.guarded("locus_read_file")
 @_dedent_doc
 async def locus_read_file(
     path: Annotated[str, Field(description="Exact absolute path as returned by locus_search")],
@@ -1082,14 +1120,18 @@ async def locus_read_file(
             "(pages count from 1, like the p.N in search results)"
         ),
     ] = None,
+    ctx: Context | None = None,
 ) -> str:
     """Read a bounded excerpt of ONE of the user's own indexed files, by its exact path from
     locus_search or locus_list_sources. Use this when a search result is not enough, for example
     to read past the matched chunk. Refuses paths that are not in the index."""
     try:
-        _, store, _ = _components()
+        _, store, settings = _components()
+        guard = _restr.guard_for(settings)
     except NotConfigured as exc:
         return str(exc)
+    except _restr.Refused as refused:
+        return refused.text
     indexed = store.list_paths()
     if path not in set(indexed):
         # The same name spelled composed or decomposed (NFC / NFD) is the same file: use the indexed spelling.
@@ -1102,6 +1144,8 @@ async def locus_read_file(
     indexed_nfc = {unicodedata.normalize("NFC", p) for p in indexed}
     if refusal := _confinement_refusal(path, indexed_nfc):
         return refusal
+    if blocked := guard.read_refusal(path):  # the folder rules, for the path and for where it leads now
+        return f"Error: {blocked}, so it was not read. {_restr.RULES_REFUSAL_TAIL}"
     is_pdf = file_path.suffix.lower() == ".pdf"
     wanted: list[int] | None = None
     if pages is not None:
@@ -1153,9 +1197,13 @@ async def locus_read_file(
     # text is dropped, never returned (S-05). This narrows the race to a swap that is undone before this line.
     if refusal := _confinement_refusal(path, indexed_nfc):
         return f"{refusal} It changed while it was being read, so nothing was returned."
+    if blocked := guard.read_refusal(path):
+        return f"Error: {blocked}. It changed while it was being read, so nothing was returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
-    header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{UNTRUSTED_NOTICE}\n\n"
+    _restr.note(paths=[path], truncated=end < len(text))
+    notice = UNTRUSTED_NOTICE + (f"\n{_restr.UNTRUSTED_FOLDER_LINE}" if guard.profile(path) == "untrusted" else "")
+    header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{notice}\n\n"
     if end < len(text):
         return header + excerpt + f"\n\n[… {len(text) - end} more chars; call again with start_char={end}]"
     return header + excerpt
@@ -1414,6 +1462,7 @@ async def locus_diagnose_connection(
         lines.append("  required API key: not required (local/offline embedder)")
 
     lines.append(f"data directory: {_diagnose_data_directory(settings.data_dir)}")
+    lines += [_redact_paths(line) for line in _restr.state_lines(settings.data_dir)]
 
     if not settings.data_dir.exists():
         # Don't trigger _components()'s lazy init (which would create the directory) just to
@@ -1535,6 +1584,13 @@ def _account_access(settings: Settings) -> str:
     return f"no access: the plan is not active (status {status}{ended})"
 
 
+def _state_data_dir() -> Path:
+    try:
+        return get_settings().data_dir
+    except Exception:  # noqa: BLE001 - help must answer when a setting is broken
+        return _announce_data_dir()
+
+
 def _help_articles_status() -> str:
     """'<n> bundled (...)' or 'unavailable (<error class>)' -- never a path (diagnostics rule)."""
     try:
@@ -1596,7 +1652,9 @@ async def locus_help(
             "`pipx reinstall locusfiles`. Then restart the AI app. The Locus website's /support and "
             "/docs/connect pages cover the same topics."
         )
-    return support.format_help(query, results, base=base, version=__version__)
+    answer = support.format_help(query, results, base=base, version=__version__)
+    paused = killswitch.state_line(_state_data_dir())  # help keeps answering while paused, and says so
+    return f"{paused}\n\n{answer}" if paused else answer
 
 
 def _require_bearer_token(app: Any, token: str) -> Any:
@@ -3174,6 +3232,10 @@ def main(
     if transport == "relay":
         require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1
     apply_tool_set()  # the account tool exists only when a Locus account key is set; the instructions follow
+    try:  # an index made before Downloads was closed keeps working (closed_folders.py); never stops the server
+        closed_folders.migrate(get_settings(), Path.home().resolve())
+    except Exception:  # noqa: BLE001
+        pass
     if transport == "stdio":
         start_warmup()
         mcp.run()  # stdio transport — unchanged default

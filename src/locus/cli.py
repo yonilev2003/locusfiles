@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from . import audit, closed_folders, killswitch, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -31,6 +32,7 @@ def _components(settings: Settings) -> tuple[Embedder, ChromaStore]:
     embedder, store, warning = open_index(settings)
     if warning:
         print(f"locus: warning: {warning}", file=sys.stderr)
+    closed_folders.mark_if_new(settings, store)
     return embedder, store
 
 
@@ -48,13 +50,13 @@ def cmd_index(args: argparse.Namespace) -> int:
     if args.roots is not None or args.policy is not None or args.folder is None:
         return _index_roots(args, settings)
     folder = Path(args.folder)
-    matcher = _deny_list_for(folder, settings)
+    rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
+    matcher = _deny_list_for(folder, settings, ask=None if args.dry_run else (args.yes, rerun))
     if isinstance(matcher, int):
         return matcher
     if args.dry_run:
         return _dry_run(folder, settings, matcher)
     embedder, store = _components(settings)
-    rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
     refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
@@ -68,22 +70,45 @@ def cmd_index(args: argparse.Namespace) -> int:
         resume=f"To continue, re-run `{resume}` — unchanged files are skipped.",
         matcher=matcher,
     )
-    return _report(stats)
+    code = _report(stats)
+    _print_closed_hint(folder, settings, matcher)
+    return code
 
 
-def _deny_list_for(folder: Path, settings: Settings) -> Matcher | int:
+def _deny_list_for(folder: Path, settings: Settings, ask: tuple[bool, str] | None = None) -> Matcher | int:
     """The deny-list (policy.py) for indexing *folder*, with the user's `<data dir>/policy.toml` rules added: the
     same rules `--roots` applies, so a plain `index`, `watch` and `--prune` refuse the same keys, passwords and
     browser profiles. Or the exit code to return when the policy file is unreadable: a typo in a restriction must not
-    fail open."""
+    fail open. `ask` = (--yes given, the user's command): *folder* is one the user named, so when it is a closed
+    folder (Downloads) they are asked once whether to open it (closed_folders.py)."""
     from .policy import PolicyError, load_policy, matcher_for_folder
+    from .preflight import NEEDS_YES, PROCEED
 
+    home = Path.home().resolve()
+    policy_file = settings.data_dir / "policy.toml"
     try:
-        policy = load_policy(settings.data_dir / "policy.toml")
+        policy = load_policy(policy_file)
+        if ask is not None:
+            outcome = closed_folders.gate(
+                folder, settings, policy, policy_file, home, assume_yes=ask[0], command=ask[1]
+            )
+            if outcome != PROCEED:
+                return EXIT_NEEDS_YES if outcome == NEEDS_YES else EXIT_DECLINED
+            policy = load_policy(policy_file)  # the gate may have opened the folder
     except (PolicyError, OSError) as err:
         print(f"locus: policy file problem: {err}", file=sys.stderr)
         return EXIT_NEEDS_YES
-    return matcher_for_folder(folder, policy, Path.home().resolve())
+    return matcher_for_folder(folder, policy, home)
+
+
+def _print_closed_hint(root: Path, settings: Settings, matcher: Matcher) -> None:
+    """After an index or a dry run: say how many files a closed folder inside *root* left out, and how to open it."""
+    try:
+        lines = closed_folders.hint_lines(root, settings, matcher.policy, matcher.home)
+    except Exception:  # noqa: BLE001 - a hint must never turn a finished run into a failure
+        return
+    for line in lines:
+        print(line)
 
 
 # Exit codes of commands that index: 0 done, 1 every attempted file failed or the user declined,
@@ -123,6 +148,7 @@ def _index_roots(args: argparse.Namespace, settings: Settings) -> int:
     """`locus index --roots A B --dry-run`: counts for several roots under the policy file.
     Real multi-root indexing is not enabled yet; it follows once the dry-run report has been reviewed."""
     from .policy import Matcher, PolicyError, load_policy
+    from .preflight import NEEDS_YES, PROCEED
     from .rootscan import render_roots_report, scan_roots
 
     if args.prune and not args.dry_run:
@@ -146,9 +172,24 @@ def _index_roots(args: argparse.Namespace, settings: Settings) -> int:
     if bad:
         print(f"locus: not a folder: {bad[0]}", file=sys.stderr)
         return EXIT_NEEDS_YES
+    if not args.dry_run and (args.roots or args.folder):  # roots the user typed: a closed one among them is asked about
+        rerun = "locus index --roots " + " ".join(shlex.quote(str(r)) for r in roots) + " --yes"
+        try:
+            for root in roots:
+                outcome = closed_folders.gate(
+                    root, settings, policy, policy_file, home, assume_yes=args.yes, command=rerun
+                )
+                if outcome != PROCEED:
+                    return EXIT_NEEDS_YES if outcome == NEEDS_YES else EXIT_DECLINED
+            policy = load_policy(policy_file)
+        except (PolicyError, OSError) as err:
+            print(f"locus: policy file problem: {err}", file=sys.stderr)
+            return EXIT_NEEDS_YES
     matcher = Matcher(dataclasses.replace(policy, roots=tuple(str(r) for r in roots)), home)
     if args.dry_run:
         print(render_roots_report(scan_roots(roots, settings, matcher)))
+        for root in roots:
+            _print_closed_hint(root, settings, matcher)
         return 0
     return _index_roots_for_real(args, settings, roots, matcher)
 
@@ -182,6 +223,8 @@ def _index_roots_for_real(args: argparse.Namespace, settings: Settings, roots: l
     print(render_report(report))
     for err in report.stats.errors:
         print(f"  ! {err}")
+    for root in roots:
+        _print_closed_hint(root, settings, matcher)
     if report.stats.stop is not None:
         return EXIT_STOPPED
     return 1 if report.stats.errors and report.stats.files_indexed == 0 else 0
@@ -232,6 +275,8 @@ def _dry_run(folder: Path, settings: Settings, matcher: Matcher | None = None) -
     pre = build_preflight(folder, settings, known_hash=known_hash, matcher=matcher)
     print(pre.render())
     print(f"\n{chunk_line}")
+    if matcher is not None:
+        _print_closed_hint(folder, settings, matcher)
     print("\nDry run: nothing was embedded or sent.")
     return 0
 
@@ -291,10 +336,20 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 def cmd_query(args: argparse.Namespace) -> int:
     if args.json:
-        return _run_service(lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True)
+        return _run_service(
+            lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True, tool="search"
+        )
     settings = get_settings()
     embedder, store = _components(settings)
-    hits = store.query(embedder.embed_query(args.query), k=args.k, path_prefix=args.prefix)
+    try:  # the folder rules apply here too (restrictions.py), as they do to `query --json` and the MCP tools
+        guard = restrictions.open_gate(settings.data_dir)
+    except restrictions.Refused as refused:
+        print(f"error: {refused.text}", file=sys.stderr)
+        return EXIT_REFUSED
+    vector = embedder.embed_query(args.query)
+    hits, _ = restrictions.visible_hits(
+        guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix), args.k
+    )
     if not hits:
         print("no results (is anything indexed? try `locus stats`)")
         return 1
@@ -323,6 +378,8 @@ SERVICE_EXIT_CODES = {
     "embedder_error": EXIT_EMBEDDER,
     "embedder_unavailable": EXIT_EMBEDDER,
     "index_error": EXIT_ERROR,
+    "paused": EXIT_REFUSED,
+    "policy_error": EXIT_NOT_CONFIGURED,
     "internal_error": EXIT_ERROR,
 }
 EXIT_CODES_EPILOG = """\
@@ -330,9 +387,9 @@ exit codes (for `query --json`, `sources`, `read` and `api`):
   0  ok
   1  unexpected error: a bug, an index that cannot be read, a file that can no longer be read
   2  usage error: a bad argument or parameter
-  3  not configured (embedder, key, collection), or nothing is indexed yet
-  4  refused: the path is not in the index (this includes every file the deny-list excludes), or the
-     confinement check failed (the file is now a link or outside the indexed files)
+  3  not configured (embedder, key, collection), nothing is indexed yet, or the folder rules cannot be read
+  4  refused: the path is not in the index, or a folder rule closes it (the deny-list, an excluded or closed folder), or
+     the confinement check failed (the file is now a link or outside the indexed files), or Locus is paused
   5  embedder error: the query could not be embedded, or the on-device model could not be loaded
 JSON goes to stdout only; logs and warnings go to stderr. `query` without --json keeps its older
 behaviour (exit 1 when nothing matched)."""
@@ -345,7 +402,7 @@ def _emit_json(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
-def _run_service(call, *, as_json: bool, render=None) -> int:
+def _run_service(call, *, as_json: bool, render=None, tool: str = "") -> int:
     """Run an engine operation (service.Engine) and print its answer: JSON on stdout with --json, else `render(result)`.
     A failure is a JSON error object on stdout with --json, always one line on stderr, and the exit code above."""
     from .service import Engine, ServiceError
@@ -357,6 +414,7 @@ def _run_service(call, *, as_json: bool, render=None) -> int:
     except Exception as exc:  # noqa: BLE001 - a program is waiting for an answer: say what class of failure it was
         error = ServiceError("internal_error", f"Unexpected error ({type(exc).__name__}).")
     else:
+        restrictions.audit_service(get_settings().data_dir, tool, result)
         if as_json:
             _emit_json(result.to_dict())
         elif render is not None:
@@ -379,7 +437,10 @@ def cmd_sources(args: argparse.Namespace) -> int:
             print(result.note, file=sys.stderr)
 
     return _run_service(
-        lambda engine: engine.list_sources(args.path_prefix, args.limit), as_json=args.json, render=render
+        lambda engine: engine.list_sources(args.path_prefix, args.limit),
+        as_json=args.json,
+        render=render,
+        tool="sources",
     )
 
 
@@ -395,7 +456,10 @@ def cmd_read(args: argparse.Namespace) -> int:
             )
 
     return _run_service(
-        lambda engine: engine.read_file(args.path, args.start_char, args.max_chars), as_json=args.json, render=render
+        lambda engine: engine.read_file(args.path, args.start_char, args.max_chars),
+        as_json=args.json,
+        render=render,
+        tool="read",
     )
 
 
@@ -446,11 +510,11 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     settings = get_settings()
     root = Path(args.folder)
-    matcher = _deny_list_for(root, settings)
+    rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
+    matcher = _deny_list_for(root, settings, ask=(args.yes, rerun))
     if isinstance(matcher, int):
         return matcher
     embedder, store = _components(settings)
-    rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
     refused = _consent_gate(root, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
@@ -499,6 +563,18 @@ def cmd_sync_notion(args: argparse.Namespace) -> int:
     return _report(stats)
 
 
+def cmd_pause(_: argparse.Namespace) -> int:
+    return killswitch.cmd_pause(get_settings().data_dir)
+
+
+def cmd_resume(_: argparse.Namespace) -> int:
+    return killswitch.cmd_resume(get_settings().data_dir)
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    return audit.cmd_audit(get_settings().data_dir, args.since)
+
+
 def cmd_stats(_: argparse.Namespace) -> int:
     settings = get_settings()
     embedder, store = _components(settings)
@@ -513,6 +589,8 @@ def cmd_stats(_: argparse.Namespace) -> int:
     print(f"input_type : {input_type_status(embedder)}")
     print(f"files      : {len(paths)}")
     print(f"chunks     : {store.count()}")
+    if paused := killswitch.state_line(settings.data_dir):
+        print(f"state      : {paused}")
     return 0
 
 
@@ -614,6 +692,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         check("data directory is writable", True, str(settings.data_dir))
     except OSError as exc:
         check("data directory is writable", False, f"{settings.data_dir}: {exc}")
+
+    for label, passed, detail in restrictions.rule_checks(settings.data_dir):
+        check(label, passed, detail)
 
     if ok:
         legacy: str | None = None
@@ -885,6 +966,28 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_stats)
 
     p = sub.add_parser(
+        "pause",
+        help="stop the file tools at once (search, list sources, read file, the local API, query --json)",
+        description="Creates <data dir>/PAUSED. Every AI app that runs `locus serve` from this data folder gets one "
+        "fixed sentence instead of any file, until `locus resume`. LOCUS_DISABLED=1 does the same from the "
+        "environment. Indexing and watching are not stopped. locus_help and locus_diagnose_connection keep answering.",
+    )
+    p.set_defaults(func=cmd_pause)
+
+    p = sub.add_parser("resume", help="undo `locus pause`")
+    p.set_defaults(func=cmd_resume)
+
+    p = sub.add_parser(
+        "audit",
+        help="what the file tools handed over lately: calls, characters and paths, never file text",
+        description="Summarises <data dir>/audit: calls per tool and per client, characters returned, the paths "
+        "returned most often. Files older than 90 days are deleted. The query text is not recorded unless "
+        "policy.toml has [audit] queries = true.",
+    )
+    p.add_argument("--since", default="1d", metavar="SPAN", help="how far back: 30m, 12h or 7d (default 1d)")
+    p.set_defaults(func=cmd_audit)
+
+    p = sub.add_parser(
         "doctor",
         help="diagnose common setup problems",
         description="Check Python, packages, settings and the embedder. In a terminal, the first run also asks "
@@ -951,9 +1054,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _boot(args: argparse.Namespace) -> None:
+    """Before a command that reads or writes the index: the one-time closed-folder migration (closed_folders.py). The
+    previews (`--dry-run`, `estimate`) change nothing, so they do not run it. Never raises."""
+    if args.command not in ("index", "watch", "query", "sources", "read", "serve", "api", "stats", "doctor"):
+        return
+    if getattr(args, "dry_run", False):
+        return
+    try:
+        closed_folders.migrate(get_settings(), Path.home().resolve())
+    except Exception:  # noqa: BLE001 - a start-up check must never stop the command
+        pass
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     try:
+        _boot(args)
         sys.exit(args.func(args))
     except RuntimeError as exc:  # configuration errors (missing key, embedder mismatch)
         print(f"error: {exc}", file=sys.stderr)

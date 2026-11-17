@@ -117,7 +117,7 @@ the message. The message never contains your query or file text.
 | `host_not_allowed` | 403 | The `Host` header is not on the allow-list. |
 | `origin_not_allowed` | 403 | The request carries an `Origin` header that is not allowed. |
 | `not_indexed` | 403 | `read`: the path is not in the index. Files the deny-list excludes are never in it. |
-| `confinement_refused` | 403 | `read`: the path is indexed, but is now a link, a pipe or a device, or now resolves outside the indexed files. |
+| `confinement_refused` | 403 | `read`: the path is indexed, but is now a link, a pipe or a device, or now resolves outside the indexed files, or a folder rule (the deny-list, an excluded or closed folder) keeps it back. |
 | `not_found` | 404 | No such route. |
 | `method_not_allowed` | 405 | The route exists, with another method (see `Allow`). |
 | `no_index` | 409 | Nothing is indexed at all, so a search could not match anything. |
@@ -131,6 +131,8 @@ the message. The message never contains your query or file text.
 | `not_configured` | 503 | The index or embedder cannot be set up. |
 | `embedder_unavailable` | 503 | The on-device model could not be loaded. |
 | `index_error` | 503 | The local index could not be read. Try again in a moment. |
+| `paused` | 503 | The user paused Locus (`locus pause`, or `LOCUS_DISABLED` is set). Nothing is returned until `locus resume`. |
+| `policy_error` | 503 | The folder rules (`policy.toml`) cannot be read, so no file is returned. The message names the problem. |
 
 ### Settings
 
@@ -159,10 +161,12 @@ What it does:
   No `Access-Control-*` headers are ever sent, so a browser cannot read a response from another site.
 - **It reads only what the index lists.** `read` refuses any other path, any spelling that is not the indexed one,
   and any indexed path that has since become a link or now resolves outside the indexed files, checked before and
-  after the read. The deny-list applies when files are indexed, so a denied file (keys, passwords, browser profiles,
-  your own `[deny]` paths) is not in the index and cannot be read. A file that was indexed before a deny rule was
-  added stays in the index, and so stays readable, until `locus index <folder> --prune` removes it. The MCP tools
-  behave the same way.
+  after the read. The folder rules apply on every call, not only when files are indexed: the deny-list (keys,
+  passwords, browser profiles), your own `[deny]` paths, `excluded` folders and closed folders (Downloads, until you
+  open it). A file that was indexed before a rule was added is hidden from `search`, `sources` and `read` at once,
+  with no re-index; its index entry stays until `locus index <folder> --prune` removes it. A `policy.toml` that cannot
+  be read stops the three calls (`policy_error`). `locus pause` (or `LOCUS_DISABLED=1`) stops them too (`paused`).
+  The MCP tools behave the same way.
 - **It limits what one request can do:** a rate limit, a body cap, a cap on file text per hit, at most 25 hits.
 - **It keeps an audit log.** One JSON line per request in `<data folder>/audit/api-YYYY-MM-DD.jsonl`, owner-only,
   appended and never rewritten: time, method, route, status, number of results, bytes returned, the file paths

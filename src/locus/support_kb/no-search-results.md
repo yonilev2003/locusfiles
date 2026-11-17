@@ -2,8 +2,8 @@
 id: no-search-results
 title: Search returns no results, or not the file I expected
 url: /support
-keywords: no results, empty, nothing found, not found, missing file, wrong results, bad results, irrelevant, outdated, stale, stale index, old version, index empty, empty index, nothing indexed yet, not_indexed, index state, ready, collection, not indexed, file not indexed, search quality, recall, cannot find, no access, permission denied, cannot open its index, index folder, LOCUS_DATA_DIR, privacy
-updated: 2026-10-02
+keywords: no results, empty, nothing found, not found, missing file, wrong results, bad results, irrelevant, outdated, stale, stale index, old version, index empty, empty index, nothing indexed yet, not_indexed, index state, ready, collection, not indexed, file not indexed, search quality, recall, cannot find, no access, permission denied, cannot open its index, index folder, LOCUS_DATA_DIR, privacy, downloads, closed folder, hidden by your folder rules, paused, locus resume, policy.toml
+updated: 2026-11-17
 ---
 When Locus cannot search, it says why and that nothing was searched, so it is not the same as
 "nothing matched". What each message means:
@@ -19,6 +19,15 @@ When Locus cannot search, it says why and that nothing was searched, so it is no
   app. `locus_read_file` says "no access" in the same way for a single file it may not read.
 - **"Locus could not search: no access":** the API key was not accepted, or the account is not
   active (`locus_account_status`, present when a key is set, shows its state).
+- **"hidden by your folder rules" or "is in a closed folder":** the file is in the index, but your folder rules keep it back:
+  a closed folder you have not opened (Downloads), a folder you excluded in `~/.locus/policy.toml`, or the
+  built-in deny-list (keys, passwords, browser profiles, system folders). Only counts are shown, never names. To
+  open Downloads, run `locus index ~/Downloads` in a terminal (it asks once). To change any other rule, edit
+  `~/.locus/policy.toml`; the change applies at once, with no re-index. `locus doctor` lists the rules.
+- **"Locus is paused by the user":** `locus pause` (or `LOCUS_DISABLED=1`) is on, so the file tools return
+  nothing, not even a path. Run `locus resume` (and unset `LOCUS_DISABLED`); no restart is needed.
+- **"Locus cannot read its folder rules (policy.toml)":** the file has a mistake, and nothing is returned until it is
+  fixed or removed. The message names the key. `locus doctor` shows it too.
 - **"Stale index":** some results come from files that changed or were deleted after they were
   indexed; the line names them, and their text may be old. Run `locus index <folder> --prune`, or
   keep `locus watch <folder>` running.
@@ -35,6 +44,9 @@ many indexed files changed or are gone) or `ready`, and when the index last chan
   collection and how many chunks it holds.
 
 **A file is missing from results:**
+
+- If it is in Downloads, that folder is closed until you open it (`locus index ~/Downloads`). A run over a parent
+  folder such as `locus index ~` says how many files it left out.
 
 - Check that its format is supported (text and code files, Markdown, PDF, `.docx`; and, in engine
   0.1.2 and later, `.pptx`, `.xlsx`, OpenDocument, `.epub`, `.rtf` and `.ipynb`) and that it is under
