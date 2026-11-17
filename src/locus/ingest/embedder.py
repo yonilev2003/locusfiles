@@ -354,10 +354,10 @@ LOCAL_BACKEND_ENV = "LOCUS_LOCAL_BACKEND"  # auto (default) | onnx | torch
 def prepare_hf_download() -> None:
     """Make a first-run model download fail or finish instead of hanging.
 
-    huggingface_hub's Xet transfer path stalled for 10+ minutes without output on a clean machine
-    (2026-11-12, `locus doctor`, "connection struggling" retried forever, no timeout); the plain HTTP path
-    fetched the same 133 MB in 40 s. The models are small, so plain HTTP is the default; a user who sets
-    HF_HUB_DISABLE_XET themselves keeps their value.
+    huggingface_hub's Xet transfer path stalled without output on one clean machine (2026-11-12, `locus doctor`,
+    "connection struggling" retried forever, no timeout) where the plain HTTP path fetched the model; not
+    re-measured. The models are small, so plain HTTP is the default; a user who sets HF_HUB_DISABLE_XET
+    themselves keeps their value.
 
     Also switches off huggingface_hub's usage telemetry (S-08): HF_HUB_DISABLE_TELEMETRY is set, not defaulted, so an
     environment that says otherwise does not turn it on. The only request Locus's on-device embedder makes is the
@@ -433,8 +433,10 @@ def local_backend(model: str) -> tuple[str, object | None]:
     """("onnx", TextEmbedding) when fastembed is installed and offers *model*, else ("torch", None).
 
     LOCUS_LOCAL_BACKEND=torch forces sentence-transformers; =onnx insists on fastembed. The ONNX route is the
-    default `local` extra (about 530 MB installed with its model); the torch route stays for models fastembed does not
-    offer (bge-m3, multilingual-e5-small, a model folder) and needs the `local-torch` extra."""
+    default `local` extra (about 530 MB installed with its model); the torch route stays for local models fastembed
+    does not list (checked against fastembed 0.9.1 on 2026-11-17: BAAI/bge-m3, intfloat/multilingual-e5-base, a model
+    folder) and needs the `local-torch` extra. The default multilingual-e5-small is registered by Locus itself
+    (_CUSTOM_ONNX) and multilingual-e5-large is on fastembed's list, so both use the ONNX route."""
     choice = (os.environ.get(LOCAL_BACKEND_ENV) or "auto").strip().lower()
     if choice not in ("auto", "onnx", "torch"):
         raise RuntimeError(f"{LOCAL_BACKEND_ENV}={choice!r} is not valid; use auto, onnx or torch.")
