@@ -399,6 +399,16 @@ def cmd_read(args: argparse.Namespace) -> int:
     )
 
 
+def cmd_api(args: argparse.Namespace) -> int:
+    from . import api
+
+    if args.print_openapi:  # needs no token and starts nothing
+        shown = f"[{args.host}]" if ":" in args.host else args.host
+        _emit_json(api.build_openapi(f"http://{shown}:{args.port}"))
+        return EXIT_OK
+    return api.serve(host=args.host, port=args.port)
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     from .mcp_server import main as serve
 
@@ -772,6 +782,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", type=int, default=8000, help="bind port for streamable-http")
     p.add_argument("--path", default="/mcp", help="URL path for streamable-http")
     p.set_defaults(func=cmd_serve)
+
+    p = sub.add_parser(
+        "api",
+        help="run a local HTTP API (bearer token required) for tools that cannot speak MCP",
+        description="Serve search, list-sources and read-file over local HTTP, on the same index, freshness step "
+        "and confinement as the MCP tools. Refuses to start without LOCUS_API_TOKEN (at least 32 characters). "
+        "Binds 127.0.0.1 by default. GET /openapi.json (or --print-openapi) describes every route. Settings: "
+        "LOCUS_API_TOKEN, LOCUS_API_ALLOWED_HOSTS, LOCUS_API_ALLOWED_ORIGINS, LOCUS_API_RATE_PER_MIN, "
+        "LOCUS_API_MAX_BODY_BYTES, LOCUS_API_MAX_EXCERPT_CHARS. The one line printed to stdout is the start-up line.",
+        epilog=EXIT_CODES_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--host", default="127.0.0.1", help="address to listen on (default: 127.0.0.1, this computer only)")
+    p.add_argument("--port", type=int, default=8765, help="port to listen on; 0 picks a free one (default: 8765)")
+    p.add_argument(
+        "--print-openapi",
+        action="store_true",
+        help="print the OpenAPI 3.1 document for --host and --port to stdout and exit; no token needed",
+    )
+    p.set_defaults(func=cmd_api)
 
     p = sub.add_parser("watch", help="index a folder, then keep it in sync")
     p.add_argument("folder")

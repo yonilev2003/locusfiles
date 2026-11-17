@@ -297,7 +297,7 @@ def test_a_warning_goes_to_stderr_and_stdout_stays_json(demo_index, monkeypatch,
     assert "warning: legacy collection" in err and "legacy collection" not in out
 
 
-@pytest.mark.parametrize("command", ["query", "sources", "read"])
+@pytest.mark.parametrize("command", ["query", "sources", "read", "api"])
 def test_the_help_documents_the_exit_codes(command, capsys):
     with pytest.raises(SystemExit):
         cli.main([command, "--help"])
