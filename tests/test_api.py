@@ -623,7 +623,7 @@ def test_the_audit_log_is_append_only_and_private(world):
     call(world.app, "GET", "/v1/health")
     call(world.app, "GET", "/v1/health")
     folder = world.data_dir / "audit"
-    (file,) = list(folder.glob("api-*.jsonl"))
+    file = sorted(folder.glob("api-*.jsonl"))[-1]  # one file a UTC day
     assert oct(file.stat().st_mode & 0o777) == "0o600" and oct(folder.stat().st_mode & 0o777) == "0o700"
     before = file.read_text()
     reopened = world.make()  # a restart opens the same file for appending: nothing is truncated or rewritten
