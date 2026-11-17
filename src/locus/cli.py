@@ -336,7 +336,9 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 def cmd_query(args: argparse.Namespace) -> int:
     if args.json:
-        return _run_service(lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True)
+        return _run_service(
+            lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True, tool="search"
+        )
     settings = get_settings()
     embedder, store = _components(settings)
     try:  # the folder rules apply here too (restrictions.py), as they do to `query --json` and the MCP tools
@@ -400,7 +402,7 @@ def _emit_json(payload: dict) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
-def _run_service(call, *, as_json: bool, render=None) -> int:
+def _run_service(call, *, as_json: bool, render=None, tool: str = "") -> int:
     """Run an engine operation (service.Engine) and print its answer: JSON on stdout with --json, else `render(result)`.
     A failure is a JSON error object on stdout with --json, always one line on stderr, and the exit code above."""
     from .service import Engine, ServiceError
@@ -412,6 +414,7 @@ def _run_service(call, *, as_json: bool, render=None) -> int:
     except Exception as exc:  # noqa: BLE001 - a program is waiting for an answer: say what class of failure it was
         error = ServiceError("internal_error", f"Unexpected error ({type(exc).__name__}).")
     else:
+        restrictions.audit_service(get_settings().data_dir, tool, result)
         if as_json:
             _emit_json(result.to_dict())
         elif render is not None:
@@ -434,7 +437,10 @@ def cmd_sources(args: argparse.Namespace) -> int:
             print(result.note, file=sys.stderr)
 
     return _run_service(
-        lambda engine: engine.list_sources(args.path_prefix, args.limit), as_json=args.json, render=render
+        lambda engine: engine.list_sources(args.path_prefix, args.limit),
+        as_json=args.json,
+        render=render,
+        tool="sources",
     )
 
 
@@ -450,7 +456,10 @@ def cmd_read(args: argparse.Namespace) -> int:
             )
 
     return _run_service(
-        lambda engine: engine.read_file(args.path, args.start_char, args.max_chars), as_json=args.json, render=render
+        lambda engine: engine.read_file(args.path, args.start_char, args.max_chars),
+        as_json=args.json,
+        render=render,
+        tool="read",
     )
 
 

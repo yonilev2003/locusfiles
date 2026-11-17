@@ -21,19 +21,15 @@ from __future__ import annotations
 import contextvars
 import dataclasses
 import functools
-import inspect
 import os
 import threading
-import typing
 import unicodedata
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from mcp.server.mcpserver import Context
-
-from . import killswitch
+from . import audit, killswitch
 from .config import get_settings
 from .policy import Decision, Matcher, Policy, PolicyError, _parts, _starts, load_policy
 
@@ -228,6 +224,31 @@ def state_lines(data_dir: Path) -> list[str]:
     return [f"{label}: {detail}" for label, _, detail in rule_checks(data_dir)]
 
 
+def audit_service(data_dir: Path, tool: str, result: Any) -> None:
+    """One audit line for a `locus query --json`, `sources` or `read` answer: the command line is another door to the
+    same files, so it is counted too (client "locus-cli"). Paths and counts only. Never raises."""
+    try:
+        paths = (
+            [h.path for h in getattr(result, "results", [])]
+            or list(getattr(result, "paths", []))
+            or ([result.path] if hasattr(result, "path") else [])
+        )
+        text = getattr(result, "text", None)
+        chars = sum(len(h.text) for h in getattr(result, "results", [])) + (len(text) if isinstance(text, str) else 0)
+        audit.log_call(
+            data_dir,
+            "cli",
+            {
+                "tool": tool,
+                "client": "locus-cli",
+                "paths": list(dict.fromkeys(paths))[:AUDIT_PATHS_PER_LINE],
+                "chars": chars,
+            },
+        )
+    except Exception:  # noqa: BLE001
+        return
+
+
 def hidden_results_line(n: int) -> str | None:
     return HIDDEN_RESULTS.format(n=n) if n else None
 
@@ -239,12 +260,20 @@ def hidden_files_line(n: int) -> str | None:
 # --- the MCP tools ------------------------------------------------------------------------------------------
 
 
+AUDIT_PATHS_PER_LINE = 200  # a long listing is cut in the log (the count stays)
+
+
 @dataclass
 class Call:
     tool: str
+    client: str | None = None  # what the AI app announced about itself: self-reported, not authenticated
+    client_version: str | None = None
+    query: str | None = None  # kept only for `[audit] queries = true`
     data_dir: Path | None = None
     guard: Guard | None = None
+    refused: str | None = None
     hidden: int = 0
+    truncated: bool = False
     paths: list[str] = field(default_factory=list)
 
 
@@ -269,48 +298,80 @@ def guard_for(settings: Any) -> Guard:
     call = _CALL.get()
     if call is not None:
         call.data_dir = data_dir
-    guard = open_gate(data_dir)
+    try:
+        guard = open_gate(data_dir)
+    except Refused as refused:
+        if call is not None:
+            call.refused = refused.kind
+        raise
     if call is not None:
         call.guard = guard
     return guard
 
 
-def note(*, paths: list[str] | None = None, hidden: int = 0) -> None:
-    """What the running tool call is about to return, for the audit log and the hidden-results notes."""
+def note(*, paths: list[str] | None = None, hidden: int = 0, truncated: bool = False) -> None:
+    """What the running tool call is about to return, for the audit log: the paths, how many results the folder rules
+    hid, whether the answer was cut."""
     call = _CALL.get()
     if call is not None:
         call.hidden += hidden
+        call.truncated = call.truncated or truncated
         if paths:
             call.paths.extend(paths)
 
 
+def _client_of(ctx: Any) -> tuple[str | None, str | None]:
+    """The client name and version the AI app announced when it connected (self-reported)."""
+    try:
+        info = ctx.request_context.session.client_params.client_info
+        return str(info.name)[:80], str(info.version)[:40]
+    except Exception:  # noqa: BLE001 - in-process calls and older clients carry none
+        return None, None
+
+
+def _log(call: Call, out: Any) -> None:
+    """One audit line for a finished call, when the call got as far as the data folder. Never raises."""
+    if call.data_dir is None:
+        return
+    row: dict[str, Any] = {
+        "tool": call.tool,
+        "client": call.client or "unknown",
+        "client_version": call.client_version,
+        "paths": list(dict.fromkeys(call.paths))[:AUDIT_PATHS_PER_LINE],
+        "chars": len(out) if isinstance(out, str) else 0,
+        "truncated": call.truncated,
+        "hidden": call.hidden,
+    }
+    if len(set(call.paths)) > AUDIT_PATHS_PER_LINE:
+        row["paths_cut"] = len(set(call.paths)) - AUDIT_PATHS_PER_LINE
+    if call.refused:
+        row["refused"] = call.refused
+    if call.query is not None and call.guard is not None and call.guard.policy.audit_queries:
+        row["query"] = call.query
+    audit.log_call(call.data_dir, "mcp", row)
+
+
 def guarded(tool: str) -> Callable[[Any], Any]:
-    """Wrap an async MCP tool. The wrapper takes the SDK's `ctx` argument, which the tool itself does not declare, so
-    the tool's own signature and schema stay as they are, and it keeps the call's state for the body (`guard_for`)."""
+    """Wrap an async MCP tool that declares `ctx: Context | None = None` (the SDK fills it in; the tool never uses
+    it): the wrapper reads the client's name from it and keeps the call's state for the body (`guard_for`, `note`)
+    and for the audit line it writes when the call is done."""
 
     def decorate(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
         @functools.wraps(fn)
-        async def wrapper(*args: Any, ctx: Any = None, **kwargs: Any) -> Any:
-            token = _CALL.set(Call(tool))
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            call = Call(tool)
+            call.client, call.client_version = _client_of(kwargs.get("ctx"))
+            asked = kwargs.get("query")
+            call.query = asked if isinstance(asked, str) else None
+            token = _CALL.set(call)
+            out: Any = None
             try:
-                return await fn(*args, **kwargs)
+                out = await fn(*args, **kwargs)
+                return out
             finally:
                 _CALL.reset(token)
+                _log(call, out)
 
-        # The tool module writes its annotations as strings (`from __future__ import annotations`) and the SDK would
-        # read them in THIS module's namespace: resolve them against the tool's own, then add the `ctx` argument
-        # the SDK fills in.
-        hints = typing.get_type_hints(fn, include_extras=True)
-        signature = inspect.signature(fn)
-        ctx_parameter = inspect.Parameter(
-            "ctx", inspect.Parameter.KEYWORD_ONLY, default=None, annotation=Context | None
-        )
-        wrapper.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
-            [p.replace(annotation=hints.get(p.name, p.annotation)) for p in signature.parameters.values()]
-            + [ctx_parameter],
-            return_annotation=hints.get("return", signature.return_annotation),
-        )
-        wrapper.__annotations__ = {**hints, "ctx": Context | None}
         return wrapper
 
     return decorate

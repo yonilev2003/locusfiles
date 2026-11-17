@@ -10,8 +10,7 @@ merged. Each test is one invariant:
   A5  the query-time re-check does not hide an opened Downloads, and hides it at once, reversibly, when the entry goes
   A6  while paused the tools refuse; after `locus resume` they work again in the same process
   A7  a 20-call enumeration across Downloads stays under the volume thresholds (no warning line)
-  A8  the labels add lines but leave the chunk text byte-identical
-
+  
 Fake home, HashEmbedder, tmp folders: offline, never the real home directory, never a paid API.
 """
 
@@ -28,7 +27,7 @@ import pytest
 
 pytest.importorskip("chromadb")
 
-from locus import cli, killswitch  # noqa: E402
+from locus import audit, cli, killswitch, restrictions  # noqa: E402
 from locus import mcp_server as srv  # noqa: E402
 from locus.config import DEFAULT_EXTENSIONS, Settings, get_settings  # noqa: E402
 from locus.ingest.embedder import HashEmbedder  # noqa: E402
@@ -204,6 +203,22 @@ def test_A6_while_paused_the_tools_refuse_and_after_resume_they_work_in_the_same
     assert tools() == [killswitch.PAUSED_SENTENCE] * 3  # nothing else: no path, no text
     assert run(capsys, "resume")[0] == 0
     assert all(lecture in out for out in tools())
+
+
+# --- A7 -------------------------------------------------------------------------------------------------------
+
+
+def test_A7_a_twenty_call_enumeration_across_downloads_stays_under_the_volume_thresholds(world, capsys, monkeypatch):
+    home, settings = world
+    assert run(capsys, "index", str(home / "Downloads"), "--yes")[0] == 0
+    wire_mcp(monkeypatch, settings, store_of(settings))
+    outputs = [asyncio.run(srv.locus_list_sources(path_prefix=str(home / "Downloads"), limit=1000))]
+    for path in sorted(Path(p) for p in store_of(settings).list_paths())[:19]:
+        outputs.append(asyncio.run(srv.locus_read_file(path=str(path))))
+    summary = audit.summarize(audit.read_lines(settings.data_dir / "audit"))
+    assert summary["calls"] == 20 and summary["refused"] == 0
+    assert summary["calls"] < audit.WARN_CALLS and summary["chars"] < audit.WARN_CHARS
+    assert not any("this session has read" in out for out in outputs)  # no warning line anywhere
 
 
 # --- A4 -------------------------------------------------------------------------------------------------------

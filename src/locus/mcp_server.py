@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
@@ -459,6 +459,7 @@ async def locus_search(
             )
         ),
     ] = "relevance",
+    ctx: Context | None = None,  # filled in by the SDK: only to name the client in the audit log (restrictions.py)
 ) -> str:
     """Search the user's own documents, notes and files on their computer, indexed by Locus: PDFs,
     Word and Markdown files, plans, meeting notes, drafts, reports and code they wrote or saved.
@@ -566,6 +567,9 @@ async def locus_search(
         order_note = "modified_desc (no query: files in the window, newest first)"
     elif order == "modified_desc":
         order_note = "modified_desc"
+    _restr.note(
+        paths=[h.path for h in hits], hidden=hidden, truncated=sum(len(h.text) for h in hits) > SEARCH_CHAR_BUDGET
+    )
     header = _search_header(after_ts, before_ts, path_prefix, order_note)
     if not hits:
         if timed:
@@ -995,6 +999,7 @@ async def locus_list_sources(
             json_schema_extra={"deprecated": True},
         ),
     ] = None,
+    ctx: Context | None = None,
 ) -> str:
     """Show what is in the user's indexed folders on their computer: the files locus_search can
     search (paths only). Use this when the user asks what Locus can see or what they have indexed,
@@ -1026,6 +1031,7 @@ async def locus_list_sources(
     paths = [p for p in all_paths if _under(p, scope)] if scope else all_paths
     total = len(paths)
     shown = paths[:limit]
+    _restr.note(paths=shown, hidden=hidden, truncated=total > len(shown))
     source = f"collection {settings.collection!r}, embedder {store.embedder_name!r}"
     if scope:
         lines = [
@@ -1098,6 +1104,7 @@ async def locus_read_file(
             "(pages count from 1, like the p.N in search results)"
         ),
     ] = None,
+    ctx: Context | None = None,
 ) -> str:
     """Read a bounded excerpt of ONE of the user's own indexed files, by its exact path from
     locus_search or locus_list_sources. Use this when a search result is not enough, for example
@@ -1178,6 +1185,7 @@ async def locus_read_file(
         return f"Error: {blocked}. It changed while it was being read, so nothing was returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
+    _restr.note(paths=[path], truncated=end < len(text))
     header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{UNTRUSTED_NOTICE}\n\n"
     if end < len(text):
         return header + excerpt + f"\n\n[… {len(text) - end} more chars; call again with start_char={end}]"
