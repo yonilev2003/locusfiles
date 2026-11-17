@@ -285,7 +285,7 @@ reading of the source on 2026-11-14. Linux was tried only inside a container (th
 ## Try it on the demo folder
 
 ```text
-$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0"
+$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"
                                                       # about 530 MB on disk, no account, no API key
 $ locus index tests/fixtures/demo-vault               # from a clone of this repository
 seen=21 indexed=21 skipped=0 removed=0 chunks=22 errors=0
@@ -317,11 +317,11 @@ any FAIL line.
 
 `uv` installs its own Python, so you do not need one first. **Until 0.2.0 is on PyPI (the PyPI page still
 shows an older version), install from this repository, as above.** The commands name the release tag
-`@v0.2.0`, so you get that release and not whatever the default branch holds later. The tag is created when
+`@v0.2.0rc1`, so you get that release and not whatever the default branch holds later. The tag is created when
 0.2.0 is released: until it exists, these commands fail with a message that the tag was not found.
-`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0"` works if you already
+`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"` works if you already
 have Python 3.11 or newer. To run the server without installing it:
-`uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0" locusfiles serve`
+`uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1" locusfiles serve`
 (`locusfiles` is an alias of `locus`).
 
 The `local` extra runs the embedding model with ONNX Runtime. The default model is
