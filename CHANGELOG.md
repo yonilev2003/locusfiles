@@ -18,6 +18,33 @@ Either keep the old model (`LOCUS_EMBEDDER=local` and `LOCUS_LOCAL_MODEL=BAAI/bg
 working) or re-index into a new collection (`LOCUS_COLLECTION=<new name>`). The two ONNX/PyTorch routes of the
 same model were measured as equivalent, so that part needs no re-index.
 
+**Behaviour change:** Downloads is a closed folder from this version on (see "Folder rules" below). If your index
+already held files from Downloads, Locus carries that over once and says so on stderr; otherwise open it with
+`locus index ~/Downloads --yes`.
+
+### Programs that do not speak MCP, and more ways to connect
+
+- `locus query --json`, `locus sources` and `locus read` print versioned JSON (a file path and chunk number on every
+  result) with stable exit codes; `locus api` starts a local web server (OpenAPI 3.1, a token you choose, Host and
+  Origin checks, a rate limit, a counts-only audit log). Both run on the same index and the same folder rules as the
+  MCP tools. See `docs/api.md`.
+- `locus setup --list` and `locus setup --client NAME` print, or with `--write` add (after asking, with a backup),
+  the `locus` entry in the config of Claude Code, Claude Desktop, Cursor, Codex, Copilot and Gemini CLI, and print the
+  configuration for Windsurf, LM Studio and an AGENTS.md. It writes a configuration; it does not mean Locus was tested
+  with that client.
+- For a client that cannot start a local program, `locus serve --transport streamable-http` accepts a public host name
+  (`LOCUS_MCP_PUBLIC_HOST`, `--public-host`) for a tunnel you run yourself: Host and Origin checks, JSON replies, a
+  read-only tool list, a rate limit, a kill-switch file, an expiry and a counts-only audit log; `search` and `fetch`
+  tools in the shape ChatGPT documents (not tried with ChatGPT); `locus doctor --remote URL`. Claude.ai and ChatGPT
+  need a sign-in (OAuth) that this version does not have. Nothing was tried with a real client through a tunnel.
+
+### Folder rules
+
+- Downloads is closed until you open it on purpose; the folder rules (`policy.toml`) apply at once to what an
+  assistant can search, list and read, with no re-index; `locus pause` / `locus resume` (and `LOCUS_DISABLED=1`)
+  stop the file tools; hits from an opened Downloads and from the Notion folder carry an "untrusted" line; `locus audit`
+  summarises the audit log in `~/.locus/audit/` (paths and counts, never text). See the README.
+
 ### Licence
 
 - **The licence changes from FSL-1.1-ALv2 to the PolyForm Noncommercial License 1.0.0** (`PolyForm-Noncommercial-1.0.0`)
