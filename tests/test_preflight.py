@@ -114,8 +114,17 @@ def test_without_a_terminal_and_without_yes_nothing_is_sent_and_the_rerun_comman
     assert "Not sent" in out.getvalue() and "`locus index notes --yes`" in out.getvalue()
 
 
-@pytest.mark.parametrize(("answer", "outcome"), [("y\n", "proceed"), ("YES\n", "proceed"), ("n\n", "declined"),
-                                                  ("\n", "declined"), ("maybe\n", "declined"), ("", "declined")])
+@pytest.mark.parametrize(
+    ("answer", "outcome"),
+    [
+        ("y\n", "proceed"),
+        ("YES\n", "proceed"),
+        ("n\n", "declined"),
+        ("\n", "declined"),
+        ("maybe\n", "declined"),
+        ("", "declined"),
+    ],
+)
 def test_an_interactive_answer_decides(folder, tmp_path, answer, outcome):
     pre = preflight.build_preflight(folder, _settings(tmp_path), sample_seconds=1)
     out = io.StringIO()

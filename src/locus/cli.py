@@ -347,9 +347,7 @@ def cmd_query(args: argparse.Namespace) -> int:
         print(f"error: {refused.text}", file=sys.stderr)
         return EXIT_REFUSED
     vector = embedder.embed_query(args.query)
-    hits, _ = restrictions.visible_hits(
-        guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix), args.k
-    )
+    hits, _ = restrictions.visible_hits(guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix), args.k)
     if not hits:
         print("no results (is anything indexed? try `locus stats`)")
         return 1

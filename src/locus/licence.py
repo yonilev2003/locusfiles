@@ -24,8 +24,7 @@ SPDX_ID = "PolyForm-Noncommercial-1.0.0"
 
 QUESTION = "Will you use Locus for work at a company, for paid client work, or in a product or service? [y/N] "
 COMMERCIAL_STOP = (
-    "Commercial use needs a separate paid licence. None can be bought yet. "
-    f"Leave your details at {COMMERCIAL_URL}"
+    f"Commercial use needs a separate paid licence. None can be bought yet. Leave your details at {COMMERCIAL_URL}"
 )
 
 # Two sentences and the page: what `locus license` prints and the `licence` help article repeats.

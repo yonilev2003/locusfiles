@@ -745,9 +745,7 @@ def get_embedder(settings: Settings) -> Embedder:
         if kind == "local":
             from .shared_embedder import SharedEmbedderClient, idle_seconds, shared_embedder_enabled, socket_path_for
 
-            if shared_embedder_enabled(
-                data_dir=settings.data_dir
-            ):  # one model for every locus process (opt-in)
+            if shared_embedder_enabled(data_dir=settings.data_dir):  # one model for every locus process (opt-in)
                 return SharedEmbedderClient(
                     settings.local_model,
                     socket_path_for(settings.data_dir, settings.local_model),
