@@ -575,7 +575,13 @@ async def locus_search(
         if timed:
             return done(f"{header}\n\n{_no_hits_in_window_text(store, path_prefix, after_ts, before_ts)}")
         return done(_no_hits_text(store, path_prefix))
-    text = _format_search_results(query, hits, scored=query is not None, title_newest_first=newest_first)
+    text = _format_search_results(
+        query,
+        hits,
+        scored=query is not None,
+        title_newest_first=newest_first,
+        untrusted=guard.untrusted([h.path for h in hits]),
+    )
     if query is None and more_files:
         try:
             total = _restr.count_visible_modified(guard, store, path_prefix, **time_kwargs)
@@ -889,6 +895,7 @@ def _format_search_results(
     *,
     scored: bool = True,
     title_newest_first: bool = False,
+    untrusted: frozenset[str] = frozenset(),
 ) -> str:
     """Markdown for locus_search: path-first headers, full chunk text within `budget` (RET-004).
 
@@ -898,7 +905,8 @@ def _format_search_results(
 
     Each header also carries the file's modified time (`modified_at`, local time with its
     offset) when the index recorded one. `scored=False` (a search with no query ranked nothing)
-    leaves the score out; `title_newest_first` says the list is ordered by modified time.
+    leaves the score out; `title_newest_first` says the list is ordered by modified time. A hit whose path is in
+    `untrusted` (a folder marked untrusted) gets one more line under its header; its text is never touched.
     """
     if query is None:
         lines = [f"# {len(hits)} file(s) modified in the window, newest first", UNTRUSTED_NOTICE, ""]
@@ -915,21 +923,23 @@ def _format_search_results(
         # PDF chunks only; after the score, so "chunk N, score" still parses as before
         page = f", p.{hit.page}" if hit.page is not None else ""
         head = f"## {i}. {hit.path}  (chunk {hit.chunk_index}{score}{page}{when}, {size:,} chars"
+        mark = [_restr.UNTRUSTED_FOLDER_LINE] if hit.path in untrusted else []
         if full == i - 1 and used + size <= budget:
             full = i
             used += size
-            lines += [head + ")", hit.text, ""]
+            lines += [head + ")", *mark, hit.text, ""]
         elif i == 1:  # a single chunk larger than the whole budget: deliver its head, say where it stops
             cut_top = True
             lines += [
                 head + f"; first {budget:,} shown)",
+                *mark,
                 hit.text[:budget],
                 f"[… chunk continues for {size - budget:,} more chars past this call's budget; "
                 f"read the rest with locus_read_file on {hit.path}]",
                 "",
             ]
         else:
-            lines += [head + "; text not included: over this call's evidence budget)", ""]
+            lines += [head + "; text not included: over this call's evidence budget)", *mark, ""]
     if full == len(hits):
         lines.append(f"Complete chunk text for all {len(hits)} result(s).")
     else:
@@ -1186,7 +1196,8 @@ async def locus_read_file(
     end = start_char + max_chars
     excerpt = text[start_char:end]
     _restr.note(paths=[path], truncated=end < len(text))
-    header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{UNTRUSTED_NOTICE}\n\n"
+    notice = UNTRUSTED_NOTICE + (f"\n{_restr.UNTRUSTED_FOLDER_LINE}" if guard.profile(path) == "untrusted" else "")
+    header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{notice}\n\n"
     if end < len(text):
         return header + excerpt + f"\n\n[… {len(text) - end} more chars; call again with start_char={end}]"
     return header + excerpt

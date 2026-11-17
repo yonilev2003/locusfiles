@@ -10,7 +10,8 @@ merged. Each test is one invariant:
   A5  the query-time re-check does not hide an opened Downloads, and hides it at once, reversibly, when the entry goes
   A6  while paused the tools refuse; after `locus resume` they work again in the same process
   A7  a 20-call enumeration across Downloads stays under the volume thresholds (no warning line)
-  
+  A8  the labels add lines but leave the chunk text byte-identical
+
 Fake home, HashEmbedder, tmp folders: offline, never the real home directory, never a paid API.
 """
 
@@ -219,6 +220,30 @@ def test_A7_a_twenty_call_enumeration_across_downloads_stays_under_the_volume_th
     assert summary["calls"] == 20 and summary["refused"] == 0
     assert summary["calls"] < audit.WARN_CALLS and summary["chars"] < audit.WARN_CHARS
     assert not any("this session has read" in out for out in outputs)  # no warning line anywhere
+
+
+# --- A8 -------------------------------------------------------------------------------------------------------
+
+
+def test_A8_the_labels_add_lines_and_leave_the_chunk_text_byte_identical(world, capsys, monkeypatch):
+    home, settings = world
+    assert run(capsys, "index", str(home / "Downloads"), "--yes")[0] == 0  # opened as `untrusted`
+    wire_mcp(monkeypatch, settings, store_of(settings))
+    lecture = str(home / "Downloads" / "lecture1.md")
+    policy_file = settings.data_dir / "policy.toml"
+
+    def answers() -> tuple[str, str]:
+        found = asyncio.run(srv.locus_search(query="eigenvalues zebras lecture", top_k=3))
+        read = asyncio.run(srv.locus_read_file(path=lecture))
+        return found, read
+
+    labelled = answers()
+    policy_file.write_text('[[folder]]\npath = "~/Downloads"\nprofile = "trusted"\n', encoding="utf-8")
+    plain = answers()
+    for with_label, without in zip(labelled, plain, strict=True):
+        assert restrictions.UNTRUSTED_FOLDER_LINE in with_label and restrictions.UNTRUSTED_FOLDER_LINE not in without
+        assert with_label.replace(restrictions.UNTRUSTED_FOLDER_LINE + "\n", "") == without  # added lines, nothing else
+        assert LECTURE.encode() in with_label.encode() and LECTURE.encode() in without.encode()
 
 
 # --- A4 -------------------------------------------------------------------------------------------------------
