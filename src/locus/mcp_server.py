@@ -57,6 +57,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
 from . import __version__, closed_folders, support
+from . import restrictions as _restr
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
@@ -400,6 +401,7 @@ def _announced(tool: str) -> Any:
 
 @mcp.tool(name="locus_search", annotations={"title": "Search my local files", **READ_ONLY})
 @_announced("locus_search")
+@_restr.guarded("locus_search")
 @_dedent_doc
 async def locus_search(
     query: Annotated[
@@ -516,15 +518,24 @@ async def locus_search(
         embedder, store, settings = _components()
     except NotConfigured as exc:
         return str(exc)
+    try:
+        guard = _restr.guard_for(settings)  # the folder rules, re-read when policy.toml changes
+    except _restr.Refused as refused:
+        return refused.text
     fresh = freshen_for_serve(embedder, store, settings)  # bounded index-on-demand; a note only if cut short
+    hidden = 0  # results the folder rules keep back (counted, never named)
 
     def done(text: str) -> str:
+        if extra := _restr.hidden_results_line(hidden):
+            text = f"{text}\n\n{extra}"
         return f"{text}\n\n{fresh}" if fresh else text
 
     more_files = False
     if query is None:
         try:
-            hits = store.files_modified(k=top_k + 1, path_prefix=path_prefix, **time_kwargs)
+            hits, hidden = _restr.visible_hits(
+                guard, lambda n: store.files_modified(k=n, path_prefix=path_prefix, **time_kwargs), top_k + 1
+            )
             more_files = len(hits) > top_k  # one past top_k: tells "exactly top_k files" from "top_k of more"
             hits = hits[:top_k]
         except Exception as exc:  # the local index; see below
@@ -545,7 +556,9 @@ async def locus_search(
         if order == "modified_desc":
             time_kwargs["order"] = "modified_desc"
         try:
-            hits = store.query(query_embedding, k=top_k, path_prefix=path_prefix, **time_kwargs)
+            hits, hidden = _restr.visible_hits(
+                guard, lambda n: store.query(query_embedding, k=n, path_prefix=path_prefix, **time_kwargs), top_k
+            )
         except Exception as exc:  # the local index, not the embedder: never blame the API key for it
             return _index_error_text(exc)
     order_note = None
@@ -561,7 +574,7 @@ async def locus_search(
     text = _format_search_results(query, hits, scored=query is not None, title_newest_first=newest_first)
     if query is None and more_files:
         try:
-            total = store.count_files_modified(path_prefix=path_prefix, **time_kwargs)
+            total = _restr.count_visible_modified(guard, store, path_prefix, **time_kwargs)
             of_total = f" ({total:,} file(s) in the window in all: that is the count)"
         except Exception:  # the count is a convenience; the listing above stands without it
             of_total = ""
@@ -962,6 +975,7 @@ _MEMORY_HINT_LINE = (
 
 @mcp.tool(name="locus_list_sources", annotations={"title": "List indexed files", **READ_ONLY})
 @_announced("locus_list_sources")
+@_restr.guarded("locus_list_sources")
 @_dedent_doc
 async def locus_list_sources(
     path_prefix: Annotated[
@@ -1003,8 +1017,12 @@ async def locus_list_sources(
         embedder, store, settings = _components()
     except NotConfigured as exc:
         return str(exc)
+    try:
+        guard = _restr.guard_for(settings)
+    except _restr.Refused as refused:
+        return refused.text
     fresh = freshen_for_serve(embedder, store, settings)
-    all_paths = store.list_paths()
+    all_paths, hidden = guard.visible(store.list_paths())  # what the folder rules keep back: not listed, not counted
     paths = [p for p in all_paths if _under(p, scope)] if scope else all_paths
     total = len(paths)
     shown = paths[:limit]
@@ -1017,6 +1035,8 @@ async def locus_list_sources(
     else:
         lines = ["# Indexed files", f"total: {total} file(s) ({source})"]
     lines.append(_COVERAGE_LINE.format(n=len(all_paths)))
+    if extra := _restr.hidden_files_line(hidden):
+        lines.append(extra)
     lines.append(_MEMORY_HINT_LINE)
     if not all_paths:
         lines.append("Nothing indexed yet — run `locus index <folder>`.")
@@ -1065,6 +1085,7 @@ def _confinement_refusal(path: str, indexed_nfc: set[str]) -> str | None:
 
 @mcp.tool(name="locus_read_file", annotations={"title": "Read an indexed file", **READ_ONLY})
 @_announced("locus_read_file")
+@_restr.guarded("locus_read_file")
 @_dedent_doc
 async def locus_read_file(
     path: Annotated[str, Field(description="Exact absolute path as returned by locus_search")],
@@ -1082,9 +1103,12 @@ async def locus_read_file(
     locus_search or locus_list_sources. Use this when a search result is not enough, for example
     to read past the matched chunk. Refuses paths that are not in the index."""
     try:
-        _, store, _ = _components()
+        _, store, settings = _components()
+        guard = _restr.guard_for(settings)
     except NotConfigured as exc:
         return str(exc)
+    except _restr.Refused as refused:
+        return refused.text
     indexed = store.list_paths()
     if path not in set(indexed):
         # The same name spelled composed or decomposed (NFC / NFD) is the same file: use the indexed spelling.
@@ -1097,6 +1121,8 @@ async def locus_read_file(
     indexed_nfc = {unicodedata.normalize("NFC", p) for p in indexed}
     if refusal := _confinement_refusal(path, indexed_nfc):
         return refusal
+    if blocked := guard.read_refusal(path):  # the folder rules, for the path and for where it leads now
+        return f"Error: {blocked}, so it was not read. {_restr.RULES_REFUSAL_TAIL}"
     is_pdf = file_path.suffix.lower() == ".pdf"
     wanted: list[int] | None = None
     if pages is not None:
@@ -1148,6 +1174,8 @@ async def locus_read_file(
     # text is dropped, never returned (S-05). This narrows the race to a swap that is undone before this line.
     if refusal := _confinement_refusal(path, indexed_nfc):
         return f"{refusal} It changed while it was being read, so nothing was returned."
+    if blocked := guard.read_refusal(path):
+        return f"Error: {blocked}. It changed while it was being read, so nothing was returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
     header = f"# {path} ({where}chars {start_char}–{min(end, len(text))} of {len(text)})\n{UNTRUSTED_NOTICE}\n\n"

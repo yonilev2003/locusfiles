@@ -1,7 +1,7 @@
-"""The founder's Downloads guarantee: an instance over his own Downloads folder for university study keeps working.
+"""The Downloads guarantee: an instance over the user's own Downloads folder for university study keeps working.
 
-One file, so the guarantee is visible and must pass before any merge of the restriction work. Each test is one invariant
-of the note `restrictions-research-2026-11-17.md`, section 3.3:
+One file, so the guarantee is visible and must pass before any change to the closed-folder or query-time rules is
+merged. Each test is one invariant:
 
   A1  after `locus index <Downloads> --yes` every file type indexed before is indexed now (same count as the old code)
   A2  `locus_search` returns Downloads files with path and chunk_index, `locus_read_file` their text, nothing redacted
@@ -95,7 +95,7 @@ def wait_until(predicate, timeout: float = 15.0) -> bool:
     return predicate()
 
 
-# --- A1 -----------------------------------------------------------------------------------------------------------
+# --- A1 -------------------------------------------------------------------------------------------------------
 
 
 def test_A1_every_file_type_indexed_before_is_indexed_now(world, capsys):
@@ -111,7 +111,7 @@ def test_A1_every_file_type_indexed_before_is_indexed_now(world, capsys):
     assert after.count() == before.count()  # same files, same chunks
 
 
-# --- A2 -----------------------------------------------------------------------------------------------------------
+# --- A2 -------------------------------------------------------------------------------------------------------
 
 
 def test_A2_search_and_read_return_the_downloads_files_untouched(world, capsys, monkeypatch):
@@ -129,7 +129,7 @@ def test_A2_search_and_read_return_the_downloads_files_untouched(world, capsys, 
     assert LECTURE in read and "Error" not in read
 
 
-# --- A3 -----------------------------------------------------------------------------------------------------------
+# --- A3 -------------------------------------------------------------------------------------------------------
 
 
 def _old_index(home: Path, settings: Settings) -> ChromaStore:
@@ -155,7 +155,35 @@ def test_A3_rows_survive_the_upgrade_a_prune_and_a_freshness_pass(world, capsys)
     assert set(store.list_paths()) == rows
 
 
-# --- A4 -----------------------------------------------------------------------------------------------------------
+# --- A5 -------------------------------------------------------------------------------------------------------
+
+
+def test_A5_the_recheck_keeps_an_opened_downloads_and_hides_it_when_the_entry_goes_and_back_when_it_returns(
+    world, capsys, monkeypatch
+):
+    home, settings = world
+    assert run(capsys, "index", str(home / "Downloads"), "--yes")[0] == 0
+    store = store_of(settings)
+    wire_mcp(monkeypatch, settings, store)
+    lecture = str(home / "Downloads" / "lecture1.md")
+    entry = settings.data_dir / "policy.toml"
+    opened = entry.read_text(encoding="utf-8")
+
+    def sees_it() -> bool:
+        found = asyncio.run(srv.locus_search(query="eigenvalues zebras lecture", top_k=3))
+        listed = asyncio.run(srv.locus_list_sources(limit=1000))
+        return lecture in found and lecture in listed and LECTURE in asyncio.run(srv.locus_read_file(path=lecture))
+
+    assert sees_it()  # open: nothing is hidden
+    entry.write_text("version = 1\n", encoding="utf-8")  # the entry is removed
+    assert not sees_it()
+    assert "closed folder" in asyncio.run(srv.locus_read_file(path=lecture))
+    assert lecture in store.list_paths()  # hidden, not deleted
+    entry.write_text(opened, encoding="utf-8")  # and put back
+    assert sees_it()
+
+
+# --- A4 -------------------------------------------------------------------------------------------------------
 
 
 def test_A4_watch_keeps_indexing_new_files_and_a_file_moved_in_later(world, tmp_path, capsys):

@@ -28,7 +28,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from . import __version__
+from . import __version__, restrictions
 from .config import Settings, get_settings
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable
@@ -67,6 +67,8 @@ ERROR_CODES: tuple[str, ...] = (
     "embedder_error",  # the query could not be embedded
     "embedder_unavailable",  # the on-device model could not be loaded
     "index_error",  # the local index could not be read
+    "paused",  # the user paused Locus (`locus pause`, or LOCUS_DISABLED): nothing is returned until `locus resume`
+    "policy_error",  # the folder rules (policy.toml) cannot be read, so no file is returned
     "internal_error",  # anything else (a bug); the message never carries file or query text
 )
 
@@ -259,11 +261,14 @@ class Engine:
             time_kwargs["modified_before"] = before_ts
         with self._busy:
             embedder, store, settings = self._components()
+            guard = _gate(settings)
             fresh = freshen_for_serve(embedder, store, settings) if freshen else None
             more_files = False
             if query is None:
                 try:
-                    hits = store.files_modified(k=k + 1, path_prefix=path_prefix, **time_kwargs)
+                    hits, hidden = restrictions.visible_hits(
+                        guard, lambda n: store.files_modified(k=n, path_prefix=path_prefix, **time_kwargs), k + 1
+                    )
                 except Exception as exc:  # noqa: BLE001
                     raise _index_error(exc) from exc
                 more_files = len(hits) > k  # one past k tells "exactly k files" from "k of more"
@@ -277,12 +282,16 @@ class Engine:
                         f"The query could not be embedded ({type(exc).__name__}). Nothing was searched.",
                     ) from exc
                 try:
-                    hits = store.query(vector, k=k, path_prefix=path_prefix, **time_kwargs)
+                    hits, hidden = restrictions.visible_hits(
+                        guard, lambda n: store.query(vector, k=n, path_prefix=path_prefix, **time_kwargs), k
+                    )
                 except Exception as exc:  # noqa: BLE001
                     raise _index_error(exc) from exc
             note = None
             if not hits:
                 note = _no_hits_note(store, path_prefix, timed=bool(time_kwargs))
+            if extra := restrictions.hidden_results_line(hidden):
+                note = f"{note} {extra}" if note else extra
         scored = query is not None
         return SearchResult(
             order="relevance" if scored else "modified_desc",
@@ -303,17 +312,20 @@ class Engine:
             raise ServiceError("invalid_request", f"limit must be 1 to {MAX_SOURCES_LIMIT}.")
         with self._busy:
             embedder, store, settings = self._components()
+            guard = _gate(settings)
             fresh = freshen_for_serve(embedder, store, settings) if freshen else None
             try:
-                all_paths = store.list_paths()
+                all_paths, hidden = guard.visible(store.list_paths())  # hidden rows are neither listed nor counted
             except Exception as exc:  # noqa: BLE001
                 raise _index_error(exc) from exc
         paths = [p for p in all_paths if _under(p, path_prefix)] if path_prefix else all_paths
         note = None
-        if not all_paths:
+        if not all_paths and not hidden:
             note = "Nothing is indexed yet. Run `locus index <folder>`."
-        elif not paths:
+        elif not paths and all_paths:
             note = "No indexed file is inside this folder. path_prefix must be an absolute folder path."
+        if extra := restrictions.hidden_files_line(hidden):
+            note = f"{note} {extra}" if note else extra
         return SourcesResult(
             paths=paths[:limit],
             total=len(paths),
@@ -337,7 +349,8 @@ class Engine:
             raise ServiceError("invalid_request", f"max_chars must be {MIN_READ_CHARS} to {MAX_READ_CHARS}.")
         mcp = _mcp()
         with self._busy:
-            _, store, _ = self._components()
+            _, store, settings = self._components()
+            guard = _gate(settings)
             try:
                 indexed = store.list_paths()
             except Exception as exc:  # noqa: BLE001
@@ -352,6 +365,10 @@ class Engine:
             indexed_nfc = {unicodedata.normalize("NFC", p) for p in indexed}
             if refusal := mcp._confinement_refusal(path, indexed_nfc):
                 raise ServiceError("confinement_refused", refusal.removeprefix("Error: "))
+            if blocked := guard.read_refusal(path):  # the folder rules, for the path and for where it leads now
+                raise ServiceError(
+                    "confinement_refused", f"{blocked}, so it was not read. {restrictions.RULES_REFUSAL_TAIL}"
+                )
             file_path = Path(path)
             note: str | None = None
             try:
@@ -384,6 +401,10 @@ class Engine:
                     "confinement_refused",
                     f"{refusal.removeprefix('Error: ')} It changed while it was being read, so nothing was returned.",
                 )
+            if blocked := guard.read_refusal(path):
+                raise ServiceError(
+                    "confinement_refused", f"{blocked}. It changed while it was being read, so nothing was returned."
+                )
         end = start_char + max_chars
         more = end < len(text)
         return FileContent(
@@ -414,6 +435,14 @@ class Engine:
             files=files,
             chunks=chunks,
         )
+
+
+def _gate(settings: Settings) -> restrictions.Guard:
+    """The folder rules for this call, or the refusal: paused, or a policy file that cannot be read."""
+    try:
+        return restrictions.open_gate(restrictions.data_dir_of(settings))
+    except restrictions.Refused as refused:
+        raise ServiceError(refused.code, refused.text) from None
 
 
 def _index_error(exc: Exception) -> ServiceError:

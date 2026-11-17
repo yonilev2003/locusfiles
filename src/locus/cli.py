@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import closed_folders
+from . import closed_folders, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -339,7 +339,15 @@ def cmd_query(args: argparse.Namespace) -> int:
         return _run_service(lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True)
     settings = get_settings()
     embedder, store = _components(settings)
-    hits = store.query(embedder.embed_query(args.query), k=args.k, path_prefix=args.prefix)
+    try:  # the folder rules apply here too (restrictions.py), as they do to `query --json` and the MCP tools
+        guard = restrictions.open_gate(settings.data_dir)
+    except restrictions.Refused as refused:
+        print(f"error: {refused.text}", file=sys.stderr)
+        return EXIT_REFUSED
+    vector = embedder.embed_query(args.query)
+    hits, _ = restrictions.visible_hits(
+        guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix), args.k
+    )
     if not hits:
         print("no results (is anything indexed? try `locus stats`)")
         return 1
@@ -368,6 +376,8 @@ SERVICE_EXIT_CODES = {
     "embedder_error": EXIT_EMBEDDER,
     "embedder_unavailable": EXIT_EMBEDDER,
     "index_error": EXIT_ERROR,
+    "paused": EXIT_REFUSED,
+    "policy_error": EXIT_NOT_CONFIGURED,
     "internal_error": EXIT_ERROR,
 }
 EXIT_CODES_EPILOG = """\
@@ -375,9 +385,9 @@ exit codes (for `query --json`, `sources`, `read` and `api`):
   0  ok
   1  unexpected error: a bug, an index that cannot be read, a file that can no longer be read
   2  usage error: a bad argument or parameter
-  3  not configured (embedder, key, collection), or nothing is indexed yet
-  4  refused: the path is not in the index (this includes every file the deny-list excludes), or the
-     confinement check failed (the file is now a link or outside the indexed files)
+  3  not configured (embedder, key, collection), nothing is indexed yet, or the folder rules cannot be read
+  4  refused: the path is not in the index, or a folder rule closes it (the deny-list, an excluded or closed folder), or
+     the confinement check failed (the file is now a link or outside the indexed files), or Locus is paused
   5  embedder error: the query could not be embedded, or the on-device model could not be loaded
 JSON goes to stdout only; logs and warnings go to stderr. `query` without --json keeps its older
 behaviour (exit 1 when nothing matched)."""

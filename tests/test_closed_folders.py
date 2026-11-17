@@ -377,7 +377,7 @@ def test_after_the_migration_a_prune_keeps_the_downloads_rows(world, capsys):
 
 
 def test_control_without_the_migration_a_prune_removes_the_downloads_rows(world):
-    """Proves the migration is what protects the founder's index: the same sequence without it loses the rows."""
+    """Proves the migration is what protects an index built before this existed: without it the rows are lost."""
     home, settings = world
     _index_the_old_way(home, settings)
     stats = index_folder(

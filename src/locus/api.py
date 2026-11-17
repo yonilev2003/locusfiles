@@ -107,6 +107,8 @@ HTTP_STATUS: dict[str, int] = {
     "not_configured": 503,
     "embedder_unavailable": 503,
     "index_error": 503,
+    "paused": 503,
+    "policy_error": 503,
 }
 
 

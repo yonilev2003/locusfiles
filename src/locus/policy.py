@@ -314,12 +314,16 @@ class Matcher:
                 )
         return False
 
-    def profile_of(self, path: Path | str) -> str:
+    def explicit_profile(self, path: Path | str) -> str | None:
+        """The profile of the deepest `[[folder]]` entry that covers *path*, or None when no entry does."""
         parts = _parts(path)
         for prefix, profile in self._folders:
             if _starts(parts, prefix):
                 return profile
-        return DEFAULT_PROFILE
+        return None
+
+    def profile_of(self, path: Path | str) -> str:
+        return self.explicit_profile(path) or DEFAULT_PROFILE
 
     def _library_denied(self, parts: tuple[str, ...], is_dir: bool) -> bool:
         if not _starts(parts, self._library):

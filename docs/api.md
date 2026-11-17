@@ -117,7 +117,7 @@ the message. The message never contains your query or file text.
 | `host_not_allowed` | 403 | The `Host` header is not on the allow-list. |
 | `origin_not_allowed` | 403 | The request carries an `Origin` header that is not allowed. |
 | `not_indexed` | 403 | `read`: the path is not in the index. Files the deny-list excludes are never in it. |
-| `confinement_refused` | 403 | `read`: the path is indexed, but is now a link, a pipe or a device, or now resolves outside the indexed files. |
+| `confinement_refused` | 403 | `read`: the path is indexed, but is now a link, a pipe or a device, or now resolves outside the indexed files, or a folder rule (the deny-list, an excluded or closed folder) keeps it back. |
 | `not_found` | 404 | No such route. |
 | `method_not_allowed` | 405 | The route exists, with another method (see `Allow`). |
 | `no_index` | 409 | Nothing is indexed at all, so a search could not match anything. |
@@ -131,6 +131,8 @@ the message. The message never contains your query or file text.
 | `not_configured` | 503 | The index or embedder cannot be set up. |
 | `embedder_unavailable` | 503 | The on-device model could not be loaded. |
 | `index_error` | 503 | The local index could not be read. Try again in a moment. |
+| `paused` | 503 | The user paused Locus (`locus pause`, or `LOCUS_DISABLED` is set). Nothing is returned until `locus resume`. |
+| `policy_error` | 503 | The folder rules (`policy.toml`) cannot be read, so no file is returned. The message names the problem. |
 
 ### Settings
 
