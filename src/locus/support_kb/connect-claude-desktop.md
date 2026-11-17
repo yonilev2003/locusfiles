@@ -3,8 +3,11 @@ id: connect-claude-desktop
 title: Connect Claude Desktop
 url: /docs/connect#claude-desktop
 keywords: claude desktop, claude app, desktop app, claude_desktop_config.json, config, edit config, developer settings, mcp, mcpservers, connect, setup, tools menu
-updated: 2026-10-01
+updated: 2026-11-17
 ---
+Status: these steps were run on a pre-release engine on 2026-09-16 and have not been tested on this
+version (0.2.0).
+
 1. Find the full path of the `locus` command: run `command -v locus` in a terminal. After a pipx or
    uv install it is usually `~/.local/bin/locus` written out in full, such as
    `/Users/you/.local/bin/locus` on macOS.
@@ -24,10 +27,11 @@ updated: 2026-10-01
 ```
 
    Use the full path from step 1 as `command`, not just `locus`: desktop apps don't see your
-   terminal's PATH. Settings such as `LOCUS_EMBEDDER` or `LOCUS_API_KEY` go in an `"env": { ... }`
+   terminal's PATH. Settings such as `LOCUS_EMBEDDER` or a provider key go in an `"env": { ... }`
    block next to `"args"`, because Claude Desktop does not start Locus in the folder that holds your
    `.env` file.
 4. Quit Claude Desktop completely (not just the window) and reopen it. The config is read only at
    startup.
 5. Start a new chat, open the tools menu below the message box and check that "locus" is listed.
-   Then ask a question that needs your files: Claude calls Locus and cites the file paths it used.
+   Then ask a question that needs your files: Claude can call Locus and cite the paths it returns. If
+   it answers without searching, say "search my files with Locus".
