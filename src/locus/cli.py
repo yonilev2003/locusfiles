@@ -311,7 +311,25 @@ def cmd_serve(args: argparse.Namespace) -> int:
         settings = get_settings()
         require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1 (after .env is read)
         settings.hosted_url(settings.mcp_relay_token_url)
-    serve(args.transport, host=args.host, port=args.port, path=args.path)
+    if args.transport != "streamable-http":
+        if args.public_host or args.sse or args.all_tools or args.expires is not None:
+            print(
+                "error: --public-host, --sse, --all-tools and --expires only apply to --transport streamable-http.",
+                file=sys.stderr,
+            )
+            return 2
+        serve(args.transport, host=args.host, port=args.port, path=args.path)
+        return 0
+    serve(
+        args.transport,
+        host=args.host,
+        port=args.port,
+        path=args.path,
+        public_host=args.public_host,
+        sse=args.sse,
+        all_tools=args.all_tools,
+        expires=args.expires,
+    )
     return 0
 
 
@@ -659,6 +677,31 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("stats", help="show index statistics")
     p.set_defaults(func=cmd_stats)
 
+    p.add_argument(
+        "--public-host",
+        metavar="HOST[,HOST]",
+        default=None,
+        help="streamable-http behind a tunnel: the host name(s) the tunnel serves (also LOCUS_MCP_PUBLIC_HOST). "
+        "Keeps listening on 127.0.0.1 only, and adds the safety floor: token of 32+ characters, rate limit, "
+        "counts-only audit log, REMOTE_OFF kill switch, expiry, read-only tools only",
+    )
+    p.add_argument(
+        "--expires",
+        metavar="DURATION",
+        default=None,
+        help="with a public host: after this long every request gets 401, e.g. 8h (the default), 30m, 2d; 0 = never",
+    )
+    p.add_argument(
+        "--sse",
+        action="store_true",
+        help="with a public host: reply with Server-Sent Events and keep sessions (the default is JSON replies and "
+        "no sessions, which a Cloudflare quick tunnel needs)",
+    )
+    p.add_argument(
+        "--all-tools",
+        action="store_true",
+        help="with a public host: also expose locus_diagnose_connection and locus_account_status (off by default)",
+    )
     p = sub.add_parser(
         "doctor",
         help="diagnose common setup problems",

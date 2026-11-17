@@ -56,7 +56,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
-from . import __version__, support
+from . import __version__, remote_guard, support
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
@@ -132,13 +132,19 @@ def _with_announce(instructions: str) -> str:
     return instructions
 
 
-def _instructions_text(account_tool: bool) -> str:
+def _instructions_text(account_tool: bool, diagnose_tool: bool = True) -> str:
     """The server instructions. `account_tool`: locus_account_status is registered (a Locus account key is set), so the
-    text may name it; without a key the tool does not exist and the instructions must not send the model to it."""
+    text may name it; without a key the tool does not exist and the instructions must not send the model to it.
+    `diagnose_tool`: locus_diagnose_connection is registered (not over a tunnel, see `configure_remote_tools`)."""
+    not_working = (
+        "locus_diagnose_connection first, then locus_help with the problem it reports. "
+        if diagnose_tool
+        else "locus_help with the problem. "
+    )
     itself = (
         "Questions about Locus itself (install, connect, privacy, errors) are not file "
         "questions: call locus_help and cite the page it returns. Locus not working: "
-        "locus_diagnose_connection first, then locus_help with the problem it reports. "
+        + not_working
         + INSTRUCTIONS_SENTENCE
     )
     if account_tool:
@@ -1621,13 +1627,101 @@ def _require_bearer_token(app: Any, token: str) -> Any:
     return _app
 
 
-def _run_http(*, host: str, port: int, path: str, token: str) -> None:
+def _known_paths() -> set[str]:
+    """The indexed paths, for the remote audit log (a path is logged only when it is one of these). Never raises."""
+    try:
+        return set(_components()[1].list_paths())
+    except Exception:  # noqa: BLE001 - the audit log is best effort
+        return set()
+
+
+def _engine_components() -> tuple[Embedder, VectorStore, Settings]:
+    """This server's own open index, for a `service.Engine` (a second open would load the embedder twice)."""
+    from .service import ServiceError
+
+    try:
+        return _components()
+    except NotConfigured as exc:
+        raise ServiceError("not_configured", str(exc)) from exc
+
+
+def configure_remote_tools(*, all_tools: bool = False, chatgpt_tools: bool = True) -> list[str]:
+    """Set the tool list for a tunnel and return the names listed. Without `all_tools`, `locus_diagnose_connection`
+    and `locus_account_status` are removed (they report this computer's setup or contact Locus's servers); with
+    `chatgpt_tools`, the `search` and `fetch` aliases are added (remote_tools.py). The instructions follow the tools.
+    Changes the process-wide server: call it only in the process that serves HTTP."""
+    global _account_tool_registered
+    manager = mcp._tool_manager
+    if not all_tools:
+        for name in remote_guard.LOCAL_ONLY_TOOLS:
+            if manager.get_tool(name) is not None:
+                mcp.remove_tool(name)
+        _account_tool_registered = False
+    if chatgpt_tools and manager.get_tool("search") is None:
+        from .remote_tools import register_chatgpt_tools
+        from .service import Engine
+
+        engine = Engine(components=_engine_components)
+        register_chatgpt_tools(mcp, engine, notice=UNTRUSTED_NOTICE, annotations=READ_ONLY)
+    text = _instructions_text(account_tool=_account_tool_registered, diagnose_tool=all_tools)
+    if chatgpt_tools:
+        text += (
+            "\n\nsearch and fetch give the same files in the shape ChatGPT expects: search returns ids made of a "
+            "file path and a chunk number, fetch reads one. Cite the file path."
+        )
+    mcp._lowlevel_server.instructions = _with_announce(text)
+    return [tool.name for tool in manager.list_tools()]
+
+
+def build_remote_app(*, path: str, token: str, remote: remote_guard.RemoteOptions) -> Any:
+    """The streamable-http app for public-host mode: the tool list for a tunnel, the SDK's Host/Origin guard with the
+    public hostnames added, JSON replies and no session state unless `sse`, all behind `remote_guard.RemoteGuard`
+    (kill switch, expiry, bearer token, rate limits, audit log). Always bound to 127.0.0.1."""
+    configure_remote_tools(all_tools=remote.all_tools, chatgpt_tools=remote.chatgpt_tools)
+    app = mcp.streamable_http_app(
+        streamable_http_path=path,
+        host="127.0.0.1",
+        json_response=not remote.sse,  # a Cloudflare quick tunnel carries no Server-Sent Events
+        stateless_http=not remote.sse,  # nothing to lose when the server restarts: no session id to go stale
+        transport_security=remote_guard.transport_security(remote.public_hosts),
+    )
+    return remote_guard.RemoteGuard(
+        app,
+        authenticate=remote_guard.static_token_authenticator(token),
+        data_dir=remote.data_dir,
+        expires_in=remote.expires_s,
+        rate_per_min=remote.rate_per_min,
+        known_paths=_known_paths,
+    )
+
+
+def _run_http(*, host: str, port: int, path: str, token: str, remote: remote_guard.RemoteOptions | None = None) -> None:
     import uvicorn
 
-    app = mcp.streamable_http_app(streamable_http_path=path, host=host)
-    protected = _require_bearer_token(app, token)
-    print(f"locus_mcp: streamable-http on http://{host}:{port}{path} (bearer auth required)", file=sys.stderr)
+    if remote is None:  # loopback mode: unchanged
+        app = mcp.streamable_http_app(streamable_http_path=path, host=host)
+        protected = _require_bearer_token(app, token)
+        print(f"locus_mcp: streamable-http on http://{host}:{port}{path} (bearer auth required)", file=sys.stderr)
+    else:
+        protected = build_remote_app(path=path, token=token, remote=remote)
+        _print_remote_banner(host=host, port=port, path=path, remote=remote)
     uvicorn.run(protected, host=host, port=port, log_level="info")
+
+
+def _print_remote_banner(*, host: str, port: int, path: str, remote: remote_guard.RemoteOptions) -> None:
+    """What public-host mode is doing, on stderr; the token is never printed."""
+    expires = "never" if remote.expires_s is None else f"{remote.expires_s / 3600:g} h from now"
+    first = remote.public_hosts[0]
+    print(
+        f"locus_mcp: streamable-http on http://{host}:{port}{path}, public host(s) {', '.join(remote.public_hosts)}\n"
+        f"  connector address: https://{first}{path}\n"
+        f"  bearer token required; {remote.rate_per_min} requests/min per token; session expires: {expires}\n"
+        f"  replies: {'Server-Sent Events' if remote.sse else 'JSON, stateless'}; "
+        f"tools: {', '.join(t.name for t in mcp._tool_manager.list_tools())}\n"
+        f"  audit log (counts only): {remote.data_dir / remote_guard.AUDIT_DIR}\n"
+        f"  kill switch: create {remote.data_dir / remote_guard.KILL_SWITCH_FILE} and every request gets 503",
+        file=sys.stderr,
+    )
 
 
 # --- Hosted relay (`--transport relay`), protocol v2 ---------------------------------------------
@@ -3046,7 +3140,14 @@ def main(
     host: str = "127.0.0.1",
     port: int = 8000,
     path: str = "/mcp",
+    public_host: str | None = None,
+    sse: bool = False,
+    all_tools: bool = False,
+    expires: str | None = None,
 ) -> None:
+    """`public_host`, `sse`, `all_tools` and `expires` only matter for streamable-http: with a public host (the
+    flag, or LOCUS_MCP_PUBLIC_HOST) it is reachable through a user-run tunnel, and the safety floor in `remote_guard`
+    applies."""
     if transport == "relay":
         require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1
     apply_tool_set()  # the account tool exists only when a Locus account key is set; the instructions follow
@@ -3073,8 +3174,34 @@ def main(
             file=sys.stderr,
         )
         sys.exit(2)
+    try:
+        remote = remote_guard.build_options(
+            host=host,
+            data_dir=settings.data_dir,
+            public_host=public_host,
+            sse=sse,
+            all_tools=all_tools,
+            expires=expires,
+        )
+    except remote_guard.RemoteConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    if remote is None:  # loopback mode, as before
+        if sse or all_tools or expires is not None:
+            print(
+                "error: --sse, --all-tools and --expires only apply with a public host "
+                f"(--public-host or {remote_guard.PUBLIC_HOST_ENV}).",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        start_warmup()
+        _run_http(host=host, port=port, path=path, token=settings.mcp_token)
+        return
+    if weak := remote_guard.check_token_strength(settings.mcp_token):
+        print(f"error: {weak}", file=sys.stderr)
+        sys.exit(2)
     start_warmup()
-    _run_http(host=host, port=port, path=path, token=settings.mcp_token)
+    _run_http(host=host, port=port, path=path, token=settings.mcp_token, remote=remote)
 
 
 if __name__ == "__main__":
