@@ -536,9 +536,9 @@ has already received. See [SECURITY.md](SECURITY.md).
   sentence and no file name or text. `locus resume` takes effect at once, with no restart. `LOCUS_DISABLED=1` does the
   same from the environment, but a running app keeps the environment it was started with: unset it in the app's
   settings and restart the app. Indexing and watching are not stopped.
-- Locus keeps an audit log in `~/.locus/audit/`: one line per call with the time, the tool, the name the AI app gave
-  itself, the file paths returned, how many characters, whether the answer was cut and how many results your rules
-  hid. It never holds file text, and it does not hold your question unless you set `[audit] queries = true`. Files
+- Locus keeps an audit log in `~/.locus/audit/`: one line per call with the time, the tool, the name and version the
+  AI app gave itself (not checked), the file paths returned, how many characters, whether the answer was cut, how
+  many results your rules hid and whether the call was refused. It never holds file text, and it does not hold your question unless you set `[audit] queries = true`. Files
   older than 90 days are deleted. `locus audit --since 7d` summarises it. The log lists file paths, which can
   themselves be sensitive, and sits in the same folder as the index. The local API and the tunnel mode keep their own
   counts-only logs in the same folder (see their pages).
