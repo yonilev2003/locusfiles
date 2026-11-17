@@ -31,7 +31,7 @@ from typing import Any
 
 from . import audit, killswitch
 from .config import get_settings
-from .policy import Decision, Matcher, Policy, PolicyError, _parts, _starts, load_policy
+from .policy import CLOSED_FOLDER_NAMES, Decision, Matcher, Policy, PolicyError, _parts, _raw, _starts, load_policy
 
 POLICY_FILE = "policy.toml"
 OVERFETCH_LIMIT = 500  # most rows asked of the index to fill a page after hidden ones were dropped
@@ -50,7 +50,10 @@ _RULE_WORDS = {
 }
 
 HIDDEN_RESULTS = "{n} result(s) hidden by your folder rules (a closed or excluded folder, or the deny-list)."
-HIDDEN_FILES = "{n} indexed file(s) hidden by your folder rules (a closed or excluded folder, or the deny-list): not listed, not counted."  # noqa: E501
+HIDDEN_FILES = (
+    "{n} indexed file(s) hidden by your folder rules (a closed or excluded folder, or the deny-list): "
+    "not listed, not counted."
+)
 RULES_REFUSAL_TAIL = (
     "These are the user's own folder rules: tell the user, and do not look for another way to the file. The user can "
     "change the rules themselves (`locus doctor` shows them)."
@@ -84,6 +87,18 @@ class Guard:
         self.matcher = Matcher(dataclasses.replace(policy, roots=()), home)
         self._memo: dict[str, Decision] = {}
         self._notion = _parts(self.data_dir / "sources" / "notion")
+        # Where a link leads is part of what the matcher was built from: `~/Downloads` or an opened folder may be one.
+        self._link_sources = [home / n for n in CLOSED_FOLDER_NAMES] + [
+            _raw(f.path, home) for f in policy.folders if f.profile != "excluded"
+        ]
+        self._links = self._link_state()
+
+    def _link_state(self) -> tuple[str, ...]:
+        return tuple(os.path.realpath(p) for p in self._link_sources)
+
+    def stale(self) -> bool:
+        """True when a folder the rules name now leads somewhere else than when they were compiled."""
+        return self._link_state() != self._links
 
     def decision(self, path: str) -> Decision:
         found = self._memo.get(path)
@@ -134,6 +149,8 @@ def _signature(file: Path) -> tuple[int, int] | None:
         st = file.stat()
     except FileNotFoundError:
         return None
+    except OSError:  # no access, or not a file: load_policy meets the same error and says it
+        return (-1, -1)
     return st.st_mtime_ns, st.st_size
 
 
@@ -156,7 +173,7 @@ def open_gate(data_dir: Path, home: Path | None = None, *, check_pause: bool = T
     sig = _signature(file)
     with _GUARDS_LOCK:
         cached = _GUARDS.get(key)
-        if cached is not None and cached[0] == sig:
+        if cached is not None and cached[0] == sig and not cached[1].stale():
             return cached[1]
         try:
             policy = load_policy(file)
