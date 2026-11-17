@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import math
 import os
 import shlex
@@ -289,6 +290,8 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 
 def cmd_query(args: argparse.Namespace) -> int:
+    if args.json:
+        return _run_service(lambda engine: engine.search(args.query, k=args.k, path_prefix=args.prefix), as_json=True)
     settings = get_settings()
     embedder, store = _components(settings)
     hits = store.query(embedder.embed_query(args.query), k=args.k, path_prefix=args.prefix)
@@ -300,6 +303,100 @@ def cmd_query(args: argparse.Namespace) -> int:
         snippet = snippet if len(snippet) <= args.width else snippet[: args.width] + "…"
         print(f"{i}. [{hit.score:.3f}] {hit.path} #{hit.chunk_index}\n   {snippet}")
     return 0
+
+
+# Exit codes of the commands a program calls: `query --json`, `sources`, `read`, and `locus api` at start-up. Each
+# service error code (service.ERROR_CODES) has one; tests/test_cli_json.py checks that none is missing.
+EXIT_OK = 0
+EXIT_ERROR = 1
+EXIT_USAGE = 2
+EXIT_NOT_CONFIGURED = 3
+EXIT_REFUSED = 4
+EXIT_EMBEDDER = 5
+SERVICE_EXIT_CODES = {
+    "invalid_request": EXIT_USAGE,
+    "not_configured": EXIT_NOT_CONFIGURED,
+    "no_index": EXIT_NOT_CONFIGURED,
+    "not_indexed": EXIT_REFUSED,
+    "confinement_refused": EXIT_REFUSED,
+    "file_unreadable": EXIT_ERROR,
+    "embedder_error": EXIT_EMBEDDER,
+    "embedder_unavailable": EXIT_EMBEDDER,
+    "index_error": EXIT_ERROR,
+    "internal_error": EXIT_ERROR,
+}
+EXIT_CODES_EPILOG = """\
+exit codes (for `query --json`, `sources`, `read` and `api`):
+  0  ok
+  1  unexpected error: a bug, an index that cannot be read, a file that can no longer be read
+  2  usage error: a bad argument or parameter
+  3  not configured (embedder, key, collection), or nothing is indexed yet
+  4  refused: the path is not in the index (this includes every file the deny-list excludes), or the
+     confinement check failed (the file is now a link or outside the indexed files)
+  5  embedder error: the query could not be embedded, or the on-device model could not be loaded
+JSON goes to stdout only; logs and warnings go to stderr. `query` without --json keeps its older
+behaviour (exit 1 when nothing matched)."""
+
+
+def _emit_json(payload: dict) -> None:
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if reconfigure is not None:  # Hebrew and other non-ASCII text must not depend on the terminal's code page
+        reconfigure(encoding="utf-8")
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def _run_service(call, *, as_json: bool, render=None) -> int:
+    """Run an engine operation (service.Engine) and print its answer: JSON on stdout with --json, else `render(result)`.
+    A failure is a JSON error object on stdout with --json, always one line on stderr, and the exit code above."""
+    from .service import Engine, ServiceError
+
+    try:
+        result = call(Engine())
+    except ServiceError as exc:
+        error = exc
+    except Exception as exc:  # noqa: BLE001 - a program is waiting for an answer: say what class of failure it was
+        error = ServiceError("internal_error", f"Unexpected error ({type(exc).__name__}).")
+    else:
+        if as_json:
+            _emit_json(result.to_dict())
+        elif render is not None:
+            render(result)
+        return EXIT_OK
+    if as_json:
+        _emit_json(error.to_dict())
+    print(f"error: {error.message}", file=sys.stderr)
+    return SERVICE_EXIT_CODES[error.code]
+
+
+def cmd_sources(args: argparse.Namespace) -> int:
+    def render(result) -> None:
+        print("\n".join(result.paths))
+        more = result.total - len(result.paths)
+        print(f"total: {result.total} file(s) in scope ({result.indexed_total} in the whole index)", file=sys.stderr)
+        if more > 0:
+            print(f"... {more} more (raise --limit, up to 1000, or narrow --path-prefix)", file=sys.stderr)
+        if result.note:
+            print(result.note, file=sys.stderr)
+
+    return _run_service(
+        lambda engine: engine.list_sources(args.path_prefix, args.limit), as_json=args.json, render=render
+    )
+
+
+def cmd_read(args: argparse.Namespace) -> int:
+    def render(result) -> None:
+        print(result.text)
+        if result.note:
+            print(result.note, file=sys.stderr)
+        if result.more:
+            print(
+                f"[... {result.total_chars - result.end_char} more chars; --start-char {result.next_start_char}]",
+                file=sys.stderr,
+            )
+
+    return _run_service(
+        lambda engine: engine.read_file(args.path, args.start_char, args.max_chars), as_json=args.json, render=render
+    )
 
 
 def cmd_serve(args: argparse.Namespace) -> int:
@@ -614,12 +711,45 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.set_defaults(func=cmd_estimate)
 
-    p = sub.add_parser("query", help="semantic search from the terminal")
+    p = sub.add_parser(
+        "query",
+        help="semantic search from the terminal",
+        epilog=EXIT_CODES_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("query")
     p.add_argument("-k", type=int, default=5)
     p.add_argument("--prefix", default=None, help="restrict to an absolute path prefix")
     p.add_argument("--width", type=int, default=200, help="snippet width")
+    p.add_argument(
+        "--json",
+        action="store_true",
+        help='print the result as JSON ("schema": "locus.query.v1") on stdout; path and chunk_index on every hit',
+    )
     p.set_defaults(func=cmd_query)
+
+    p = sub.add_parser(
+        "sources",
+        help="list the indexed files (paths only) and how many there are",
+        epilog=EXIT_CODES_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--path-prefix", default=None, help="only files inside this absolute folder")
+    p.add_argument("--limit", type=int, default=100, help="most paths to print, 1 to 1000 (the total counts them all)")
+    p.add_argument("--json", action="store_true", help='print JSON ("schema": "locus.sources.v1") on stdout')
+    p.set_defaults(func=cmd_sources)
+
+    p = sub.add_parser(
+        "read",
+        help="read an excerpt of one indexed file (refuses any path the index does not list)",
+        epilog=EXIT_CODES_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("path", help="the file's absolute path, exactly as `locus query` or `locus sources` print it")
+    p.add_argument("--start-char", type=int, default=0, help="character offset to start from")
+    p.add_argument("--max-chars", type=int, default=6000, help="most characters to return, 200 to 40000")
+    p.add_argument("--json", action="store_true", help='print JSON ("schema": "locus.read.v1") on stdout')
+    p.set_defaults(func=cmd_read)
 
     p = sub.add_parser(
         "serve",
