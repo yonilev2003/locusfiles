@@ -52,8 +52,9 @@ described here is welcome.
 - **Prompt injection.** A file you index can contain text written to steer an AI assistant. Locus labels what
   it returns (chunk text, excerpts, file paths and names) as untrusted file content and its server instructions
   tell the assistant not to follow instructions found in it. That is a request to the model, not a control:
-  models can be fooled and Locus cannot prevent it. Locus's tools are read-only; the harm comes from other tools
-  the same assistant has (sending, posting, opening web pages, running commands). Do not pair Locus with such
+  models can be fooled and Locus cannot prevent it. Locus's tools carry the MCP read-only hint (a hint to the
+  client, not enforcement; search and list-sources first update Locus's own index, and we found no code path in
+  the tools that writes to an indexed file); the harm comes from other tools the same assistant has (sending, posting, opening web pages, running commands). Do not pair Locus with such
   tools for folders that hold files from other people. Whether such wording protects the maintainer in law has
   not been reviewed by a lawyer.
 - **The index is readable text.** `~/.locus` holds the text of every indexed chunk, unencrypted, next to the

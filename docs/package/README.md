@@ -3,8 +3,8 @@
 Your files, your machine, the MCP clients you already use.
 
 Locus indexes folders you choose on your own computer and gives MCP clients that can start a local
-server (works with Claude Desktop, Claude Code and Cursor; setup guides for other clients) a semantic
-search tool over them. Every
+server (setup pages exist for Claude Code, Claude Desktop and Cursor; on this version we have tested Claude
+Code only) a semantic search tool over them. Every
 result carries the file path, so the assistant can cite its sources.
 
 The package is `locusfiles`; the command it installs is `locus` (and `locusfiles` as an alias of it,
@@ -34,7 +34,7 @@ Other extras: `voyage` or `openai` to embed with your own provider key, and `loc
 on-device models the default route lacks (`bge-m3`, `multilingual-e5`, model folders), which adds
 PyTorch (the environment is about 1.1 GB).
 
-macOS and Linux are tested. Windows is not yet verified.
+Tested on one Mac (Apple silicon, macOS) only. Linux and Windows are not verified.
 
 ## First search
 
@@ -55,6 +55,10 @@ Checked against the code of version 0.2.0 on 2026-11-14. The repository README h
 - Local (the default): Indexing and embeddings run on your computer; the only request is the first-run
   download of the embedding model from Hugging Face. When your AI assistant searches, the matching excerpts go
   to that assistant, as they would if you pasted them in.
+- ONNX Runtime (the library that runs the local embedding model): from version 1.31 its macOS and Linux builds
+  include Microsoft's usage-telemetry uploader, on by default. Locus sets `ORT_DISABLE_TELEMETRY=1` when it is
+  imported. Verified on macOS only (one Mac, ONNX Runtime 1.32.0); Linux and Windows are not verified. The
+  repository README has the details.
 - Your own key: Chunk text, and each search query, goes straight from your computer to the embedding provider
   you chose, under your own account.
 - Managed (off by default: needs `LOCUS_ENABLE_HOSTED=1` and a Locus account key): Chunk text and your search queries pass through Locus's relay to Voyage
