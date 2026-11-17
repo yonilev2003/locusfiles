@@ -28,3 +28,11 @@ def _account_tool_is_off_again_after_each_test():
     server = sys.modules.get("locus.mcp_server")
     if server is not None and getattr(server, "_account_tool_registered", False):
         server.apply_tool_set(types.SimpleNamespace(managed_api_key=None))
+
+
+@pytest.fixture(scope="session")
+def demo_index(tmp_path_factory):
+    """The demo vault indexed once with HashEmbedder (tests/demo_index.py); read-only for the tests that share it."""
+    from .demo_index import build_demo_index
+
+    return build_demo_index(tmp_path_factory.mktemp("demo-index"))
