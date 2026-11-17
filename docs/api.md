@@ -161,10 +161,12 @@ What it does:
   No `Access-Control-*` headers are ever sent, so a browser cannot read a response from another site.
 - **It reads only what the index lists.** `read` refuses any other path, any spelling that is not the indexed one,
   and any indexed path that has since become a link or now resolves outside the indexed files, checked before and
-  after the read. The deny-list applies when files are indexed, so a denied file (keys, passwords, browser profiles,
-  your own `[deny]` paths) is not in the index and cannot be read. A file that was indexed before a deny rule was
-  added stays in the index, and so stays readable, until `locus index <folder> --prune` removes it. The MCP tools
-  behave the same way.
+  after the read. The folder rules apply on every call, not only when files are indexed: the deny-list (keys,
+  passwords, browser profiles), your own `[deny]` paths, `excluded` folders and closed folders (Downloads, until you
+  open it). A file that was indexed before a rule was added is hidden from `search`, `sources` and `read` at once,
+  with no re-index; its index entry stays until `locus index <folder> --prune` removes it. A `policy.toml` that cannot
+  be read stops the three calls (`policy_error`). `locus pause` (or `LOCUS_DISABLED=1`) stops them too (`paused`).
+  The MCP tools behave the same way.
 - **It limits what one request can do:** a rate limit, a body cap, a cap on file text per hit, at most 25 hits.
 - **It keeps an audit log.** One JSON line per request in `<data folder>/audit/api-YYYY-MM-DD.jsonl`, owner-only,
   appended and never rewritten: time, method, route, status, number of results, bytes returned, the file paths
