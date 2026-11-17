@@ -56,7 +56,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
-from . import __version__, support
+from . import __version__, closed_folders, support
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
@@ -256,6 +256,7 @@ def _components() -> tuple[Embedder, VectorStore, Settings]:
                     raise NotConfigured(_state["error"]) from exc
                 _state["settings"] = settings
                 _state["embedder"] = embedder
+                closed_folders.mark_if_new(settings, store)
                 _state["store"] = store  # last: the fast path above reads "store" without the lock
                 print(f"locus_mcp: {embedder.name} @ {settings.data_dir}", file=sys.stderr)
                 if legacy:  # RET-002: a legacy managed collection; search works as before (stderr only, never stdout)
@@ -3050,6 +3051,10 @@ def main(
     if transport == "relay":
         require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1
     apply_tool_set()  # the account tool exists only when a Locus account key is set; the instructions follow
+    try:  # an index made before Downloads was closed keeps working (closed_folders.py); never stops the server
+        closed_folders.migrate(get_settings(), Path.home().resolve())
+    except Exception:  # noqa: BLE001
+        pass
     if transport == "stdio":
         start_warmup()
         mcp.run()  # stdio transport — unchanged default

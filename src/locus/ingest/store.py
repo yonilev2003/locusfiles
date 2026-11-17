@@ -761,6 +761,19 @@ class ChromaStore:
             self._sync()
             return dict(self._path_summary()[0])
 
+    def has_path_under(self, prefix: str) -> bool:
+        """True when some indexed file is *prefix* or inside it (a real folder boundary). One folder-scoped read that
+        stops at the first match, not a read of every chunk's metadata (the one-time closed-folder check uses it)."""
+        with self._lock:
+            self._sync()
+            if int(self._col.count()) == 0:
+                return False
+            for where in self._scope_wheres(prefix, None, None):
+                for res in self._pages(where, ["metadatas"]):
+                    if any(m and m.get("path") and _under(str(m["path"]), prefix) for m in res.get("metadatas") or []):
+                        return True
+        return False
+
     def indexed_roots(self) -> list[str]:
         """The distinct `root` values chunks were indexed under (the folders `locus index` was pointed at)."""
         with self._lock:

@@ -21,6 +21,20 @@ def _allow_the_test_embedder(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _never_touch_the_real_data_dir(monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory):
+    """Every test starts with LOCUS_DATA_DIR in its own temp folder (a test that needs another one sets it itself). The
+    start-up migration, the kill-switch flag, the audit log and the policy file all live in the data folder; none of
+    them may ever read or write the real `~/.locus` of whoever runs the suite."""
+    from locus.config import get_settings
+
+    monkeypatch.setenv("LOCUS_DATA_DIR", str(tmp_path_factory.mktemp("locus-data")))
+    monkeypatch.delenv("LOCUS_DISABLED", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def _account_tool_is_off_again_after_each_test():
     """`mcp_server.main()` registers `locus_account_status` when a key is set; a test that did so must not change the
     tool list another test sees (the default server has five tools)."""

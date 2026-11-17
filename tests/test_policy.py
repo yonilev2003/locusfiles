@@ -271,7 +271,10 @@ def test_iter_files_without_policy_is_unchanged(home, tmp_path):
 
 def test_iter_files_with_policy_prunes_and_reports(home, tmp_path):
     _build_home(home)
-    policy = Policy(roots=("~",), folders=(FolderProfile("~/Private", "excluded"),))
+    # Downloads is a closed folder (policy.CLOSED_FOLDER_NAMES): it is in this walk because the policy opens it.
+    policy = Policy(
+        roots=("~",), folders=(FolderProfile("~/Private", "excluded"), FolderProfile("~/Downloads", "untrusted"))
+    )
     seen: list[str] = []
     got = {
         p.relative_to(home).as_posix()

@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from . import closed_folders
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -31,6 +32,7 @@ def _components(settings: Settings) -> tuple[Embedder, ChromaStore]:
     embedder, store, warning = open_index(settings)
     if warning:
         print(f"locus: warning: {warning}", file=sys.stderr)
+    closed_folders.mark_if_new(settings, store)
     return embedder, store
 
 
@@ -48,13 +50,13 @@ def cmd_index(args: argparse.Namespace) -> int:
     if args.roots is not None or args.policy is not None or args.folder is None:
         return _index_roots(args, settings)
     folder = Path(args.folder)
-    matcher = _deny_list_for(folder, settings)
+    rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
+    matcher = _deny_list_for(folder, settings, ask=None if args.dry_run else (args.yes, rerun))
     if isinstance(matcher, int):
         return matcher
     if args.dry_run:
         return _dry_run(folder, settings, matcher)
     embedder, store = _components(settings)
-    rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
     refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
@@ -68,22 +70,45 @@ def cmd_index(args: argparse.Namespace) -> int:
         resume=f"To continue, re-run `{resume}` — unchanged files are skipped.",
         matcher=matcher,
     )
-    return _report(stats)
+    code = _report(stats)
+    _print_closed_hint(folder, settings, matcher)
+    return code
 
 
-def _deny_list_for(folder: Path, settings: Settings) -> Matcher | int:
+def _deny_list_for(folder: Path, settings: Settings, ask: tuple[bool, str] | None = None) -> Matcher | int:
     """The deny-list (policy.py) for indexing *folder*, with the user's `<data dir>/policy.toml` rules added: the
     same rules `--roots` applies, so a plain `index`, `watch` and `--prune` refuse the same keys, passwords and
     browser profiles. Or the exit code to return when the policy file is unreadable: a typo in a restriction must not
-    fail open."""
+    fail open. `ask` = (--yes given, the user's command): *folder* is one the user named, so when it is a closed
+    folder (Downloads) they are asked once whether to open it (closed_folders.py)."""
     from .policy import PolicyError, load_policy, matcher_for_folder
+    from .preflight import NEEDS_YES, PROCEED
 
+    home = Path.home().resolve()
+    policy_file = settings.data_dir / "policy.toml"
     try:
-        policy = load_policy(settings.data_dir / "policy.toml")
+        policy = load_policy(policy_file)
+        if ask is not None:
+            outcome = closed_folders.gate(
+                folder, settings, policy, policy_file, home, assume_yes=ask[0], command=ask[1]
+            )
+            if outcome != PROCEED:
+                return EXIT_NEEDS_YES if outcome == NEEDS_YES else EXIT_DECLINED
+            policy = load_policy(policy_file)  # the gate may have opened the folder
     except (PolicyError, OSError) as err:
         print(f"locus: policy file problem: {err}", file=sys.stderr)
         return EXIT_NEEDS_YES
-    return matcher_for_folder(folder, policy, Path.home().resolve())
+    return matcher_for_folder(folder, policy, home)
+
+
+def _print_closed_hint(root: Path, settings: Settings, matcher: Matcher) -> None:
+    """After an index or a dry run: say how many files a closed folder inside *root* left out, and how to open it."""
+    try:
+        lines = closed_folders.hint_lines(root, settings, matcher.policy, matcher.home)
+    except Exception:  # noqa: BLE001 - a hint must never turn a finished run into a failure
+        return
+    for line in lines:
+        print(line)
 
 
 # Exit codes of commands that index: 0 done, 1 every attempted file failed or the user declined,
@@ -123,6 +148,7 @@ def _index_roots(args: argparse.Namespace, settings: Settings) -> int:
     """`locus index --roots A B --dry-run`: counts for several roots under the policy file.
     Real multi-root indexing is not enabled yet; it follows once the dry-run report has been reviewed."""
     from .policy import Matcher, PolicyError, load_policy
+    from .preflight import NEEDS_YES, PROCEED
     from .rootscan import render_roots_report, scan_roots
 
     if args.prune and not args.dry_run:
@@ -146,9 +172,24 @@ def _index_roots(args: argparse.Namespace, settings: Settings) -> int:
     if bad:
         print(f"locus: not a folder: {bad[0]}", file=sys.stderr)
         return EXIT_NEEDS_YES
+    if not args.dry_run and (args.roots or args.folder):  # roots the user typed: a closed one among them is asked about
+        rerun = "locus index --roots " + " ".join(shlex.quote(str(r)) for r in roots) + " --yes"
+        try:
+            for root in roots:
+                outcome = closed_folders.gate(
+                    root, settings, policy, policy_file, home, assume_yes=args.yes, command=rerun
+                )
+                if outcome != PROCEED:
+                    return EXIT_NEEDS_YES if outcome == NEEDS_YES else EXIT_DECLINED
+            policy = load_policy(policy_file)
+        except (PolicyError, OSError) as err:
+            print(f"locus: policy file problem: {err}", file=sys.stderr)
+            return EXIT_NEEDS_YES
     matcher = Matcher(dataclasses.replace(policy, roots=tuple(str(r) for r in roots)), home)
     if args.dry_run:
         print(render_roots_report(scan_roots(roots, settings, matcher)))
+        for root in roots:
+            _print_closed_hint(root, settings, matcher)
         return 0
     return _index_roots_for_real(args, settings, roots, matcher)
 
@@ -182,6 +223,8 @@ def _index_roots_for_real(args: argparse.Namespace, settings: Settings, roots: l
     print(render_report(report))
     for err in report.stats.errors:
         print(f"  ! {err}")
+    for root in roots:
+        _print_closed_hint(root, settings, matcher)
     if report.stats.stop is not None:
         return EXIT_STOPPED
     return 1 if report.stats.errors and report.stats.files_indexed == 0 else 0
@@ -232,6 +275,8 @@ def _dry_run(folder: Path, settings: Settings, matcher: Matcher | None = None) -
     pre = build_preflight(folder, settings, known_hash=known_hash, matcher=matcher)
     print(pre.render())
     print(f"\n{chunk_line}")
+    if matcher is not None:
+        _print_closed_hint(folder, settings, matcher)
     print("\nDry run: nothing was embedded or sent.")
     return 0
 
@@ -428,11 +473,11 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     settings = get_settings()
     root = Path(args.folder)
-    matcher = _deny_list_for(root, settings)
+    rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
+    matcher = _deny_list_for(root, settings, ask=(args.yes, rerun))
     if isinstance(matcher, int):
         return matcher
     embedder, store = _components(settings)
-    rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
     refused = _consent_gate(root, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return refused
@@ -867,9 +912,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _boot(args: argparse.Namespace) -> None:
+    """Before a command that reads or writes the index: the one-time closed-folder migration (closed_folders.py). The
+    previews (`--dry-run`, `estimate`) change nothing, so they do not run it. Never raises."""
+    if args.command not in ("index", "watch", "query", "sources", "read", "serve", "api", "stats", "doctor"):
+        return
+    if getattr(args, "dry_run", False):
+        return
+    try:
+        closed_folders.migrate(get_settings(), Path.home().resolve())
+    except Exception:  # noqa: BLE001 - a start-up check must never stop the command
+        pass
+
+
 def main(argv: list[str] | None = None) -> None:
     args = build_parser().parse_args(argv)
     try:
+        _boot(args)
         sys.exit(args.func(args))
     except RuntimeError as exc:  # configuration errors (missing key, embedder mismatch)
         print(f"error: {exc}", file=sys.stderr)
