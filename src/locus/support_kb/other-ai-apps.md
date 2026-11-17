@@ -11,11 +11,15 @@ over standard input and output (stdio).
 
 The connect page has step-by-step setup for each client, labelled by how far we have tested it:
 
-- **Tested**: we recorded a cited answer through it. When this version of Locus was released, that
-  meant Claude Desktop, Claude Code, Cursor, Codex (the Codex CLI; its IDE extension and desktop
-  panel are not tested yet), GitHub Copilot CLI (with Copilot's hosted model; local models are
-  not verified) and ChatGPT on the web (through Locus's hosted relay, connecting with an OAuth
-  sign-in, tested on a paid plan and not on the free plan; see the article on web and phone apps).
+- **Tested**: we saved a transcript of a cited answer through it. The records are dated and were
+  made on macOS with earlier engine versions, not on this one: Claude Code, Codex CLI (its IDE
+  extension and desktop panel were not tested) and GitHub Copilot CLI (with Copilot's hosted model;
+  local models are not verified) on engine 0.1.0 on 2026-10-01; Claude.ai and ChatGPT on the web
+  (ChatGPT on a paid plan only) through Locus's hosted relay on engine 0.1.3 on 2026-10-04 (that
+  route is off by default in this version; see the article on web and phone apps). On this version
+  (0.2.0) only Claude Code has a recorded run (2026-11-14); the others have not been repeated on it.
+- **Older record**: Claude Desktop and Cursor ran on a pre-release engine on 2026-09-16 and have
+  not been re-run on any release.
 - **Connects** and **Documented**: not yet verified. Connects means we saw it connect; Documented
   means the steps come from the vendor's own documentation.
 

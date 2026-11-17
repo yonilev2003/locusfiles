@@ -9,9 +9,10 @@ Web and phone AI apps cannot start a program on your computer, so they reach Loc
 hosted relay instead: the computer that holds your index runs `locus serve --transport relay` and
 connects out to the relay, with no open port and no tunnel.
 
-**Status when this version of Locus was released:** the remote connection is in testing. ChatGPT
-on the web (on a paid plan; the free plan was not tested) passed our cited-answer test through it
-(it connects with an OAuth sign-in, and the connect page has the steps), but the remote connection
+**Status:** the remote connection is in testing, and it has not been re-run on this version (0.2.0).
+ChatGPT on the web (on a paid plan; the free plan was not tested) passed our cited-answer test through
+it on engine 0.1.3 on 2026-10-04 (it connects with an OAuth sign-in, and the connect page has the
+steps), but the remote connection
 is not yet confirmed working end to end: the full lifecycle run (edits, deletions, the computer
 going offline, removal) has not been done, and the ChatGPT phone and desktop apps were not tested.
 Claude.ai on the web connected too but did not use Locus unless it was told to, so it is not listed
