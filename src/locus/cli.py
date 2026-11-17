@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import closed_folders, killswitch, restrictions
+from . import audit, closed_folders, killswitch, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -553,6 +553,10 @@ def cmd_resume(_: argparse.Namespace) -> int:
     return killswitch.cmd_resume(get_settings().data_dir)
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    return audit.cmd_audit(get_settings().data_dir, args.since)
+
+
 def cmd_stats(_: argparse.Namespace) -> int:
     settings = get_settings()
     embedder, store = _components(settings)
@@ -907,6 +911,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("resume", help="undo `locus pause`")
     p.set_defaults(func=cmd_resume)
+
+    p = sub.add_parser(
+        "audit",
+        help="what the file tools handed over lately: calls, characters and paths, never file text",
+        description="Summarises <data dir>/audit: calls per tool and per client, characters returned, the paths "
+        "returned most often. Files older than 90 days are deleted. The query text is not recorded unless "
+        "policy.toml has [audit] queries = true.",
+    )
+    p.add_argument("--since", default="1d", metavar="SPAN", help="how far back: 30m, 12h or 7d (default 1d)")
+    p.set_defaults(func=cmd_audit)
 
     p = sub.add_parser(
         "doctor",

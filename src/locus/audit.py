@@ -174,3 +174,44 @@ def summarize(rows: list[dict[str, Any]], top: int = 10) -> dict[str, Any]:
         "by_client": dict(clients),
         "top_paths": paths.most_common(top),
     }
+
+
+_SINCE = re.compile(r"^(\d+)([mhd])$")
+
+
+def parse_since(text: str, now: datetime | None = None) -> datetime:
+    """`30m`, `12h` or `7d` as the moment that long before *now*. Raises ValueError for anything else."""
+    found = _SINCE.match(text.strip().lower())
+    if not found:
+        raise ValueError(f"{text!r} is not a time span: use a number and m, h or d (for example 30m, 12h, 7d)")
+    unit = {"m": "minutes", "h": "hours", "d": "days"}[found.group(2)]
+    return (now or datetime.now(UTC)) - timedelta(**{unit: int(found.group(1))})
+
+
+def render_summary(summary: dict[str, Any], span: str) -> str:
+    lines = [
+        f"Audit log, last {span}: counts and paths only (no file text, no query text).",
+        f"calls: {summary['calls']:,} (refused {summary['refused']:,}); characters returned: {summary['chars']:,}",
+    ]
+    if summary["by_tool"]:
+        lines.append("by tool: " + ", ".join(f"{k} {v:,}" for k, v in sorted(summary["by_tool"].items())))
+        lines.append("by client: " + ", ".join(f"{k} {v:,}" for k, v in sorted(summary["by_client"].items())))
+    if summary["top_paths"]:
+        lines.append("paths returned most often:")
+        lines += [f"  {n:>5,}  {path}" for path, n in summary["top_paths"]]
+    lines.append(
+        f"Placeholders for a volume warning, not enforced anywhere: more than {WARN_CALLS} calls or "
+        f"{WARN_CHARS:,} characters in {WINDOW_MINUTES} minutes."
+    )
+    return "\n".join(lines)
+
+
+def cmd_audit(data_dir: Path, span: str) -> int:
+    try:
+        since = parse_since(span)
+    except ValueError as err:
+        print(f"locus: {err}", file=sys.stderr)
+        return 2
+    rows = read_lines(Path(data_dir).expanduser() / "audit", since)
+    print(render_summary(summarize(rows), span))
+    return 0

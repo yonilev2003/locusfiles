@@ -191,3 +191,21 @@ def test_the_summary_counts_calls_characters_and_paths(world):
     since = datetime.now(UTC) + timedelta(hours=1)
     assert audit.summarize(audit.read_lines(settings.data_dir / "audit", since))["calls"] == 0
     time.sleep(0)  # (the clock is not faked: "since an hour from now" is simply empty)
+
+
+def test_the_audit_command_prints_counts_and_paths_only(world, capsys):
+    notes, settings = world
+    asyncio.run(srv.locus_search(query=QUERY))
+    asyncio.run(srv.locus_read_file(path=str(notes / "plan.md")))
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["audit", "--since", "1d"])
+    out = capsys.readouterr().out
+    assert stop.value.code == 0
+    assert (
+        "calls: 2 (refused 0)" in out and "locus_read_file 1, locus_search 1" in out and str(notes / "plan.md") in out
+    )
+    assert SENTINEL not in out and QUERY not in out
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["audit", "--since", "yesterday"])
+    assert stop.value.code == 2
