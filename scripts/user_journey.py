@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parent.parent
 QUESTION = "why did the annual discount change from two months free, and what is the new Solo annual price"
 EXPECT_FILE = "pricing-review"
 TOOLS = {"locus_search", "locus_list_sources", "locus_read_file"}
+UNINDEXED = "/etc/hosts" if os.name != "nt" else "C:\\Windows\\System32\\drivers\\etc\\hosts"
 STEPS: list[dict] = []
 
 
@@ -162,6 +163,35 @@ def mcp_stdio(locus: Path, env: dict) -> None:
             "found " + EXPECT_FILE if EXPECT_FILE in text else text[:200],
             t,
         )
+        listed = call(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "locus_list_sources", "arguments": {}},
+            },
+            4,
+            wait=60,
+        )
+        record("mcp: list_sources names the indexed files", EXPECT_FILE in json.dumps(listed or {}), "paths listed", t)
+        refused = call(
+            {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "tools/call",
+                "params": {"name": "locus_read_file", "arguments": {"path": UNINDEXED}},
+            },
+            5,
+            wait=60,
+        )
+        rtext = json.dumps(refused or {})
+        leaked = "localhost" in rtext or "127.0.0.1" in rtext
+        record(
+            "mcp: read_file refuses a path the index does not list",
+            bool(refused) and not leaked,
+            "refused" if not leaked else "FILE TEXT RETURNED",
+            t,
+        )
         bad = [x for x in seen if not x.lstrip().startswith("{")]
         record("mcp: stdout carries only protocol", not bad, f"{len(seen)} lines" if not bad else bad[0][:100], t)
     finally:
@@ -169,6 +199,73 @@ def mcp_stdio(locus: Path, env: dict) -> None:
             proc.stdin.close()
             proc.wait(timeout=10)
         except Exception:
+            proc.kill()
+
+
+def http_transport(locus: Path, env: dict) -> None:
+    """`locus serve --transport streamable-http`: a token is required, and a foreign Host header is refused."""
+    import socket
+    import urllib.error
+    import urllib.request
+
+    t = time.time()
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    token = "journey-" + "x" * 40
+    proc = subprocess.Popen(
+        [str(locus), "serve", "--transport", "streamable-http", "--port", str(port)],
+        env=dict(env, LOCUS_MCP_TOKEN=token),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    body = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "user-journey", "version": "1"},
+            },
+        }
+    ).encode()
+
+    def post(headers: dict) -> int:
+        h = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **headers}
+        try:
+            return urllib.request.urlopen(
+                urllib.request.Request(f"http://127.0.0.1:{port}/mcp", body, h), timeout=20
+            ).status
+        except urllib.error.HTTPError as exc:
+            return exc.code
+        except Exception:  # noqa: BLE001
+            return 0
+
+    try:
+        up = False
+        for _ in range(90):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=1).close()
+                up = True
+                break
+            except OSError:
+                time.sleep(1)
+        record("http: the server starts on a local port", up, f"port {port}", t)
+        if up:
+            no_token = post({})
+            good = post({"Authorization": f"Bearer {token}"})
+            wrong_host = post({"Authorization": f"Bearer {token}", "Host": "evil.example"})
+            record("http: no token is refused", no_token in (401, 403), f"status {no_token}", t)
+            record("http: the right token is accepted", good == 200, f"status {good}", t)
+            record("http: a foreign Host header is refused", 400 <= wrong_host < 500, f"status {wrong_host}", t)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except Exception:  # noqa: BLE001
             proc.kill()
 
 
@@ -227,6 +324,7 @@ def main() -> int:
             except Exception as exc:  # noqa: BLE001
                 record("ask as JSON: every hit has path and chunk", False, f"{exc}: {r.stdout[:120]}", t)
             mcp_stdio(locus, env)
+            http_transport(locus, env)
             t = time.time()
             run([str(locus), "pause"], env, 60)
             paused = run([str(locus), "query", "pricing", "--json"], env, 120).returncode
