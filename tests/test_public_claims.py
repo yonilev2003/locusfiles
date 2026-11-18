@@ -81,7 +81,7 @@ def test_readme_installs_from_the_repository_are_pinned_to_the_release_tag():
     found = re.findall(r"git\+https://github\.com/[^\s\"@]+(?:@([^\s\"]+))?", text)
     assert found, "the README no longer shows a repository install"
     assert set(found) == {f"v{__version__}"}, found
-    assert "tag is created when" in text  # and it says the tag does not exist before the release
+    assert f"@v{__version__}" in text  # the tag exists since the release; the pin names it
 
 
 def test_readme_tells_how_to_erase_the_index_and_that_it_is_readable_text():
