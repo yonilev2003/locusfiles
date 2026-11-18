@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 292" width="820" height="292" role="img" aria-labelledby="t d">
+  <title id="t">Locus search over a demo folder</title>
+  <desc id="d">A terminal runs locus query with the question why did the annual discount change. Four results come back, each with a score, a file path and a chunk number. The top result is meetings/2026-08-19-pricing-review.md, chunk 0.</desc>
+  <rect x="1" y="1" width="818" height="290" rx="12" style="fill:#0F1720;stroke:#243241;stroke-width:2"/>
+  <circle cx="26" cy="24" r="6" style="fill:#FF5F57"/><circle cx="46" cy="24" r="6" style="fill:#FEBC2E"/><circle cx="66" cy="24" r="6" style="fill:#28C840"/>
+  <text x="410" y="29" text-anchor="middle" style="font:500 13px ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;fill:#8A99AB">demo folder: 21 files, markdown, PDF, DOCX, CSV, text</text>
+  <g style="font:500 15px ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" xml:space="preserve">
+    <text x="26" y="72" style="fill:#7FDBD4">$</text><text x="46" y="72" style="fill:#E6EDF3">locus query "why did the annual discount change ..." -k 4</text>
+    <text x="26" y="112" style="fill:#8A99AB">1.</text><text x="56" y="112" style="fill:#7FDBD4">[0.897]</text><text x="136" y="112" style="fill:#E6EDF3">meetings/2026-08-19-pricing-review.md #0</text>
+    <text x="26" y="144" style="fill:#8A99AB">2.</text><text x="56" y="144" style="fill:#7FDBD4">[0.889]</text><text x="136" y="144" style="fill:#E6EDF3">pricing/pricing-v3.md #0</text>
+    <text x="26" y="176" style="fill:#8A99AB">3.</text><text x="56" y="176" style="fill:#7FDBD4">[0.880]</text><text x="136" y="176" style="fill:#E6EDF3">pricing/pricing-v1.md #0</text>
+    <text x="26" y="208" style="fill:#8A99AB">4.</text><text x="56" y="208" style="fill:#7FDBD4">[0.855]</text><text x="136" y="208" style="fill:#E6EDF3">research/survey-results.csv #0</text>
+  </g>
+  <text x="26" y="254" style="font:500 14px ui-sans-serif,-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;fill:#8A99AB">Every result names its file and chunk, so your assistant can cite where an answer came from.</text>
+</svg>

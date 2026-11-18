@@ -5,9 +5,68 @@
 </picture>
 </p>
 
-**Ask your AI assistant about your own files. Search results name the file they came from.**
+<h1 align="center">Ask your AI assistant about your own files</h1>
 
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937) ![Licence: PolyForm Noncommercial 1.0.0, source-available](https://img.shields.io/badge/licence-PolyForm%20Noncommercial%201.0.0-0B7A75?style=flat-square&labelColor=1F2937) ![macOS tested (one machine)](https://img.shields.io/badge/macOS-tested-0B7A75?style=flat-square&labelColor=1F2937)
+<p align="center"><strong>Search results name the file they came from.</strong><br>
+A local-first MCP server: it indexes folders you choose on your own computer and gives MCP clients that can start a local server a search tool over them.</p>
+
+<p align="center">
+<a href="https://pypi.org/project/locusfiles/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/locusfiles?include_prereleases&style=flat-square&labelColor=1F2937&color=0B7A75"></a>
+<img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-0B7A75?style=flat-square&labelColor=1F2937">
+<a href="#licence"><img alt="Licence: PolyForm Noncommercial 1.0.0, source-available" src="https://img.shields.io/badge/licence-PolyForm%20Noncommercial%201.0.0-0B7A75?style=flat-square&labelColor=1F2937"></a>
+<a href="https://github.com/yonilev2003/locusfiles/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/yonilev2003/locusfiles/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+<img alt="macOS tested (one machine)" src="https://img.shields.io/badge/macOS-tested-0B7A75?style=flat-square&labelColor=1F2937">
+</p>
+
+<p align="center">
+<a href="#quick-start">Quick start</a> &middot; <a href="#works-with">Works with</a> &middot; <a href="#what-leaves-your-computer">Privacy</a> &middot; <a href="#faq">FAQ</a> &middot; <a href="#licence">Licence</a>
+</p>
+
+<p align="center">
+<img src="docs/assets/demo-terminal.svg" alt="A terminal runs locus query with the question why did the annual discount change. Four results come back, each with a score, a file path and a chunk number; the first is meetings/2026-08-19-pricing-review.md, chunk 0." width="820">
+</p>
+
+## Quick start
+
+```bash
+uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc1"   # about 530 MB, no account, no API key
+locus doctor                                  # every line should say OK; the first run asks one question about commercial use
+locus index ~/Documents/notes                 # start with a small folder; `locus estimate <folder>` shows the size first
+claude mcp add --scope user locus -- "$(command -v locus)" serve
+```
+
+Then ask Claude Code: *"Using Locus, what did I decide about pricing?"* Each search result carries the file path and
+the chunk number, so your assistant can cite where an answer came from. Other assistants:
+[Works with](#works-with). Try it first on the bundled [demo folder](#try-it-on-the-demo-folder).
+
+## Why Locus
+
+- **It finds the right files, not just matching words.** Semantic search across the folders you choose; the default
+  on-device model covers about 100 languages.
+- **Every result names its source:** a path and a chunk number, so an answer can point back to the file.
+- **Local-first.** Indexing and embeddings run on your computer, with no account and no API key by default. The
+  excerpts your assistant retrieves go to the assistant you chose, like text you pasted in.
+- **Controls you can check:** `~/Downloads` stays closed until you open it on purpose, `locus pause` stops the
+  file tools at once, and an audit log records paths and counts, never file text.
+- **Three ways in:** MCP over stdio, a command line with `--json`, and a local HTTP API.
+
+## Works with
+
+Any MCP client that can start a local server. `locus setup --client NAME` writes or prints the configuration.
+"Tested" means the project ran it, not that the vendor supports it.
+
+| Assistant | Command | Tested by Locus |
+|---|---|---|
+| Claude Code | `locus setup --client claude-code` | recorded run on 0.2.0 (2026-11-14, macOS) |
+| Claude Desktop | `locus setup --client claude-desktop` | older record only (pre-release, 2026-09-16) |
+| Cursor | `locus setup --client cursor` | older record only (pre-release, 2026-09-16) |
+| Codex, Copilot CLI | `locus setup --client codex`, `locus setup --client copilot` | earlier engine only (0.1.0, 2026-10-01) |
+| Gemini CLI, Windsurf, LM Studio | `locus setup --list` | not tested |
+
+claude.ai and ChatGPT need a remote server with sign-in, which this release does not include
+(see [Web and phone assistants](#web-and-phone-assistants-claudeai-chatgpt-cloud-agents)).
+
+## What it is, and what it costs
 
 Locus indexes folders you choose on your own computer and gives MCP clients that can start a local
 server a search tool over them (setup pages exist for Claude Code, Claude Desktop and Cursor, and only Claude
@@ -315,23 +374,26 @@ any FAIL line.
 
 ## Install
 
-`uv` installs its own Python, so you do not need one first. **Until 0.2.0 is on PyPI (the PyPI page still
-shows an older version), install from this repository, as above.** The commands name the release tag
-`@v0.2.0rc1`, so you get that release and not whatever the default branch holds later. The tag is created when
-0.2.0 is released: until it exists, these commands fail with a message that the tag was not found.
-`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"` works if you already
-have Python 3.11 or newer. To run the server without installing it:
+`uv` installs its own Python, so you do not need one first. `0.2.0rc1` is a pre-release on PyPI and the PyPI default
+is still the older 0.1.4, so name the version:
+`uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc1"`. To install from this repository
+instead, the commands name the release tag `@v0.2.0rc1`, so you get that release and not whatever the default branch
+holds later (`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"` works if you
+already have Python 3.11 or newer). To run the server without installing it:
 `uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1" locusfiles serve`
 (`locusfiles` is an alias of `locus`).
 
 The `local` extra runs the embedding model with ONNX Runtime. The default model is
 `intfloat/multilingual-e5-small` (MIT licence, about 100 languages): the whole environment is about
 400 MB plus a 134 MB model that downloads on first use (the earlier PyTorch route was 1.1 GB plus a 133 MB
-model). Measured once (1 to 7 runs per step) on one Apple-silicon Mac with a fast network and a cold package
-cache, on battery power and inside a sandbox: about 17 s to install, about 11 s for the first `locus doctor`
-including the model download, 4.0 and 4.7 s to index the demo folder, and 3.5 to 4.4 s per `locus query` from the
-command line (median 4.0 s, 7 runs). These are first measurements, to be repeated on mains power and outside a
-sandbox. Slower networks take longer.
+model). Measured once on 2026-11-18 on one Apple-silicon Mac, with a cold package cache and no cached model (power source not
+recorded): about 33 s to install from PyPI, about 95 s for the first `locus doctor` including the 134 MB model
+download, and about 15 s to index 28 markdown files (117 chunks), which is about 8 chunks per second including
+start-up. A folder of 1,000 chunks therefore takes about two minutes and a large folder takes much longer, so run
+`locus estimate <folder>` first and start with a small folder. On GitHub's Ubuntu runner (x86_64) the same journey,
+install to MCP answer, took about 30 s in one run the same day. An earlier 7-run measurement put each `locus query`
+from the command line at 3.5 to 4.4 s, because the model loads on every call. These are single measurements. Slower
+networks take longer: the download is about 530 MB.
 
 PyTorch is optional: `locusfiles[local-torch]` is for local models that fastembed does not list (checked against
 fastembed 0.9.1 on 2026-11-17): `BAAI/bge-m3`, `intfloat/multilingual-e5-base` and local model folders; the default
@@ -573,6 +635,44 @@ can do: if you connect Locus to an assistant that can also send email or message
 commands, a malicious file could try to use those tools to carry file text out. Index only folders you trust,
 keep approval prompts on for tools that send or fetch, and do not combine Locus with such tools for folders that
 hold files from strangers (downloads, shared drives, email attachments).
+
+## FAQ
+
+### What is Locus?
+Locus is a local-first MCP server. It indexes folders you choose on your own computer and gives an AI assistant a search
+tool over them. Every search result carries the file path and a chunk number, so the assistant can cite its source.
+
+### Does Locus upload my files?
+No. Raw files are not uploaded. Indexing and embeddings run on your computer by default; the first run downloads the
+embedding model from Hugging Face. The excerpts your assistant retrieves go to the assistant you chose, like text you
+pasted in. The full list is in [What leaves your computer](#what-leaves-your-computer).
+
+### Which assistants does it work with?
+Any MCP client that can start a local server. Of the clients with setup pages, only Claude Code has a recorded run on
+this version (see [Works with](#works-with)). claude.ai and ChatGPT are not supported in this release.
+
+### How long does it take to set up?
+About three minutes on a fast connection, plus indexing time that depends on the folder: about 8 chunks per second in
+one measurement. Details and the measurement conditions are under [Install](#install).
+
+### Is Locus free?
+Free for noncommercial use under the PolyForm Noncommercial License 1.0.0. Work at a company, paid client work and use
+inside a product or service need a separate commercial licence, which cannot be bought yet:
+<https://locusfiles.com/commercial>.
+
+### Is it open source?
+No. It is source-available: you can read and modify the code under the licence, and the licence limits commercial use.
+
+### Does it work on Windows or Linux?
+It was tested on one Mac. The install-to-answer journey also passed on GitHub's Ubuntu runner (x86_64) and in a Debian
+arm64 container. Windows is not verified.
+
+### Does it work with Hebrew and other languages?
+The default on-device model, `intfloat/multilingual-e5-small`, covers about 100 languages. See [Install](#install) for
+the optional larger model and what was and was not tested.
+
+### What if my assistant answers without searching my files?
+Assistants do not always call Locus on their own. Say "search my files with Locus". See [Limits](#limits).
 
 ## Status
 
