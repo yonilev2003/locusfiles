@@ -270,6 +270,9 @@ def http_transport(locus: Path, env: dict) -> None:
 
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):  # a Windows console may be cp1252 and Locus prints a dash
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--package", default=f"{ROOT}[local]", help="pip/uv requirement to install")
     ap.add_argument("--prerelease", action="store_true", help="allow a pre-release (rc) from PyPI")
