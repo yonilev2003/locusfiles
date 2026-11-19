@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import TextIO
 
 from . import __version__
+from .config import SITE_URL
 
-COMMERCIAL_URL = "https://locusfiles.com/commercial"
+COMMERCIAL_URL = f"{SITE_URL}/commercial"
 LICENCE_NAME = "PolyForm Noncommercial License 1.0.0"
 SPDX_ID = "PolyForm-Noncommercial-1.0.0"
 

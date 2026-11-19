@@ -29,6 +29,8 @@ from functools import lru_cache
 from importlib import resources
 from typing import Any
 
+from .config import SITE_URL
+
 KB_DIR = "support_kb"
 REQUIRED_FIELDS = ("id", "title", "url", "keywords", "updated")
 
@@ -137,7 +139,7 @@ def load_articles() -> tuple[Article, ...]:
     wheel, a zip or a source checkout alike."""
     root = resources.files("locus").joinpath(KB_DIR)
     articles = [
-        parse_article(entry.name, entry.read_text(encoding="utf-8"))
+        parse_article(entry.name, entry.read_text(encoding="utf-8").replace("{SITE_URL}", SITE_URL))
         for entry in root.iterdir()
         if entry.is_file() and entry.name.endswith(".md")
     ]
