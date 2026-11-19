@@ -610,8 +610,8 @@ has already received. See [SECURITY.md](SECURITY.md).
 Markdown, text, code, CSV, HTML, PDF, DOCX, PPTX, XLSX, ODS, ODT, RTF, EPUB, IPYNB and subtitle files.
 
 Hidden files and folders (such as `.env` and `.git`) are skipped. A built-in deny-list also refuses
-credentials and key material by name and place: files named like passwords, tokens, secrets or credentials,
-key and certificate files (`.pem`, `.key`, `.p12` and similar), `~/.ssh`, `~/.aws` and similar folders,
+credentials and key material by name and place: files named like passwords, tokens, secrets, credentials or
+cookies (including browser stores such as `Cookies`, `cookies.sqlite` and `Login Data`), key and certificate files (`.pem`, `.key`, `.p12` and similar), `~/.ssh`, `~/.aws` and similar folders,
 keychains, browser profiles, `~/Library` and package caches. It applies to `locus index <folder>` (with or
 without `--prune`), `locus watch` and `locus index --roots`; you can add rules in `~/.locus/policy.toml` but
 not remove built-in ones. It does not apply to `locus sync-notion`. It looks at names and places, not at what a

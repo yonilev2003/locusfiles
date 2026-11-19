@@ -121,6 +121,16 @@ def test_deny_list_does_not_apply_outside_home_except_name_rules(home, tmp_path)
         ("notes.md", False),
         (".env", True),
         (".envrc", False),
+        ("cookies.txt", True),
+        ("my_cookies.txt", True),
+        ("exportedCookies.json", True),
+        ("Cookies", True),
+        ("cookies.sqlite", True),
+        ("Login Data", True),
+        ("logins.json", True),
+        ("cookie-policy.md", True),  # a whole-word match: a false skip is cheaper than a leak
+        ("cookbook.md", False),
+        ("cookiecutter.md", False),
     ],
 )
 def test_secret_name_words(name, expected):
