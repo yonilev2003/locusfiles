@@ -336,8 +336,8 @@ probably hold the answer. It can miss, and it can return the wrong passage.
   folder this can take several searches.
 
 **Status.** Early software. No independent security audit: the data-flow statements come from our own AI-assisted
-reading of the source on 2026-11-14. Linux was tried only inside a container (the tests and a clean install,
-2026-11-17); Windows is not verified.
+reading of the source on 2026-11-14. Linux was tried inside a container (the tests and a clean install,
+2026-11-17) and on GitHub's Ubuntu runner (the install-to-answer journey, 2026-11-18). On GitHub's Windows runner the same journey passed once (2026-11-18), but about 200 of the repository's own tests fail on Windows and have not been sorted yet, so Windows is not verified as supported.
 
 </details>
 
@@ -664,8 +664,9 @@ inside a product or service need a separate commercial licence, which cannot be 
 No. It is source-available: you can read and modify the code under the licence, and the licence limits commercial use.
 
 ### Does it work on Windows or Linux?
-It was tested on one Mac. The install-to-answer journey also passed on GitHub's Ubuntu runner (x86_64) and in a Debian
-arm64 container. Windows is not verified.
+It was tested on one Mac. The install-to-answer journey (17 checks) also passed on GitHub's Ubuntu and Windows runners (x86_64, one run on
+2026-11-18) and in a Debian arm64 container. About 200 of the repository's own tests fail on Windows and have not
+been sorted yet, so Windows is not verified as supported.
 
 ### Does it work with Hebrew and other languages?
 The default on-device model, `intfloat/multilingual-e5-small`, covers about 100 languages. See [Install](#install) for
