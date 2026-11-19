@@ -38,7 +38,7 @@ Other extras: `voyage` or `openai` to embed with your own provider key, and `loc
 
 Tested on one Mac (Apple silicon, macOS). On Linux (arm64, Debian 13), the test suite (no failures, 8 tests skipped;
 it needs `procps` and a raised open-file limit) and a clean install passed inside a container on 2026-11-17 (one
-run); that is not a real Linux machine, not x86_64, and no assistant was tried there. Windows is not verified.
+run); that is not a real Linux machine, not x86_64, and no assistant was tried there. On GitHub's Windows runner the same journey passed once (2026-11-18), but about 200 of the repository's own tests fail on Windows and have not been sorted yet, so Windows is not verified as supported.
 
 ## First search
 

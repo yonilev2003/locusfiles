@@ -368,7 +368,12 @@ def test_the_audit_log_holds_counts_and_paths_and_never_the_query_a_chunk_or_the
     call_tool(server.port, "locus_list_sources", {"limit": 5})
     call_tool(server.port, "search", {"query": secret_query})
     rpc(server.port, INITIALIZE, token="wrong-token-value-9999")
-    lines = _audit_lines(server.data_dir)
+    deadline = time.time() + 5  # the 401 line is written after the reply: wait for it instead of racing it
+    while True:
+        lines = _audit_lines(server.data_dir)
+        if any(line["status"] == 401 and line["method"] is None for line in lines) or time.time() > deadline:
+            break
+        time.sleep(0.05)
     by_tool = {line["tool"]: line for line in lines if line["tool"]}
     search = by_tool["locus_search"]
     assert search["status"] == 200 and search["method"] == "tools/call" and search["http"] == "POST"

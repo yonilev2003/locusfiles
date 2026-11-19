@@ -8,7 +8,7 @@ updated: 2026-11-17
 Locus runs on your own computer. You need a terminal. The package is `locusfiles`; the command it
 installs is `locus`. These steps were tested on one Mac (macOS); on Linux only inside an arm64 Debian container
 (2026-11-17; running the test suite there needed `procps` and a raised open-file limit, and 8 tests were skipped),
-not on a real Linux machine. Windows is not verified.
+not on a real Linux machine. On GitHub's Windows runner the same journey passed once (2026-11-18), but about 200 of the repository's own tests fail on Windows and have not been sorted yet, so Windows is not verified as supported.
 
 We recommend `uv`: you do not need Python installed first, because it installs its own. Get it with
 `curl -LsSf https://astral.sh/uv/install.sh | sh`, then open a new terminal so `uv` is found
