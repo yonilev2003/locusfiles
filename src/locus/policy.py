@@ -99,10 +99,28 @@ _SECRET_SUFFIXES = (
 )  # fmt: skip
 _KEYCHAIN_SUFFIXES = (".keychain", ".keychain-db", ".kdbx", ".1pux", ".opvault")
 _SECRET_PREFIXES = ("id_rsa", "id_ed25519", "id_ecdsa", "id_dsa")
-_SECRET_NAMES = frozenset({".env", ".netrc", ".npmrc", ".pypirc", "kubeconfig"})
-# Whole words only, so "tokenizer.py" stays and "api-token.txt" and "accessToken.json" go.
+_SECRET_NAMES = frozenset(
+    {
+        ".env", ".netrc", ".npmrc", ".pypirc", "kubeconfig",
+        # browser stores that hold logins and session cookies (Chrome, Firefox)
+        "cookies", "login data", "web data", "logins.json", "key3.db", "key4.db", "cookies.sqlite",
+    }
+)  # fmt: skip
+# Whole words only, so "tokenizer.py" stays and "api-token.txt", "accessToken.json" and "cookies.txt" go.
 _SECRET_WORDS = frozenset(
-    {"token", "tokens", "secret", "secrets", "credential", "credentials", "password", "passwords", "passwd"}
+    {
+        "token",
+        "tokens",
+        "secret",
+        "secrets",
+        "credential",
+        "credentials",
+        "password",
+        "passwords",
+        "passwd",
+        "cookie",
+        "cookies",
+    }
 )
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NON_WORD = re.compile(r"[^a-z0-9]+")
