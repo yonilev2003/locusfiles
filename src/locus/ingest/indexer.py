@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import HARD_LINKS_ENV, SKIP_DIRS, Settings, feature_enabled
-from ..policy import DENIED_SKIP_REASONS, Matcher
+from ..policy import DENIED_SKIP_REASONS, Matcher, secret_content
 from .chunk_policy import effective_chunk_tokens
 from .chunker import chunk_pages, chunk_text
 from .embedder import Embedder
@@ -349,6 +349,12 @@ def index_file(
     if not text or not text.strip():
         store.delete_path(str(path))
         stats.files_skipped += 1
+        return 0
+    if secret_content(text):  # a credential whatever the name: never indexed, earlier entries removed
+        store.delete_path(str(path))
+        stats.files_skipped += 1
+        stats.denied += 1
+        log(f"not indexed: {path} holds what looks like a credential (secret-content)")
         return 0
 
     chunk_tokens = effective_chunk_tokens(settings, store)

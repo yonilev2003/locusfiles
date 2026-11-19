@@ -34,6 +34,7 @@ DENY_REASONS: tuple[str, ...] = (
     "package_cache",
     "evidence",
     "secret_file",
+    "secret_content",
     "user_deny",
     "profile_excluded",
     "closed_folder",
@@ -284,6 +285,27 @@ def secret_name(name: str) -> bool:
         return True
     words = _NON_WORD.split(_CAMEL.sub(" ", name).casefold())
     return bool(_SECRET_WORDS.intersection(words)) or "apikey" in "".join(words)
+
+
+# Content that is a credential whatever the file is called. Conservative on purpose: each pattern is a fixed,
+# well-known shape (a PEM private key, an AWS access key id, a GitHub token, an `sk-` API key, a JWT, a Netscape
+# cookie jar), so ordinary prose, code and numbers do not match. A false skip is cheaper than a leak.
+_NETSCAPE_LINE = re.compile(r"^[^\s#][^\t\n]*\t(?:TRUE|FALSE)\t[^\t\n]*\t(?:TRUE|FALSE)\t\d+\t[^\t\n]+\t", re.M)
+_SECRET_CONTENT: tuple[re.Pattern[str], ...] = (
+    re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----"),
+    re.compile(r"(?<![A-Z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Z0-9])"),
+    re.compile(r"(?<![A-Za-z0-9])gh[pousr]_[A-Za-z0-9]{36,}"),
+    re.compile(r"(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{32,}"),
+    re.compile(r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    re.compile(r"^# (?:Netscape )?HTTP Cookie File", re.M),
+)
+
+
+def secret_content(text: str) -> bool:
+    """True when *text* holds a credential of a well-known shape (see `_SECRET_CONTENT`); never returns the match."""
+    if any(p.search(text) for p in _SECRET_CONTENT):
+        return True
+    return len(_NETSCAPE_LINE.findall(text)) >= 3
 
 
 class Matcher:
