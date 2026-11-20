@@ -106,7 +106,24 @@ def _normalize_ext(raw: str) -> str:
 # /api/* indefinitely: every engine installed before 0.1.1 keeps calling it (lib/canonical-host.ts
 # never redirects /api/*). Change this and lib/site.ts's fallback together
 # (no test in this repository compares them; the hosted modes are off in 0.2.0).
-DEFAULT_API_BASE = "https://locusfiles.com"
+SITE_URL_ENV = "LOCUS_SITE_URL"
+_DEFAULT_SITE_URL = "https://locusfiles.com"
+
+
+def _site_url(raw: str | None) -> str:
+    """The public site address: LOCUS_SITE_URL when it is an https URL (plain http only to a loopback host), else the
+    default. Used for the links Locus prints and as the default API base. A value that is not a base URL is ignored."""
+    value = (raw or "").strip().rstrip("/")
+    parts = urlsplit(value)
+    ok = parts.scheme in ("https", "http") and parts.hostname and "?" not in value and "#" not in value
+    if ok and parts.scheme == "http" and parts.hostname not in _LOOPBACK_HOSTS:
+        ok = False
+    return value if ok else _DEFAULT_SITE_URL
+
+
+# The one place the site address is written down; every printed link to the site derives from it.
+SITE_URL = _site_url(os.environ.get(SITE_URL_ENV))
+DEFAULT_API_BASE = SITE_URL
 
 # The on-device model when LOCUS_LOCAL_MODEL is not set: multilingual (about 100 languages), MIT, 512-token window.
 # Replaced the English-only BAAI/bge-small-en-v1.5 in 0.2.0 (which finds the right Hebrew passage for 13% of questions).

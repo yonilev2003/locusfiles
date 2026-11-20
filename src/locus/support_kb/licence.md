@@ -14,7 +14,7 @@ Locus is licensed under the PolyForm Noncommercial License 1.0.0: you may use it
 - **Not allowed without a separate licence:** work for a company, paid client work, or use inside a
   product or service, including when you are one person.
 - **Can I buy a commercial licence?** Not yet: none exists. Leave your details at
-  https://locusfiles.com/commercial and you will be told when one does.
+  {SITE_URL}/commercial and you will be told when one does.
 - **Is it open source?** No. It is source-available. Versions of Locus before 0.2.0 were released
   under a different licence (FSL-1.1-ALv2) and stay under it.
 - **Does Locus check?** No. There is no licence key and no lock, and search never depends on it. On the
