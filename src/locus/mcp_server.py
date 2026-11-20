@@ -77,6 +77,7 @@ from .ingest.parsers import format_pages, parse_file, parse_page_spec, read_pdf
 from .ingest.shared_embedder import start_helper_early
 from .ingest.store import Hit, VectorStore, _under
 from .licence import INSTRUCTIONS_SENTENCE
+from .policy import secret_content
 from .relay_key import PUBLIC_KEY_ENV, PUBLIC_KEY_FIELD, parse_relay_public_key
 from .relay_signing import (
     NOT_BEFORE_SLOP_MS,
@@ -1199,6 +1200,8 @@ async def locus_read_file(
         return f"{refusal} It changed while it was being read, so nothing was returned."
     if blocked := guard.read_refusal(path):
         return f"Error: {blocked}. It changed while it was being read, so nothing was returned."
+    if secret_content(text):
+        return f"Error: {path!r} holds what looks like a credential (secret-content), so it was not returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
     _restr.note(paths=[path], truncated=end < len(text))
