@@ -409,10 +409,12 @@ def index_folder(
     retry: RetryPolicy = DEFAULT_RETRY,
     resume: str | None = None,
     matcher: Matcher | None = None,
+    on_file: Callable[[IndexStats], None] | None = None,
 ) -> IndexStats:
-    """Index every eligible file under *root*. `resume` is the stop message's how-to-continue
-    sentence (default: re-run `locus index <root>`). `matcher` is the deny-list (policy.Matcher): files and
-    folders it refuses are not indexed, and `prune` removes the ones it refuses now that an earlier run indexed."""
+    """Index every eligible file under *root* (*on_file(stats)* is called after each: progress). `resume` is the
+    stop message's how-to-continue sentence (default: re-run `locus index <root>`). `matcher` is the deny-list
+    (policy.Matcher): files and folders it refuses are not indexed, and `prune` removes the ones it refuses now that
+    an earlier run indexed."""
     root = Path(root).expanduser().resolve()
     if not root.is_dir():
         raise NotADirectoryError(root)
@@ -484,6 +486,8 @@ def index_folder(
                 break
             stats.errors.append(entry)
             log(f"ERROR {path}: {exc}")
+        if on_file is not None:
+            on_file(stats)
     if prune and aborted:
         # `seen` only covers files visited before the abort, not the whole folder, so prune's
         # "not in seen" check would wrongly delete every not-yet-visited file's chunks.
