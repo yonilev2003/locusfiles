@@ -33,9 +33,10 @@ from typing import Any
 from ..config import HARD_LINKS_ENV, SKIP_DIRS, Settings, feature_enabled
 from ..policy import DENIED_SKIP_REASONS, Matcher, secret_content
 from .chunk_policy import effective_chunk_tokens
-from .chunker import chunk_pages, chunk_text
+from .chunker import Chunk, chunk_pages, chunk_text
 from .embedder import Embedder
 from .errors import BudgetExhausted, EmbedError, ProviderUnavailable, RateLimited, SubscriptionInactive, as_embed_error
+from .noise import PARSER_VERSION, PARSER_VERSION_KEY, is_noise_chunk
 from .parsers import parse_document
 from .retry import DEFAULT_RETRY, RetryPolicy, embed_with_retry, probe_service
 from .store import VectorStore
@@ -278,6 +279,15 @@ def _recorded_state(store: VectorStore, path: str) -> tuple[str | None, float | 
     return store.file_hash(path), None
 
 
+def _parser_outdated(store: VectorStore, path: str) -> bool:
+    """True when *path* was indexed by an older parser (rows with no stamp count as version 1), so an
+    unchanged file is parsed once more. A store that cannot say is never outdated."""
+    version = getattr(store, "parser_version", None)
+    if version is None:
+        return False
+    return version(path) < PARSER_VERSION
+
+
 # Chroma 1.5 gives back about one stored float in eight one unit in the last place off (measured
 # 2026-10-02: 1790977746.7976983 is read back as ...6985), so an exact compare would rewrite the
 # modified time of those unchanged files on every run. A real touch moves it by far more.
@@ -326,7 +336,7 @@ def index_file(
         return 0
     digest = file_sha256(path)
     recorded_hash, recorded_mtime = _recorded_state(store, str(path))
-    if recorded_hash == digest:
+    if recorded_hash == digest and not _parser_outdated(store, str(path)):
         _keep_mtime_current(store, path, recorded_mtime)
         stats.files_skipped += 1
         return 0
@@ -362,7 +372,10 @@ def index_file(
         chunks = chunk_pages(parsed.pages, chunk_tokens, settings.overlap_tokens)
     else:
         chunks = chunk_text(text, chunk_tokens, settings.overlap_tokens)
+    chunks = [c for c in chunks if not is_noise_chunk(c.text)]  # base64 left after the parse step
+    chunks = [Chunk(c.text, i, c.page) for i, c in enumerate(chunks)]
     if not chunks:
+        store.delete_path(str(path))
         stats.files_skipped += 1
         return 0
 
@@ -382,6 +395,7 @@ def index_file(
             "file_hash": digest,
             "mtime": float(stat.st_mtime),
             "root": str(root),
+            PARSER_VERSION_KEY: PARSER_VERSION,
             **({"page": c.page} if c.page is not None else {}),  # Chroma stores no None
         }
         for c in chunks

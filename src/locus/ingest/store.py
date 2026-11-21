@@ -684,6 +684,16 @@ class ChromaStore:
         value = metas[0].get("file_hash")
         return (str(value) if value else None), _as_mtime(metas[0].get("mtime"))
 
+    def parser_version(self, path: str) -> int:
+        """The parser version stamped on *path*'s chunks when it was indexed; 1 for rows with no stamp
+        (indexed before the stamp existed) and for a path that is not indexed."""
+        with self._lock:
+            self._sync()
+            res = self._col.get(where={"path": {"$eq": path}}, limit=1, include=["metadatas"])
+        metas = res.get("metadatas") or []
+        value = metas[0].get("parser_version") if metas and metas[0] else None
+        return int(value) if isinstance(value, int) else 1
+
     def file_states(self) -> dict[str, tuple[str | None, float | None]]:
         """path -> (file_hash, mtime) for every indexed file, from ONE paged metadata read: what `file_state`
         returns per path, for a caller (`index --roots`) that would otherwise do one `get` per file seen.

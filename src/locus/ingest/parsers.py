@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import docformats
 from .hebrew_text_order import normalise_hebrew_pdf_text
+from .noise import strip_base64
 
 TEXT_EXTENSIONS: frozenset[str] = frozenset(
     {
@@ -140,7 +141,13 @@ def _is_repetitive_log(text: str) -> bool:
 
 
 def parse_file(path: Path) -> str | None:
-    """Return the text content of *path*, or None if the format is unsupported or is machine-made noise."""
+    """Return the text content of *path*, or None if the format is unsupported or is machine-made noise.
+    Base64 payloads (data: URIs, long base64 runs) are removed from the text of every format."""
+    text = _parse_raw(path)
+    return strip_base64(text) if text else text
+
+
+def _parse_raw(path: Path) -> str | None:
     ext = path.suffix.lower()
     if ext in TEXT_EXTENSIONS:
         if noise_name_reason(path):
@@ -378,8 +385,9 @@ def parse_document(path: Path) -> Parsed:
     """parse_file, with PDF page boundaries and flags. Same text as parse_file."""
     if path.suffix.lower() == ".pdf":
         got = read_pdf(path)
-        pages = None if got.no_text else got.pages
-        return Parsed(got.text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
+        pages = None if got.no_text else [(n, strip_base64(t)) for n, t in got.pages]
+        text = None if got.no_text or not pages else "\n\n".join(t for _, t in pages)
+        return Parsed(text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
     return Parsed(parse_file(path))
 
 
