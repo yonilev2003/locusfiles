@@ -10,10 +10,13 @@ import dataclasses
 import json
 import math
 import os
+import platform
 import shlex
 import sys
+import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlencode
 
 from . import audit, closed_folders, killswitch, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
@@ -569,6 +572,33 @@ def cmd_resume(_: argparse.Namespace) -> int:
     return killswitch.cmd_resume(get_settings().data_dir)
 
 
+FEEDBACK_URL = "https://github.com/yonilev2003/locusfiles/issues/new"
+
+
+def feedback_url(embedder: str) -> str:
+    """A prefilled GitHub issue address. Only the Locus version, Python version, OS and embedder name go in: no paths,
+    file names, queries or index contents. Nothing is sent by Locus; the user submits (or not) on GitHub."""
+    from . import __version__
+
+    body = (
+        "What did you try, and what failed or felt wrong?\n\n\n"
+        f"- locus: {__version__}\n- python: {platform.python_version()}\n"
+        f"- os: {platform.system()} {platform.release()}\n- embedder: {embedder}\n"
+    )
+    return f"{FEEDBACK_URL}?{urlencode({'title': 'Feedback: ', 'body': body})}"
+
+
+def cmd_feedback(args: argparse.Namespace) -> int:
+    url = feedback_url(get_settings().embedder)
+    if args.print:
+        print(url)
+        return 0
+    print("Opening a prefilled GitHub issue in your browser. Nothing is sent until you submit it there.")
+    if not webbrowser.open(url):
+        print(f"Could not open a browser. Open this address yourself:\n{url}")
+    return 0
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     return audit.cmd_audit(get_settings().data_dir, args.since)
 
@@ -959,6 +989,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("-y", "--yes", action="store_true", help=yes_help)
     p.set_defaults(func=cmd_sync_notion)
+
+    p = sub.add_parser(
+        "feedback",
+        help="open a prefilled GitHub issue to tell us what failed (nothing is sent by Locus)",
+        description="Opens a prefilled GitHub issue in your browser, only when you run this. The text holds the Locus "
+        "version, Python version, OS and embedder name. No paths, file names, queries or index contents, and no "
+        "network call from Locus; you read and edit the text on GitHub before you submit.",
+    )
+    p.add_argument("--print", action="store_true", help="print the address instead of opening the browser")
+    p.set_defaults(func=cmd_feedback)
 
     p = sub.add_parser("stats", help="show index statistics")
     p.set_defaults(func=cmd_stats)
