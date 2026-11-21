@@ -20,7 +20,7 @@ from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
 from .ingest.indexer import IndexStats
-from .ingest.store import ChromaStore
+from .ingest.store import ChromaStore, query_text_kwargs
 
 if TYPE_CHECKING:
     from .policy import Matcher
@@ -36,6 +36,19 @@ def _components(settings: Settings) -> tuple[Embedder, ChromaStore]:
     return embedder, store
 
 
+def _rebuild_lexical(settings: Settings) -> int:
+    """`locus index --rebuild-lexical`: rebuild the BM25 index from the chunk text already in the collection. No file is
+    read and nothing is embedded."""
+    _, store = _components(settings)
+    try:
+        n = store.rebuild_lexical()
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: the lexical index could not be rebuilt ({type(exc).__name__}: {exc})", file=sys.stderr)
+        return 1
+    print(f"lexical index rebuilt from the index: {n} chunks. Searches use it when LOCUS_LEXICAL=1.")
+    return 0
+
+
 def _command(*words: str, flags: dict[str, bool]) -> str:
     """A copy-pasteable command: *words* (shell-quoted) plus each flag that is on, in order. The
     "how to continue" hints rebuild the user's own command this way, so a re-run keeps --prune and,
@@ -47,6 +60,8 @@ def cmd_index(args: argparse.Namespace) -> int:
     from .ingest.indexer import index_folder
 
     settings = get_settings()
+    if getattr(args, "rebuild_lexical", False):
+        return _rebuild_lexical(settings)
     if args.roots is not None or args.policy is not None or args.folder is None:
         return _index_roots(args, settings)
     folder = Path(args.folder)
@@ -347,7 +362,9 @@ def cmd_query(args: argparse.Namespace) -> int:
         print(f"error: {refused.text}", file=sys.stderr)
         return EXIT_REFUSED
     vector = embedder.embed_query(args.query)
-    hits, _ = restrictions.visible_hits(guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix), args.k)
+    hits, _ = restrictions.visible_hits(
+        guard, lambda n: store.query(vector, k=n, path_prefix=args.prefix, **query_text_kwargs(args.query)), args.k
+    )
     if not hits:
         print("no results (is anything indexed? try `locus stats`)")
         return 1
@@ -817,6 +834,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--prune",
         action="store_true",
         help="remove index entries of files that no longer exist or that the deny-list or policy file now refuses",
+    )
+    p.add_argument(
+        "--rebuild-lexical",
+        action="store_true",
+        help="rebuild the BM25 (keyword) index from the text already in the index, then exit; nothing is re-embedded",
     )
     p.add_argument("-y", "--yes", action="store_true", help=yes_help)
     p.add_argument(

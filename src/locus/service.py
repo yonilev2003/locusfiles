@@ -34,7 +34,7 @@ from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable
 from .ingest.freshness import freshen_for_serve
 from .ingest.parsers import parse_file, read_pdf
-from .ingest.store import Hit, VectorStore, _under
+from .ingest.store import Hit, VectorStore, _under, query_text_kwargs
 
 SCHEMA_QUERY = "locus.query.v1"
 SCHEMA_SOURCES = "locus.sources.v1"
@@ -283,7 +283,11 @@ class Engine:
                     ) from exc
                 try:
                     hits, hidden = restrictions.visible_hits(
-                        guard, lambda n: store.query(vector, k=n, path_prefix=path_prefix, **time_kwargs), k
+                        guard,
+                        lambda n: store.query(
+                            vector, k=n, path_prefix=path_prefix, **time_kwargs, **query_text_kwargs(query)
+                        ),
+                        k,
                     )
                 except Exception as exc:  # noqa: BLE001
                     raise _index_error(exc) from exc

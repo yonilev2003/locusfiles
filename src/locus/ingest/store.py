@@ -19,7 +19,7 @@ import threading
 import unicodedata
 import uuid
 from collections import Counter
-from collections.abc import Callable, Collection, Iterator
+from collections.abc import Callable, Collection, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -52,6 +52,29 @@ SUMMARY_DIRTY_LIMIT = IN_BATCH
 
 # Chroma's largest accepted batch is 5,461 on this build; stay well under it (a 14,345-chunk text file failed).
 MAX_UPSERT_BATCH = 5000
+
+# Hybrid (BM25 + vector) search, opt-in with LOCUS_LEXICAL=1 (lexical.py). With it off nothing below runs and the
+# lexical module is not even imported. FUSION_POOL is how many candidates each ranking contributes to the fusion.
+FUSION_POOL = 50
+
+
+def lexical_requested(env: dict[str, str] | None = None) -> bool:
+    """True when LOCUS_LEXICAL asks for the lexical leg (same rule as lexical.lexical_enabled, kept here so the
+    off path never imports the lexical module)."""
+    return (os.environ if env is None else env).get("LOCUS_LEXICAL", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def query_text_kwargs(text: str | None) -> dict[str, str]:
+    """`{"query_text": text}` for `store.query(...)` when the lexical leg is on, else {}: callers splat it so the
+    call with LOCUS_LEXICAL off is exactly the call that was always made."""
+    return {"query_text": text} if text and lexical_requested() else {}
+
+
+def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
+    dot = sum(x * y for x, y in zip(a, b, strict=False))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(y * y for y in b) ** 0.5
+    return dot / (na * nb) if na and nb else 0.0
 
 
 @dataclass(frozen=True)
@@ -261,6 +284,8 @@ class ChromaStore:
         self._lock = threading.RLock()
         self._summary: _PathSummary | None = None  # see _path_summary
         self._dirty: set[str] = set()  # files this store wrote since the summary last matched the index
+        self._lex: Any = None  # the lexical index, opened on first use when LOCUS_LEXICAL is on (see _lexical_index)
+        self._lex_failed = False
         self._open()
 
     # -- cross-process freshness ------------------------------------------------------------
@@ -442,12 +467,146 @@ class ChromaStore:
                     self._record_write(paths)
                 raise
             self._record_write(paths)
+            self._lexical_write(ids, documents, metadatas)
 
     def delete_path(self, path: str) -> None:
         with self._lock:
             self._sync()
             self._col.delete(where={"path": {"$eq": path}})
             self._record_write({path})
+            self._lexical_delete(path)
+
+    # -- lexical leg (opt-in, LOCUS_LEXICAL=1; never allowed to fail a search or an index run) ----------
+    def _lexical_index(self) -> Any:
+        """The collection's lexical index, or None when the leg is off or could not be opened (logged once)."""
+        if not lexical_requested() or self._lex_failed:
+            return None
+        if self._lex is None:
+            try:
+                from .lexical import LexicalIndex, lexical_path
+
+                self._lex = LexicalIndex(lexical_path(self.data_dir, self.collection), "heb")
+            except Exception as exc:  # noqa: BLE001 - a corrupt or mismatched file: fall back to vector-only
+                self._lex_failed = True
+                print(
+                    f"locus: lexical index unavailable ({type(exc).__name__}: {exc}); using vector search only",
+                    file=sys.stderr,
+                )
+                return None
+        return self._lex
+
+    def _lexical_write(self, ids: list[str], documents: list[str], metadatas: list[dict[str, Any]]) -> None:
+        try:
+            index = self._lexical_index()
+            if index is not None:
+                index.upsert(ids, [str(m.get("path", "")) for m in metadatas], [d or "" for d in documents])
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"locus: lexical index not updated ({type(exc).__name__}: {exc}); "
+                "run `locus index --rebuild-lexical` to rebuild it",
+                file=sys.stderr,
+            )
+
+    def _lexical_delete(self, path: str) -> None:
+        try:
+            index = self._lexical_index()
+            if index is not None:
+                index.delete_path(path)
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"locus: lexical index not updated ({type(exc).__name__}: {exc}); "
+                "run `locus index --rebuild-lexical` to rebuild it",
+                file=sys.stderr,
+            )
+
+    def rebuild_lexical(self) -> int:
+        """Rebuild the lexical index from the chunk text already in Chroma (nothing is re-embedded and no file is
+        read). Built beside the old one and swapped in, so a reader never sees a half-built index. Returns the
+        number of chunks indexed. Works whether or not LOCUS_LEXICAL is set; searches use it only when it is."""
+        from .lexical import LexicalIndex, lexical_path
+
+        final = lexical_path(self.data_dir, self.collection)
+        tmp = final.with_name(final.name + ".tmp")
+        tmp.unlink(missing_ok=True)
+        fresh = LexicalIndex(tmp, "heb")
+        total = 0
+        try:
+            with self._lock:
+                self._sync()
+                for res in self._pages(None, ["documents", "metadatas"]):
+                    rows = [
+                        (i, str(m["path"]), d or "")
+                        for i, d, m in zip(
+                            res["ids"], res.get("documents") or [], res.get("metadatas") or [], strict=True
+                        )
+                        if m and m.get("path")
+                    ]
+                    if rows:
+                        fresh.upsert([r[0] for r in rows], [r[1] for r in rows], [r[2] for r in rows])
+                        total += len(rows)
+        except BaseException:
+            fresh.close()
+            tmp.unlink(missing_ok=True)
+            raise
+        fresh.close()
+        if self._lex is not None:
+            self._lex.close()
+            self._lex, self._lex_failed = None, False
+        os.replace(tmp, final)
+        return total
+
+    def _lexical_fuse(
+        self,
+        text: str,
+        embedding: list[float],
+        hits: list[Hit],
+        k: int,
+        path_prefix: str | None,
+        accept: Callable[[Any], bool],
+    ) -> list[Hit]:
+        """Reciprocal-rank fusion of the vector *hits* with the BM25 ranking of *text*; vector-only on any failure.
+        A chunk only BM25 found is read back from Chroma (so it carries its real text, path and chunk_index, and the
+        same folder and time scope applies); its score is its true cosine to the query."""
+        try:
+            index = self._lexical_index()
+            if index is None:
+                return hits[:k]
+            from .lexical import rrf_fuse
+
+            lex = index.query(text, n=FUSION_POOL, path_prefix=path_prefix)
+            if not lex:
+                return hits[:k]
+            known = {(h.path, h.chunk_index): h for h in hits}
+            lex_keys = [(h.path, int(h.chunk_id.rsplit(":", 1)[1])) for h in lex]
+            missing = [h.chunk_id for h, key in zip(lex, lex_keys, strict=True) if key not in known]
+            extra: dict[tuple[str, int], Hit] = {}
+            if missing:
+                with self._lock:
+                    self._sync()
+                    res = self._col.get(ids=missing, include=["documents", "metadatas", "embeddings"])
+                embs = res.get("embeddings")
+                embs = [] if embs is None else embs
+                for doc, meta, vec in zip(res["documents"], res["metadatas"], embs, strict=False):
+                    if not accept(meta):
+                        continue
+                    path, idx = str(meta.get("path", "")), int(meta.get("chunk_index", 0))
+                    extra[(path, idx)] = Hit(
+                        path=path,
+                        chunk_index=idx,
+                        text=doc or "",
+                        score=round(_cosine(embedding, list(vec)), 4),
+                        mtime=_as_mtime(meta.get("mtime")),
+                        page=_as_page(meta.get("page")),
+                    )
+            pool = {**extra, **known}
+            fused = rrf_fuse([list(known), [key for key in lex_keys if key in pool]])
+            return [pool[key] for key in fused][:k]  # type: ignore[index]
+        except Exception as exc:  # noqa: BLE001 - never fail a search over the optional leg
+            print(
+                f"locus: lexical search failed ({type(exc).__name__}: {exc}); using vector results only",
+                file=sys.stderr,
+            )
+            return hits[:k]
 
     def refresh_mtime(self, path: str, mtime: float) -> None:
         """Record *mtime* on every chunk of *path*: its content is unchanged (same hash) but its
@@ -562,14 +721,18 @@ class ChromaStore:
         modified_after: float | None = None,
         modified_before: float | None = None,
         order: str = "relevance",
+        query_text: str | None = None,
     ) -> list[Hit]:
         """The k best chunks for *embedding*. `modified_after` (inclusive) and `modified_before`
         (exclusive) are Unix times compared with the "mtime" metadata the indexer stored;
         a chunk without one never passes a time filter. `order` "modified_desc" sorts the filtered
-        chunks newest file first (ties by score) before taking k; "relevance" keeps the ranking."""
+        chunks newest file first (ties by score) before taking k; "relevance" keeps the ranking.
+        `query_text`, with LOCUS_LEXICAL on and order "relevance", fuses the vector ranking with BM25 (hybrid)."""
         timed = modified_after is not None or modified_before is not None
         all_needed = order == "modified_desc"  # sorting by time needs every candidate, not just the nearest k
         k = max(1, k)
+        fuse = bool(query_text) and order == "relevance" and lexical_requested()
+        want = max(k, FUSION_POOL) if fuse else k  # a fusion needs a deeper vector ranking than the k it returns
 
         def accept(meta: Any) -> bool:
             if not meta:  # a vector whose chunk is gone (deleted after this index was loaded): no path, no hit
@@ -588,7 +751,7 @@ class ChromaStore:
             # which failed with "too many SQL variables" past ~32,700 chunks (W5). The kept `accept`
             # re-check makes the result exact even where a directory hash collides.
             for where in self._scope_wheres(path_prefix, modified_after, modified_before):
-                n = min(self._count(where), QUERY_CAP) if all_needed else k
+                n = min(self._count(where), QUERY_CAP) if all_needed else want
                 if n == 0:
                     continue
                 while True:
@@ -600,7 +763,7 @@ class ChromaStore:
                     )
                     got = list(zip(res["documents"][0], res["metadatas"][0], res["distances"][0], strict=True))
                     kept = [r for r in got if accept(r[1])]
-                    if all_needed or len(kept) >= k or len(got) < n or n >= QUERY_CAP:
+                    if all_needed or len(kept) >= want or len(got) < n or n >= QUERY_CAP:
                         break
                     n = min(n * 4, QUERY_CAP)  # filtered rows (a hash collision) left fewer than k: ask for more
                 rows.extend(kept)
@@ -621,6 +784,8 @@ class ChromaStore:
             )
         if order == "modified_desc":
             hits.sort(key=lambda h: (h.mtime or 0.0, h.score), reverse=True)
+        if fuse:
+            return self._lexical_fuse(str(query_text), embedding, hits, k, path_prefix, accept)
         return hits[:k]
 
     def files_modified(
