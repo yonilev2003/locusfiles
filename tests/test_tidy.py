@@ -484,7 +484,9 @@ def test_nothing_is_wired_to_the_cli_or_the_mcp_server():
 
     from locus import cli, mcp_server
 
-    assert "tidy" not in Path(cli.__file__).read_text() and "tidy" not in Path(mcp_server.__file__).read_text()
+    assert "tidy" not in Path(cli.__file__).read_text(encoding="utf-8") and "tidy" not in Path(
+        mcp_server.__file__
+    ).read_text(encoding="utf-8")
     tools = {t.name for t in asyncio.run(mcp_server.mcp.list_tools())}
     assert tools == {
         "locus_search",

@@ -70,7 +70,7 @@ def test_both_files_are_found_and_read_before_any_rule(world):
 
 
 def test_an_excluded_folder_is_hidden_from_search_and_refused_by_fetch(world):
-    world.policy(f'[[folder]]\npath = "{world.notes / "work"}"\nprofile = "excluded"\n')
+    world.policy(f'[[folder]]\npath = "{(world.notes / "work").as_posix()}"\nprofile = "excluded"\n')
     assert _paths(world.search()) == {"plan.md"}
     with pytest.raises(ToolError) as refused:
         world.fetch(str(world.notes / "work" / "report.md"))

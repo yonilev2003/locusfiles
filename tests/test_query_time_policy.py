@@ -123,7 +123,7 @@ def test_a_rule_added_after_indexing_hides_the_file_everywhere_and_removing_it_b
 
 
 def test_an_excluded_folder_is_hidden_at_once(world):
-    world.policy(f'[[folder]]\npath = "{world.notes / "work"}"\nprofile = "excluded"\n')
+    world.policy(f'[[folder]]\npath = "{(world.notes / "work").as_posix()}"\nprofile = "excluded"\n')
     assert str(world.notes / "work") not in world.sources() and "quarterly report" not in world.search("quarterly")
     assert "a folder the user excluded" in world.read(str(world.notes / "work" / "report.md"))
 
