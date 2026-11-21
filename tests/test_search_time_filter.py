@@ -258,13 +258,16 @@ def test_the_ret_004_budget_is_unchanged():
 
 
 class _WideStore:
-    """25 full-size emoji hits whatever the filters, to size the relay payload with the new header."""
+    """25 full-size emoji hits whatever the filters, to size the relay payload with the new header.
+    Each text differs, or the hits would collapse into one row."""
 
     embedder_name = "hash"
 
     def __init__(self):
         self.hits = [
-            srv.Hit(f"/v/{i}.md", 0, "\U0001f600" * 3200, 0.9 - i / 100, mtime=_ts("2026-10-22T10:00:00+03:00"))
+            srv.Hit(
+                f"/v/{i}.md", 0, f"{i}" + "\U0001f600" * 3200, 0.9 - i / 100, mtime=_ts("2026-10-22T10:00:00+03:00")
+            )
             for i in range(25)
         ]
 
