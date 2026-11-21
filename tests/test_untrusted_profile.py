@@ -66,7 +66,7 @@ def block_of(out: str, path: Path) -> str:
 
 def test_a_hit_under_an_untrusted_folder_carries_the_line_and_a_trusted_one_does_not(world):
     home, settings, folders = world
-    policy(settings, f'[[folder]]\npath = "{folders["other"]}"\nprofile = "untrusted"\n')
+    policy(settings, f'[[folder]]\npath = "{folders["other"].as_posix()}"\nprofile = "untrusted"\n')
     out = search()
     assert LINE in block_of(out, folders["other"] / "other.md")
     assert LINE not in block_of(out, folders["mine"] / "mine.md")
@@ -75,7 +75,7 @@ def test_a_hit_under_an_untrusted_folder_carries_the_line_and_a_trusted_one_does
 
 def test_the_read_header_carries_it_too(world):
     home, settings, folders = world
-    policy(settings, f'[[folder]]\npath = "{folders["other"]}"\nprofile = "untrusted"\n')
+    policy(settings, f'[[folder]]\npath = "{folders["other"].as_posix()}"\nprofile = "untrusted"\n')
     marked = asyncio.run(srv.locus_read_file(path=str(folders["other"] / "other.md")))
     plain = asyncio.run(srv.locus_read_file(path=str(folders["mine"] / "mine.md")))
     assert marked.split("\n\n")[0].endswith(LINE) and LINE not in plain
@@ -85,18 +85,18 @@ def test_the_read_header_carries_it_too(world):
 def test_the_notion_sync_folder_is_untrusted_unless_an_entry_says_otherwise(world):
     home, settings, folders = world
     assert LINE in block_of(search(), folders["notion"] / "notion.md")
-    policy(settings, f'[[folder]]\npath = "{folders["notion"]}"\nprofile = "trusted"\n')
+    policy(settings, f'[[folder]]\npath = "{folders["notion"].as_posix()}"\nprofile = "trusted"\n')
     assert LINE not in block_of(search(), folders["notion"] / "notion.md")
 
 
 def test_the_label_changes_no_text_and_no_order(world):
     home, settings, folders = world
-    policy(settings, f'[[folder]]\npath = "{folders["other"]}"\nprofile = "untrusted"\n')
+    policy(settings, f'[[folder]]\npath = "{folders["other"].as_posix()}"\nprofile = "untrusted"\n')
     labelled = search()
     policy(
         settings,
-        f'[[folder]]\npath = "{folders["other"]}"\nprofile = "trusted"\n'
-        f'[[folder]]\npath = "{folders["notion"]}"\nprofile = "trusted"\n',
+        f'[[folder]]\npath = "{folders["other"].as_posix()}"\nprofile = "trusted"\n'
+        f'[[folder]]\npath = "{folders["notion"].as_posix()}"\nprofile = "trusted"\n',
     )
     plain = search()
     assert LINE not in plain and labelled != plain
