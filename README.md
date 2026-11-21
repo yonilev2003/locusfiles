@@ -29,7 +29,7 @@ A local-first MCP server: it indexes folders you choose on your own computer and
 ## Quick start
 
 ```bash
-uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc1"   # about 530 MB, no account, no API key
+uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc2"   # about 530 MB, no account, no API key
 locus doctor                                  # every line should say OK; the first run asks one question about commercial use
 locus index ~/Documents/notes                 # start with a small folder; `locus estimate <folder>` shows the size first
 claude mcp add --scope user locus -- "$(command -v locus)" serve
@@ -344,7 +344,7 @@ reading of the source on 2026-11-14. Linux was tried inside a container (the tes
 ## Try it on the demo folder
 
 ```text
-$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"
+$ uv tool install --python 3.12 "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc2"
                                                       # about 530 MB on disk, no account, no API key
 $ locus index tests/fixtures/demo-vault               # from a clone of this repository
 seen=21 indexed=21 skipped=0 removed=0 chunks=22 errors=0
@@ -374,13 +374,13 @@ any FAIL line.
 
 ## Install
 
-`uv` installs its own Python, so you do not need one first. `0.2.0rc1` is a pre-release on PyPI and the PyPI default
+`uv` installs its own Python, so you do not need one first. `0.2.0rc2` is a pre-release on PyPI and the PyPI default
 is still the older 0.1.4, so name the version:
-`uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc1"`. To install from this repository
-instead, the commands name the release tag `@v0.2.0rc1`, so you get that release and not whatever the default branch
-holds later (`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1"` works if you
+`uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc2"`. To install from this repository
+instead, the commands name the release tag `@v0.2.0rc2`, so you get that release and not whatever the default branch
+holds later (`pipx install "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc2"` works if you
 already have Python 3.11 or newer). To run the server without installing it:
-`uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc1" locusfiles serve`
+`uvx --from "locusfiles[local] @ git+https://github.com/yonilev2003/locusfiles@v0.2.0rc2" locusfiles serve`
 (`locusfiles` is an alias of `locus`).
 
 The `local` extra runs the embedding model with ONNX Runtime. The default model is

@@ -20,6 +20,17 @@ same model were measured as equivalent, so that part needs no re-index.
 already held files from Downloads, Locus carries that over once and says so on stderr; otherwise open it with
 `locus index ~/Downloads --yes`.
 
+### Since `0.2.0rc1`
+
+- **Security fix:** a file is now refused by content, not just by name, when it holds a credential of a
+  well-known shape (PEM private key, AWS key id, GitHub token, `sk-` key, JWT, Netscape cookie jar) — a
+  cookie-exporter file named something other than `cookies.txt` was indexed by `0.2.0rc1` and is not by
+  this version. `locus index --prune` removes any such entry an earlier run already made.
+- `config.SITE_URL` is the one place the public site address is written in code; `LOCUS_SITE_URL`
+  overrides it (https only, or http to a loopback host).
+- `scripts/soak_parallel_search.py`: a manual soak test for parallel search against a changing index, on
+  a disposable copy of the demo vault — never the user's own index.
+
 ### Programs that do not speak MCP, and more ways to connect
 
 - `locus query --json`, `locus sources` and `locus read` print versioned JSON (a file path and chunk number on every
