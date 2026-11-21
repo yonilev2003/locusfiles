@@ -757,10 +757,28 @@ def cmd_setup(args: argparse.Namespace) -> int:
     if not _licence_question_answered():
         return EXIT_NEEDS_YES
 
+    if args.instructions is not None:
+        return _setup_instructions(args)
     if args.client or args.list_clients or client_flags_used(args):
         return run_client_setup(args)
     mode = "managed" if args.managed else "local"
     return run_setup(mode, collection=args.collection, new_key=args.new_key, skip_check=args.skip_check).code
+
+
+def _setup_instructions(args: argparse.Namespace) -> int:
+    """`locus setup --instructions [PATH]`: print the assistant-instruction text; write it only to a new PATH."""
+    from pathlib import Path
+
+    from . import instructions_snippet
+    from .clients import client_flags_used
+
+    if client_flags_used(args) or args.collection or args.new_key or args.skip_check:
+        print("error: --instructions takes only an optional PATH.", file=sys.stderr)
+        return 2
+    if args.instructions == "":
+        instructions_snippet.print_instructions(sys.stdout)
+        return 0
+    return instructions_snippet.write_instructions(Path(args.instructions), sys.stdout, sys.stderr)
 
 
 def _os_env(name: str) -> str:
@@ -1032,6 +1050,15 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--managed", action="store_true", help="managed embeddings with your Locus plan's API key")
     mode.add_argument("--local", action="store_true", help="on-device embeddings, no account and no key")
     add_client_arguments(p, mode)
+    mode.add_argument(
+        "--instructions",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="PATH",
+        help="print the text to add to CLAUDE.md, AGENTS.md, Cursor rules or Copilot instructions; with PATH, write "
+        "it to that new file (an existing file is never edited)",
+    )
     p.add_argument(
         "--collection",
         default=None,
