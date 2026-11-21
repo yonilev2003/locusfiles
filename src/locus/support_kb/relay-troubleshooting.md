@@ -17,7 +17,7 @@ hosted service in this version, and the relay is off by default.
   rejected or revoked, a subscription or trial that is not active, a Locus version older than the
   relay accepts ("Update Locus: ..."; update as below), the relay's public key missing
   (`LOCUS_MCP_RELAY_SUPABASE_ANON_KEY is not set`, see "Common error messages"), or the relay refused
-  the channel. Fix the cause first; `locus_account_status` shows the plan state.
+  the channel. Fix the cause first; `locus_help` with `check=true` shows the plan state.
 - **Exit 3:** superseded. Another computer started serving this account, and only one computer per
   account serves remote requests at a time. Do not set it to restart automatically on exit 3, or two
   computers keep taking over from each other.

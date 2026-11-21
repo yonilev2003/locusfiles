@@ -1,8 +1,8 @@
 """Multi-client groundwork (conformance checklist, "build once, reuse for every client"): what a
 client reads first must stand alone, and every tool must stay read-only so Codex and Cursor can
 auto-approve them. The verbatim and 2,048/512 budgets are pinned in test_mcp_guidance_sync.py;
-this adds the stand-alone and 4,096 ceilings and the read-only annotation on every tool. The account tool exists
-only when a Locus account key is set (tests/test_tool_set.py), so the default set is five tools."""
+this adds the stand-alone and 4,096 ceilings and the read-only annotation on every tool. The default set is
+four tools (tests/test_tool_set.py)."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ EXPECTED_TOOLS = {
     "locus_search",
     "locus_list_sources",
     "locus_read_file",
-    "locus_diagnose_connection",
     "locus_help",
 }
 # Words that only make sense with text the reader may not have: a stand-alone lead uses none of them.

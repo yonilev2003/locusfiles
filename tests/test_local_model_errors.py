@@ -274,11 +274,11 @@ async def test_serve_answers_with_the_error_writes_nothing_to_stdout_and_retries
 
 
 @pytest.mark.anyio
-async def test_diagnose_shows_the_model_error_on_one_line(tmp_path, monkeypatch):
+async def test_check_shows_the_model_error_on_one_line(tmp_path, monkeypatch):
     pytest.importorskip("chromadb")
     (tmp_path / "data").mkdir()
     _FakeST(_proxy_refused()).install(monkeypatch)
-    report = await m.locus_diagnose_connection()
+    report = await m.locus_help(check=True)
     [line] = [line for line in report.splitlines() if line.startswith("collection:")]
     assert line.startswith("collection: unavailable (Locus could not load its on-device embedding model")
     assert "locus setup --managed" in line

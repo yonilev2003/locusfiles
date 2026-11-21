@@ -205,7 +205,7 @@ async def test_a_configuration_problem_is_reported_at_start_and_by_the_first_sea
 
 def test_warmup_does_nothing_and_creates_nothing_when_nothing_is_indexed(env, tmp_path, capsys):
     """A first `locus serve` before any `locus index`: opening the index would create the data folder
-    and an empty collection, which locus_diagnose_connection reports as "data directory missing"."""
+    and an empty collection, which the locus_help check reports as "data directory missing"."""
     data_dir = tmp_path / "data"
     assert not data_dir.exists()
     _join(m.start_warmup())

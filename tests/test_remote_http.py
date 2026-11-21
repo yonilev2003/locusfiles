@@ -155,7 +155,7 @@ def test_over_a_tunnel_only_the_read_only_tools_are_listed(server):
     assert "locus_diagnose_connection" not in tools and "locus_account_status" not in tools
 
 
-def test_the_two_local_tools_cannot_be_called_over_a_tunnel(server):
+def test_the_two_removed_tools_are_unknown_over_a_tunnel(server):
     for name in ("locus_diagnose_connection", "locus_account_status"):
         reply = call_tool(server.port, name, {})
         body = reply.json()
@@ -163,30 +163,34 @@ def test_the_two_local_tools_cannot_be_called_over_a_tunnel(server):
         assert "Unknown tool" in reply.text
 
 
+def test_the_setup_check_is_refused_over_a_tunnel(server):
+    reply = call_tool(server.port, "locus_help", {"check": True})
+    text = reply.json()["result"]["content"][0]["text"]
+    assert "check is not available over a tunnel" in text and "# Locus diagnostics" not in text
+    text = call_tool(server.port, "locus_help", {"check_remote": True}).json()["result"]["content"][0]["text"]
+    assert "check is not available over a tunnel" in text
+
+
 def test_the_instructions_do_not_send_the_model_to_a_tool_that_is_not_there(server):
     text = rpc(server.port, INITIALIZE).json()["result"]["instructions"]
     named = set(re.findall(r"\b(?:locus_[a-z_]+|search|fetch)\b", text))
     assert "locus_diagnose_connection" not in text and "locus_account_status" not in text
+    assert "check=true" not in text  # the setup check is refused over a tunnel, so the model is not sent to it
     assert {"locus_search", "locus_read_file", "locus_help"} <= named
 
 
-def test_the_account_tool_is_removed_too_when_a_key_is_set(wired, tmp_path, monkeypatch):
-    srv.apply_tool_set(SimpleNamespace(managed_api_key="locus_live_TESTkey0123456789abcdefghijklmnop"))
-    assert "locus_account_status" in {t.name for t in asyncio.run(srv.mcp.list_tools())}
-    with serve_app(srv.build_remote_app(path="/mcp", token=TOKEN, remote=_options(tmp_path))) as port:
-        assert set(_tool_names(port)) == set(remote_guard.REMOTE_TOOLS)
-
-
-def test_all_tools_puts_the_two_local_tools_back(wired, tmp_path):
+def test_all_tools_allows_the_setup_check_over_a_tunnel(wired, tmp_path):
     options = _options(tmp_path, all_tools=True)
     with serve_app(srv.build_remote_app(path="/mcp", token=TOKEN, remote=options)) as port:
-        names = set(_tool_names(port))
-        assert {"locus_diagnose_connection", "locus_search"} <= names
+        assert set(_tool_names(port)) == set(remote_guard.REMOTE_TOOLS)
+        text = call_tool(port, "locus_help", {"check": True}).json()["result"]["content"][0]["text"]
+        assert "# Locus diagnostics" in text
+        assert "check=true" in rpc(port, INITIALIZE).json()["result"]["instructions"]
 
 
-def test_stdio_and_loopback_keep_the_five_tools_and_no_aliases():
+def test_stdio_and_loopback_keep_the_four_tools_and_no_aliases():
     names = {t.name for t in asyncio.run(srv.mcp.list_tools())}
-    assert names == {"locus_search", "locus_list_sources", "locus_read_file", "locus_help", "locus_diagnose_connection"}
+    assert names == {"locus_search", "locus_list_sources", "locus_read_file", "locus_help"}
 
 
 # --- existing tools answer as before --------------------------------------------------------------------------------
@@ -539,7 +543,6 @@ def test_loopback_mode_keeps_the_localhost_guard_event_streams_sessions_and_ever
             "locus_list_sources",
             "locus_read_file",
             "locus_help",
-            "locus_diagnose_connection",
         }
 
 
@@ -555,7 +558,7 @@ def test_the_token_is_in_no_reply_no_log_line_and_no_audit_file(server, capfd):
         rpc(server.port, INITIALIZE, extra={"Origin": "https://evil.test"}),
         call_tool(server.port, "fetch", {"id": "not-an-id"}),
         call_tool(server.port, "locus_read_file", {"path": "/etc/hosts"}),
-        call_tool(server.port, "locus_diagnose_connection", {}),
+        call_tool(server.port, "locus_help", {"check": True}),
         http_call(server.port, "GET", "/mcp", headers={"Host": PUBLIC, "Authorization": f"Bearer {TOKEN}"}),
     ]
     server.data_dir.mkdir(parents=True, exist_ok=True)

@@ -1,4 +1,4 @@
-"""`locus serve` over stdio is what it always was, even with the tunnel settings in the environment: the five tools, no
+"""`locus serve` over stdio is what it always was, even with the tunnel settings in the environment: the four tools, no
 `search`/`fetch`, and nothing on stdout but MCP messages (one JSON object per line)."""
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ def _env(tmp_path: Path) -> dict[str, str]:
     return env
 
 
-def test_stdio_lists_the_five_tools_and_writes_only_protocol_messages_to_stdout(tmp_path):
+def test_stdio_lists_the_four_tools_and_writes_only_protocol_messages_to_stdout(tmp_path):
     proc = subprocess.Popen(
         [sys.executable, "-m", "locus.cli", "serve"],
         stdin=subprocess.PIPE,
@@ -90,6 +90,5 @@ def test_stdio_lists_the_five_tools_and_writes_only_protocol_messages_to_stdout(
         "locus_list_sources",
         "locus_read_file",
         "locus_help",
-        "locus_diagnose_connection",
     }
     assert TOKEN not in "".join(seen) + "".join(stderr_text)

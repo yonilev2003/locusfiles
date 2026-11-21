@@ -16,6 +16,8 @@ Either keep the old model (`LOCUS_EMBEDDER=local` and `LOCUS_LOCAL_MODEL=BAAI/bg
 working) or re-index into a new collection (`LOCUS_COLLECTION=<new name>`). The two ONNX/PyTorch routes of the
 same model were measured as equivalent, so that part needs no re-index.
 
+**Behaviour change:** the server now lists exactly four tools (`locus_search`, `locus_list_sources`, `locus_read_file`, `locus_help`); `locus_diagnose_connection` and `locus_account_status` are folded into `locus_help` with `check=true` (and `check_remote=true`), and the old names are gone.
+
 **Behaviour change:** Downloads is a closed folder from this version on (see "Folder rules" below). If your index
 already held files from Downloads, Locus carries that over once and says so on stderr; otherwise open it with
 `locus index ~/Downloads --yes`.

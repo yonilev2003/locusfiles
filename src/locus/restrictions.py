@@ -5,8 +5,8 @@
 
 - `open_gate(data_dir)` loads `<data dir>/policy.toml` (re-read when the file changes, no restart) and returns
   the `Guard` for this call. A policy file that cannot be read stops the file tools (`Refused`): a typo in a
-  restriction must not fail open. `locus_help` and `locus_diagnose_connection` do not pass through here, so they
-  keep answering.
+  restriction must not fail open. `locus_help` (also with `check=true`) does not pass through here, so it
+  keeps answering.
 - `Guard.allowed(path)` is the deny-list, the user's own rules, `excluded` folders and closed folders (policy.py),
   asked about every path the index returns. A rule added after a file was indexed therefore applies at once; the
   index rows stay until `locus index <folder> --prune`.
@@ -214,7 +214,7 @@ def count_visible_modified(guard: Guard, store: Any, path_prefix: str | None, **
 
 def rule_checks(data_dir: Path, home: Path | None = None) -> list[tuple[str, bool, str]]:
     """(label, ok, detail) for the kill switch, the policy file and each closed folder: what `locus doctor` prints and
-    `locus_diagnose_connection` reports. Names of folders and the problem's wording only, never file text."""
+    `locus_help(check=true)` reports. Names of folders and the problem's wording only, never file text."""
     from .closed_folders import state_lines as closed_state
 
     data_dir = Path(data_dir).expanduser()

@@ -256,7 +256,6 @@ def test_tool_names_and_read_only_hints_unchanged():
         "locus_search",
         "locus_list_sources",
         "locus_read_file",
-        "locus_diagnose_connection",
         "locus_help",
     }
     assert all(t.annotations.read_only_hint is True for t in tools.values())

@@ -80,12 +80,12 @@ def test_while_paused_every_file_tool_answers_with_one_fixed_sentence_and_nothin
     assert capsys.readouterr().out == ""  # nothing on stdout (it is the MCP protocol channel)
 
 
-def test_help_and_diagnose_keep_answering_and_say_paused(world):
+def test_help_and_check_keep_answering_and_say_paused(world):
     notes, settings = world
     killswitch.pause(settings.data_dir)
     helped = asyncio.run(srv.locus_help(query="how do I install Locus"))
     assert "Locus is paused" in helped and len(helped) > 300
-    diagnosed = asyncio.run(srv.locus_diagnose_connection())
+    diagnosed = asyncio.run(srv.locus_help(check=True))
     assert "# Locus diagnostics" in diagnosed and "kill switch: paused" in diagnosed
     assert SENTINEL not in diagnosed and str(notes) not in diagnosed
 
@@ -97,7 +97,7 @@ def test_resume_restores_search_in_the_same_process(world):
     assert killswitch.resume(settings.data_dir) is True
     found = tools(notes)
     assert SENTINEL in found[0] and str(notes / "plan.md") in found[2] and SENTINEL in found[3]
-    assert "not paused" in asyncio.run(srv.locus_diagnose_connection())
+    assert "not paused" in asyncio.run(srv.locus_help(check=True))
 
 
 def test_the_environment_variable_does_the_same_without_a_file(world, monkeypatch):
@@ -105,7 +105,7 @@ def test_the_environment_variable_does_the_same_without_a_file(world, monkeypatc
     monkeypatch.setenv("LOCUS_DISABLED", "1")
     for out in tools(notes):
         assert out == killswitch.DISABLED_SENTENCE and "LOCUS_DISABLED" in out and SENTINEL not in out
-    assert "kill switch: off: LOCUS_DISABLED is set" in asyncio.run(srv.locus_diagnose_connection())
+    assert "kill switch: off: LOCUS_DISABLED is set" in asyncio.run(srv.locus_help(check=True))
     monkeypatch.setenv("LOCUS_DISABLED", "0")
     assert SENTINEL in tools(notes)[0]
 

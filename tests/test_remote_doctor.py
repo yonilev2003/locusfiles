@@ -149,16 +149,6 @@ def test_the_kill_switch_shows_up_as_503_with_the_fix(real):
     assert code == 1 and "REMOTE_OFF" in "\n".join(lines)
 
 
-def test_a_server_that_exposes_every_tool_fails_the_tool_check(demo_index, tmp_path, monkeypatch):
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setattr(srv, "_components", lambda: (demo_index.embedder, demo_index.store, demo_index.settings))
-    options = remote_guard.RemoteOptions(public_hosts=("example.test",), data_dir=tmp_path / "data", all_tools=True)
-    with preserved_server_state(), serve_app(srv.build_remote_app(path="/mcp", token=TOKEN, remote=options)) as port:
-        code, lines = _run(f"http://127.0.0.1:{port}/mcp")
-    assert code == 1 and _status(lines, "tools/list") == "FAIL"
-    assert "locus_diagnose_connection" in [x for x in lines if "tools/list" in x][0]
-
-
 def test_a_server_started_with_sse_fails_the_json_check(demo_index, tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.setattr(srv, "_components", lambda: (demo_index.embedder, demo_index.store, demo_index.settings))
@@ -222,7 +212,10 @@ def test_a_server_that_keeps_sessions_is_still_checked_through_to_tools_list():
 @pytest.mark.parametrize(
     ("tools", "needle"),
     [
-        (GOOD_TOOLS + [{"name": "locus_account_status", "annotations": READ_ONLY}], "locus_account_status should not"),
+        (
+            GOOD_TOOLS + [{"name": "locus_diagnose_connection", "annotations": READ_ONLY}],
+            "locus_diagnose_connection should not",
+        ),
         (GOOD_TOOLS[1:], "missing locus_search"),
         (GOOD_TOOLS[:-1] + [{"name": "fetch", "annotations": {"readOnlyHint": False}}], "not marked read-only: fetch"),
         (GOOD_TOOLS[:-1] + [{"name": "fetch"}], "not marked read-only: fetch"),

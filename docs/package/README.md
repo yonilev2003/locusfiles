@@ -77,8 +77,8 @@ Checked against the code of version 0.2.0 on 2026-11-14. The repository README h
   an excerpt of your files and goes to whatever program asked for it.
 - Notion sync (off by default: needs `LOCUS_ENABLE_NOTION=1`): the text of the pages you pull is copied as
   plaintext Markdown files into `~/.locus/sources/notion/` and then indexed.
-- Account status: the `locus_account_status` tool exists only when `LOCUS_API_KEY` is set; it sends that key to
-  Locus's account-status endpoint when asked.
+- Account status: `locus_help` with `check=true` adds it only when `LOCUS_API_KEY` is set; it then sends that key to
+  Locus's account-status endpoint.
 - In every mode: Locus does not upload your raw files. Search results, including file text and paths, go to
   the AI app you use and on to its model provider.
 

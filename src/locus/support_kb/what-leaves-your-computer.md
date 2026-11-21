@@ -27,8 +27,8 @@ Locus's own and cannot be checked from the engine's code.
   text as plaintext Markdown files into `~/.locus/sources/notion/`, readable by anything that can
   read that folder. A page deleted in Notion stays there until you delete it. The files are then
   indexed like any folder, so your chosen embedder receives their text.
-- **Account status:** `locus_account_status` exists only when `LOCUS_API_KEY` is set. It,
-  `locus setup --managed` (off by default) and `locus_diagnose_connection` with `check_remote` on
+- **Account status:** `locus_help` with `check=true` adds the account status only when `LOCUS_API_KEY` is set. It,
+  `locus setup --managed` (off by default) and `locus_help` with `check_remote` on
   send your account key to Locus's account-status endpoint (a read-only check), only when a key
   is set.
 - **Account (only with the earlier hosted relay, which is off by default):** Locus says account details are

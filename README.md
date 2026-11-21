@@ -187,15 +187,16 @@ The parse list is the default extension list in `src/locus/config.py` (`DEFAULT_
 
 ### Facts you can check
 
-- **Tools.** Five are always listed: `locus_search`, `locus_list_sources`, `locus_read_file`, `locus_help`,
-  `locus_diagnose_connection`. A sixth, `locus_account_status`, exists only when `LOCUS_API_KEY` is set.
+- **Tools.** Four are always listed: `locus_search`, `locus_list_sources`, `locus_read_file`, `locus_help`. The setup
+  check and the account status are `locus_help` with `check=true`; the account part appears only when `LOCUS_API_KEY`
+  is set.
 - **File access.** `locus_read_file` reads only paths already in the index. In our own scripted self-check (a real
   MCP client over stdio, 2026-11-15), 13 attempts to read other paths were refused and none returned file content.
   Not an independent test.
-- **What the tools write.** All six tools carry the MCP read-only annotation. That is a hint to the client, not
+- **What the tools write.** All four tools carry the MCP read-only annotation. That is a hint to the client, not
   enforcement. `locus_search` and `locus_list_sources` run an index-on-demand step before answering, which can add,
   update and remove rows in Locus's own index and write small state files in the data folder;
-  `locus_diagnose_connection` creates and deletes a temporary file there. We found no code path in the tools that
+  `locus_help` with `check=true` creates and deletes a temporary file there. We found no code path in the tools that
   writes to an indexed file. A full line-by-line audit was not done. **Not verified:** that nothing else ever
   modifies a user file.
 - **One model per collection.** The embedder name is stored in the collection metadata. Switching models means a new
@@ -445,11 +446,10 @@ that guide has been tried with a real client yet, and whoever runs the tunnel ca
 
 The three file tools are `locus_search`, `locus_list_sources` and `locus_read_file`. Every result
 carries a file path and a chunk number. `locus_read_file` only reads files that are already in the
-index. Two more tools never read your files: `locus_help` (help articles bundled with the package, works
-offline) and `locus_diagnose_connection` (checks your setup; it contacts Locus's servers only if asked to with
-`check_remote`). A sixth tool, `locus_account_status`, is registered only when `LOCUS_API_KEY` is set, that is,
-only for someone who uses a Locus account (off by default, see below); without a key the server lists five
-tools and its instructions do not mention it. Every tool carries the MCP read-only hint. That is a hint to the
+index. The fourth tool never reads your files: `locus_help` (help articles bundled with the package, works
+offline). With `check=true` it also checks your setup, and adds the account status only when `LOCUS_API_KEY` is set,
+that is, only for someone who uses a Locus account (off by default, see below); it contacts Locus's servers only
+for that account status or when asked to with `check_remote`. The server always lists these four tools. Every tool carries the MCP read-only hint. That is a hint to the
 client, not enforcement: `locus_search` and `locus_list_sources` first update Locus's own index (new and changed
 files) before they answer. We found no code path in the tools that writes to a file you indexed; that was a code
 search, not a full audit.
@@ -552,8 +552,8 @@ each would send or write if you do.
   readable by anything that can read that folder, not encrypted, and not covered by the deny-list. A page you
   delete in Notion stays in that folder until you delete it. Those files are then indexed like any folder, so the
   embedder you chose receives their text.
-- **Account status.** `locus_account_status` is registered only when `LOCUS_API_KEY` is set. It, `locus setup
-  --managed` (off unless `LOCUS_ENABLE_HOSTED=1`) and `locus_diagnose_connection` with `check_remote` on send your
+- **Account status.** `locus_help` with `check=true` adds the account status only when `LOCUS_API_KEY` is set. It,
+  `locus setup --managed` (off unless `LOCUS_ENABLE_HOSTED=1`) and `locus_help` with `check_remote` on send your
   account key to Locus's account-status endpoint (a read-only check), and only when a key is set. With `check_remote` on, the diagnostic also makes two plain requests, without the key, to see
   whether Locus's account-status and relay endpoints answer.
 - **In every mode,** search results go to the AI app you use and on to its model provider, by design: chunk
@@ -584,7 +584,7 @@ assistant.
 - Hits from an opened Downloads (and from the Notion sync folder) are marked "untrusted" when their text is handed to
   an assistant. That is a request to the assistant to be careful. It is not a barrier.
 - If `policy.toml` has a mistake, the file tools return nothing until you fix it (the message names the key);
-  `locus_help` and `locus_diagnose_connection` keep answering. `locus doctor` lists the rules.
+  `locus_help` (also with `check=true`) keeps answering. `locus doctor` lists the rules.
 
 These controls limit what an assistant can reach **through Locus**. They do not stop other programs running as you
 (anything that runs as you can read `~/.locus` and your files directly, and an assistant that can run shell commands

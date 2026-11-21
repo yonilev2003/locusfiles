@@ -79,7 +79,7 @@ def test_the_label_is_in_the_formatter_for_both_result_shapes():
 def test_the_tools_that_use_the_network_say_so_and_all_stay_read_only():
     tools = {t.name: t for t in asyncio.run(srv.mcp.list_tools())}
     open_world = {name for name, t in tools.items() if t.annotations.open_world_hint is True}
-    assert open_world == {"locus_diagnose_connection"}  # the account tool needs a key: tests/test_tool_set.py
+    assert open_world == {"locus_help"}  # check=true reaches Locus's servers for the account status
     for name, tool in tools.items():
         assert tool.annotations.read_only_hint is True, name
         assert tool.annotations.destructive_hint is False, name

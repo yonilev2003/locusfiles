@@ -44,7 +44,7 @@ requires = ["hatchling>=1.27,<2"]  # pinned: Metadata-Version 2.4+ (F8)
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-# One version source: the engine reports __version__ (X-Locus-Version, locus_diagnose_connection).
+# One version source: the engine reports __version__ (X-Locus-Version, locus_help with check=true).
 path = "src/locus/__init__.py"
 
 [tool.hatch.build.targets.wheel]

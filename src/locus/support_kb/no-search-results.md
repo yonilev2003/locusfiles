@@ -18,8 +18,8 @@ When Locus cannot search, it says why and that nothing was searched, so it is no
   Settings > Privacy & Security, or point `LOCUS_DATA_DIR` at a folder it can use, then restart the
   app. `locus_read_file` says "no access" in the same way for a single file it may not read.
 - **"Locus could not search: no access":** only with the earlier hosted relay turned on (off by default):
-  the API key was not accepted, or the account is not active (`locus_account_status`, present when a key
-  is set, shows its state).
+  the API key was not accepted, or the account is not active (`locus_help` with `check=true` shows its state
+  when a key is set).
 - **"hidden by your folder rules" or "is in a closed folder":** the file is in the index, but your folder rules keep it back:
   a closed folder you have not opened (Downloads), a folder you excluded in `~/.locus/policy.toml`, or the
   built-in deny-list (keys, passwords, keychains, browser profiles, `~/Library`, package caches). Only counts are
@@ -35,7 +35,7 @@ When Locus cannot search, it says why and that nothing was searched, so it is no
   indexed; the line names them, and their text may be old. Run `locus index <folder> --prune`, or
   keep `locus watch <folder>` running.
 
-`locus_diagnose_connection` shows the index state: `not_indexed` (nothing indexed yet), `stale` (how
+`locus_help` with `check=true` shows the index state: `not_indexed` (nothing indexed yet), `stale` (how
 many indexed files changed or are gone) or `ready`, and when the index last changed.
 
 **No results at all:**
@@ -43,7 +43,7 @@ many indexed files changed or are gone) or `ready`, and when the index last chan
 - Run `locus stats` to see what is indexed. If it is empty, run `locus index <folder> --prune`.
 - The AI app may be running Locus with different settings from your terminal (a different
   `LOCUS_COLLECTION`, `LOCUS_DATA_DIR` or `LOCUS_EMBEDDER`). Put the same values in the app's `env`
-  block for the Locus server, or ask the app to run `locus_diagnose_connection`, which shows the
+  block for the Locus server, or ask the app to run `locus_help` with `check=true`, which shows the
   collection and how many chunks it holds.
 
 **A file is missing from results:**

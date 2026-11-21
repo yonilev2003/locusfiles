@@ -8,7 +8,7 @@ maintained by one person.
 The most useful things you can send:
 
 - **Install problems.** Tell me your operating system, your MCP client (Claude Code, Claude Desktop, Cursor or
-  other), how you installed Locus and which Locus version (the `locus_diagnose_connection` tool reports it; there
+  other), how you installed Locus and which Locus version (`locus_help` with `check=true` reports it; there
   is no `locus --version`). Paste the exact error text and the output of `locus doctor`. Please remove
   personal file names and paths before pasting.
 - **Wrong or missing answers.** Say what you asked, which file you expected, and which file Locus returned. Do not

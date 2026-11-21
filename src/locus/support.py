@@ -243,7 +243,7 @@ def _format_help(query: str, results: list[tuple[Article, float]], *, base: str,
         lines += [f"- {a.title}: {article_url(a, base)}" for a in articles]
         lines += [
             "",
-            "For this computer's setup, run locus_diagnose_connection. "
+            "For this computer's setup, run locus_help with check=true. "
             f"A person can help too: {article_url(_by_id('contact-support'), base)}",
         ]
         return "\n".join(lines)
@@ -260,7 +260,7 @@ def _format_help(query: str, results: list[tuple[Article, float]], *, base: str,
     shown = {a.id for a, _ in results}
     if "contact-support" not in shown:
         lines.append(
-            "Not solved? locus_diagnose_connection checks this computer's setup, and a person can help: "
+            "Not solved? locus_help with check=true checks this computer's setup, and a person can help: "
             + article_url(_by_id("contact-support"), base)
         )
     return "\n".join(lines)
@@ -279,7 +279,7 @@ def account_is_entitled(data: dict[str, Any]) -> bool:
 def fetch_account_status(url: str, api_key: str, *, timeout: float = 15) -> dict[str, Any]:
     """GET Locus's account-status endpoint with *api_key* and return its JSON object.
 
-    The one account check the engine makes: `locus_account_status` reports what it returns, and
+    The one account check the engine makes: `locus_help(check=true)` reports what it returns, and
     `locus setup --managed` uses it to check a key before saving it. It only reads the account and
     spends nothing (no embedding call, no budget). Raises urllib.error.HTTPError (401: key not
     recognized or revoked; 404: no plan record), urllib.error.URLError when the server cannot be

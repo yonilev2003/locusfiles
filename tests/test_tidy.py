@@ -492,6 +492,5 @@ def test_nothing_is_wired_to_the_cli_or_the_mcp_server():
         "locus_search",
         "locus_list_sources",
         "locus_read_file",
-        "locus_diagnose_connection",
         "locus_help",
     }
