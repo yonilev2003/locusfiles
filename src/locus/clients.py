@@ -9,10 +9,9 @@ A file that does not parse (invalid JSON or TOML) is never touched: the snippet 
 Writing a configuration is not a statement that Locus has been tested with that app. Each entry in REGISTRY carries a
 `tested` string copied from the compatibility record, and `--list` says so in its footer.
 
-Kinds: json-mcpServers (a top-level "mcpServers" object, or the key a client names, e.g. VS Code's "servers"),
-toml-codex (a `[mcp_servers.locus]` table, edited as text after the file has been checked with tomllib),
-command-only (a command to run; Locus never runs it) and manual (print-only: the config location is not settled or is
-edited inside the app).
+Kinds: json-mcpServers (a top-level "mcpServers" object), toml-codex (a `[mcp_servers.locus]` table, edited as text
+after the file has been checked with tomllib), command-only (a command to run; Locus never runs it) and manual
+(print-only: the config location is not settled or is edited inside the app).
 
 The `locus` entry has no env block unless `--env NAME` is given: the value is read from the environment at write time
 and never printed (the change is shown with the value hidden). Keys already in an existing `locus` entry are kept,
@@ -107,8 +106,6 @@ class Client:
     snippet: str = ""  # "agents" for the AGENTS.md text; empty: derived from kind
     no_file: str = ""  # what the PATH column says when there is no file to write
     list_note: str = ""  # one line under the --list table
-    servers_key: str = "mcpServers"  # the top-level object of a JSON file that holds the servers
-    entry_type: str = ""  # a "type" field the client requires in the entry (VS Code: "stdio"); empty: none
 
     @property
     def writes_files(self) -> bool:
@@ -130,19 +127,10 @@ AGENTS_NOTE = "The --json flag of `locus query` requires Locus 0.2.0 or later."
 
 VSCODE_DOCS = (_url("code.visualstudio.com", "docs", "agents", "reference", "mcp-configuration"),)
 VSCODE_NOTES = (
-    'VS Code\'s current page (read 2026-11-22) calls this file format, a top-level "servers" object in mcp.json, the '
-    "editor-managed format of the Local harness, which it says is deprecated and will be removed in February 2027, and "
-    "tells new setups to use the native Copilot destinations: `--client copilot` (~/.copilot/mcp-config.json) or a "
-    ".mcp.json at the workspace root. This client exists for a VS Code that still uses the Local harness.",
-    'Not tested with VS Code and GitHub Copilot at all; this is the documented shape: a top-level "servers" object '
-    '(not "mcpServers") and "type": "stdio" in the entry.',
-)
-VSCODE_AFTER = (
-    "In VS Code, with the Local harness selected as the session target, open the Command Palette, run MCP: List "
-    "Servers and start locus, then confirm VS Code's trust prompt."
-)
-VSCODE_LIST_NOTE = (
-    'VS Code\'s page calls its mcp.json ("servers") format deprecated: the Local harness goes in February 2027.'
+    "VS Code's current page (read 2026-11-22) names two native destinations for GitHub Copilot, both with a top-level "
+    '"mcpServers" object: .mcp.json at the workspace root and ~/.copilot/mcp-config.json for the user. The older '
+    '.vscode/mcp.json with a "servers" object belongs to the deprecated Local harness and is not written.',
+    "Not tested with VS Code and GitHub Copilot at all; this is the documented shape.",
 )
 
 REGISTRY: tuple[Client, ...] = (
@@ -231,45 +219,30 @@ REGISTRY: tuple[Client, ...] = (
     ),
     Client(
         name="vscode",
-        label="VS Code (GitHub Copilot, Local harness), user profile",
+        label="VS Code (GitHub Copilot), user",
         kind=JSON_KIND,
-        locations={
-            MACOS: Location("home", ("Library", "Application Support", "Code", "User", "mcp.json")),
-            WINDOWS: Location("appdata", ("Code", "User", "mcp.json")),
-            LINUX: Location("xdg_config", ("Code", "User", "mcp.json")),
-        },
+        locations=_everywhere("copilot_home", "mcp-config.json"),
         docs=VSCODE_DOCS,
         tested=TESTED_NOT,
         notes=VSCODE_NOTES
         + (
-            "Only the default profile's file is written, not a named profile's (User/profiles/<id>/mcp.json). The "
-            "vendor page names this file `mcp.json` in the user profile but does not spell out its folder; the path "
-            "here is the usual one and was not checked on a machine with VS Code.",
-            "On Linux the folder is $XDG_CONFIG_HOME/Code when that variable is set, else ~/.config/Code. VS Code "
-            "Insiders uses `Code - Insiders` instead of `Code`, which this command does not write.",
+            "This is the same file as `--client copilot`: ~/.copilot/mcp-config.json, or $COPILOT_HOME/mcp-config.json "
+            "when COPILOT_HOME is set. It is listed under this name so that a VS Code user finds it.",
         ),
-        after=VSCODE_AFTER,
-        list_note=VSCODE_LIST_NOTE,
-        servers_key="servers",
-        entry_type="stdio",
     ),
     Client(
         name="vscode-workspace",
-        label="VS Code (GitHub Copilot, Local harness), this workspace",
+        label="VS Code (GitHub Copilot), this workspace",
         kind=JSON_KIND,
-        locations=_everywhere("cwd", ".vscode", "mcp.json"),
+        locations=_everywhere("cwd", ".mcp.json"),
         docs=VSCODE_DOCS,
         tested=TESTED_NOT,
         notes=VSCODE_NOTES
         + (
-            "The file is .vscode/mcp.json in the folder you run this command from: run it at the root of the "
-            "workspace. A file in a workspace is often committed and shared, and it holds the absolute path of locus "
-            "on this computer, so check before committing it.",
+            "The file is .mcp.json in the folder you run this command from: run it at the root of the workspace. A "
+            "file in a workspace is often committed and shared, and it holds the absolute path of locus on this "
+            "computer, so check before committing it.",
         ),
-        after=VSCODE_AFTER,
-        list_note=VSCODE_LIST_NOTE,
-        servers_key="servers",
-        entry_type="stdio",
     ),
     Client(
         name="gemini-cli",
@@ -415,12 +388,8 @@ def _masked(entry: Any, fresh: Mapping[str, str] | None = None) -> Any:
     return out
 
 
-def _entry(
-    command: str, env_names: Sequence[str] = (), values: Mapping[str, str] | None = None, entry_type: str = ""
-) -> dict[str, Any]:
+def _entry(command: str, env_names: Sequence[str] = (), values: Mapping[str, str] | None = None) -> dict[str, Any]:
     entry: dict[str, Any] = {"command": command, "args": ["serve"]}
-    if entry_type:
-        entry = {"type": entry_type, **entry}
     if env_names:
         entry["env"] = {
             n: (values[n] if values is not None else f"<value of {n} from your environment>") for n in env_names
@@ -479,8 +448,8 @@ def _toml_block(entry: Mapping[str, Any]) -> str:
     return "\n".join(_toml_lines(["mcp_servers", ENTRY], entry)) + "\n"
 
 
-def _json_snippet(entry: Mapping[str, Any], key: str = "mcpServers") -> str:
-    text = _json_text({key: {ENTRY: entry}})
+def _json_snippet(entry: Mapping[str, Any]) -> str:
+    text = _json_text({"mcpServers": {ENTRY: entry}})
     return re.sub(r'\[\s+"serve"\s+\]', '["serve"]', text)  # the form the help articles show
 
 
@@ -498,14 +467,14 @@ def _claude_code_command(command: str, env_names: Sequence[str], os_name: str) -
 
 
 def snippet_for(client: Client, command: str, env_names: Sequence[str], os_name: str) -> str:
-    entry = _entry(command, env_names, entry_type=client.entry_type)
+    entry = _entry(command, env_names)
     if client.snippet == "agents":
         return AGENTS_TEXT.rstrip("\n")
     if client.kind == COMMAND_KIND:
         return _claude_code_command(command, env_names, os_name)
     if client.kind == TOML_KIND:
         return _toml_block(entry).rstrip("\n")
-    return _json_snippet(entry, client.servers_key)
+    return _json_snippet(entry)
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -548,14 +517,12 @@ def _indent_of(text: str) -> Any:
     return "\t" if match.group(1).startswith("\t") else match.group(1)
 
 
-def _merge_entry(current: Any, command: str, fresh: Mapping[str, str], entry_type: str = "") -> dict[str, Any]:
+def _merge_entry(current: Any, command: str, fresh: Mapping[str, str]) -> dict[str, Any]:
     """The `locus` entry after setup: command and args set, `--env` names added, anything else kept as it was."""
     base = dict(current) if isinstance(current, dict) else {}
     if any(key in base for key in REMOTE_KEYS):  # an entry that points at a URL is replaced, not mixed with a command
         base = {}
-    desired = {**({"type": entry_type} if entry_type else {}), **base, "command": command, "args": ["serve"]}
-    if entry_type:
-        desired["type"] = entry_type
+    desired = {**base, "command": command, "args": ["serve"]}
     if fresh:
         old_env = base.get("env")
         desired["env"] = {**(old_env if isinstance(old_env, dict) else {}), **fresh}
@@ -566,8 +533,7 @@ def _json_view(entry: Any) -> str:
     return f'"{ENTRY}": ' + _json_text(entry)
 
 
-def _plan_json(path: Path, command: str, fresh: Mapping[str, str], remove: bool, client: Client) -> Plan:
-    key = client.servers_key
+def _plan_json(path: Path, command: str, fresh: Mapping[str, str], remove: bool) -> Plan:
     read = _read_text(path)
     if isinstance(read, str):
         return _refuse(path, read)
@@ -579,9 +545,9 @@ def _plan_json(path: Path, command: str, fresh: Mapping[str, str], remove: bool,
         return _refuse(path, f"is not valid JSON{where}")
     if not isinstance(data, dict):
         return _refuse(path, "does not hold a JSON object at the top level")
-    servers = data.get(key, {})
+    servers = data.get("mcpServers", {})
     if not isinstance(servers, dict):
-        return _refuse(path, f'has a "{key}" key that is not an object')
+        return _refuse(path, 'has an "mcpServers" key that is not an object')
     others = sum(1 for k in servers if k != ENTRY)
     current = servers.get(ENTRY)
     if remove:
@@ -590,13 +556,13 @@ def _plan_json(path: Path, command: str, fresh: Mapping[str, str], remove: bool,
         del servers[ENTRY]
         old_view, new_view, action = _json_view(_masked(current)), "", "remove"
     else:
-        desired = _merge_entry(current, command, fresh, client.entry_type)
+        desired = _merge_entry(current, command, fresh)
         if current == desired:
             return Plan(
                 "noop", f'{path} already has this "{ENTRY}" entry: nothing changed.', exists=exists, others=others
             )
         servers[ENTRY] = desired
-        data[key] = servers
+        data["mcpServers"] = servers
         old_view = _json_view(_masked(current)) if current is not None else ""
         new_view, action = _json_view(_masked(desired, fresh)), ("replace" if current is not None else "add")
     out = _json_text(data, _indent_of(text))
@@ -740,7 +706,7 @@ def _plan_toml(path: Path, command: str, fresh: Mapping[str, str], remove: bool)
 def plan_change(client: Client, path: Path, command: str, fresh: Mapping[str, str], remove: bool) -> Plan:
     if client.kind == TOML_KIND:
         return _plan_toml(path, command, fresh, remove)
-    return _plan_json(path, command, fresh, remove, client)
+    return _plan_json(path, command, fresh, remove)
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -958,7 +924,7 @@ def _print_client(
         elif client.kind == TOML_KIND:
             _say("Add this table to that file (keep everything already in it):", out)
         else:
-            _say(f'Add this under "{client.servers_key}" in that file; keep any servers already there:', out)
+            _say('Add this under "mcpServers" in that file; keep any servers already there:', out)
         _say(out=out)
         _say(snippet_for(client, command, env_names, os_name), out)
     if placeholder:
