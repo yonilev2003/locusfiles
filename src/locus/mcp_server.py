@@ -72,7 +72,7 @@ from .ingest.errors import (
     SubscriptionInactive,
     client_outdated_message,
 )
-from .ingest.freshness import freshen_for_serve
+from .ingest.freshness import count_pending, freshen_for_serve
 from .ingest.parsers import format_pages, parse_file, parse_page_spec, read_pdf
 from .ingest.shared_embedder import start_helper_early
 from .ingest.store import Hit, VectorStore, _under
@@ -761,8 +761,6 @@ NOTHING_SEARCHED = "Nothing was searched, so this does not mean that nothing mat
 # Indexed and current modified times closer than this count as equal (the indexer stores the exact
 # st_mtime float, so an untouched file compares equal; the slack only absorbs rounding).
 _MTIME_SLACK = 1e-3
-# locus_diagnose_connection stats at most this many indexed files (one stat each, counts only).
-FRESHNESS_CHECK_LIMIT = 20_000
 
 
 def _provider_of(embedder_name: str) -> tuple[str, str | None]:
@@ -1506,47 +1504,27 @@ async def locus_diagnose_connection(
 def _index_state_lines(store: VectorStore) -> list[str]:
     """UX-004: the index state in the plan's words (4.4.6): not_indexed, stale or ready, from the
     modified time each file had when it was indexed against the one it has now (one stat per file,
-    at most FRESHNESS_CHECK_LIMIT), plus when the index last changed. Counts and times only, never
+    at most freshness.CHECK_LIMIT, one second), plus when the index last changed. Counts and times only, never
     a path. Files added to an indexed folder since are not counted: finding them means walking the
     folders, which this check does not do."""
-    file_mtimes = getattr(store, "file_mtimes", None)
-    if file_mtimes is None:
-        return []
     try:
-        recorded: dict[str, float | None] = file_mtimes()
+        counts = count_pending(store)
     except Exception as exc:  # noqa: BLE001 - a diagnostic reports, it does not fail
         return [f"index state: unknown ({type(exc).__name__})"]
-    if not recorded:
+    if counts is None:
+        return []
+    if counts.total == 0:
         return ["index state: not_indexed (nothing is indexed in this collection yet: run `locus index <folder>`)"]
-    changed = missing = unchecked = checked = 0
-    for path, mtime in recorded.items():
-        if checked >= FRESHNESS_CHECK_LIMIT:
-            break
-        checked += 1
-        if mtime is None:
-            unchecked += 1
-            continue
-        try:
-            current = os.stat(path).st_mtime
-        except FileNotFoundError:
-            missing += 1
-            continue
-        except OSError:
-            unchecked += 1
-            continue
-        if abs(current - mtime) > _MTIME_SLACK:
-            changed += 1
-    total = len(recorded)
-    scope = f"checked {checked} of {total} indexed files" if checked < total else f"checked all {total} indexed files"
-    if changed or missing:
+    scope = counts.scope
+    if counts.stale:
         lines = [
-            f"index state: stale ({changed} changed on disk and {missing} gone since they were indexed; {scope}) "
-            "— refresh with `locus index <folder> --prune`, or keep `locus watch <folder>` running"
+            f"index state: stale ({counts.changed} changed on disk and {counts.gone} gone since they were indexed; "
+            f"{scope}) — refresh with `locus index <folder> --prune`, or keep `locus watch <folder>` running"
         ]
     else:
         lines = [f"index state: ready (no indexed file changed on disk since it was indexed; {scope})"]
-    if unchecked:
-        lines.append(f"  not checked: {unchecked} file(s) (no recorded modified time, or not readable)")
+    if counts.unchecked:
+        lines.append(f"  not checked: {counts.unchecked} file(s) (no recorded modified time, or not readable)")
     lines.append(f"  last index change: {_when(getattr(store, 'last_write_time', lambda: None)())}")
     return lines
 

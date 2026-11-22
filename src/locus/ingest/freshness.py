@@ -407,8 +407,70 @@ def _denial(matcher: Matcher | None, path: str) -> str | None:
     return None if decision.allowed else decision.reason
 
 
-def render_freshness_note(report: FreshnessReport, budget_s: float) -> str | None:
-    """A visible last line for a result when the step could not finish (counts only), else None."""
+# The read-only count of indexed files that differ from the disk. One definition for every tool that reports it:
+# `locus_diagnose_connection` (index state) and the freshness note on `locus_search` / `locus_list_sources`.
+CHECK_LIMIT = 20_000  # most indexed files stat'ed in one count
+_COUNT_BUDGET_S = 1.0  # time the count may take; it says how far it got when this ends
+
+
+@dataclass(frozen=True)
+class PendingCounts:
+    changed: int  # indexed files whose modified time on disk differs from the one recorded
+    gone: int  # indexed files no longer on disk
+    unchecked: int  # no recorded modified time, or not readable
+    checked: int  # files stat'ed
+    total: int  # files in the index
+    seconds: float  # time the count took
+
+    @property
+    def complete(self) -> bool:
+        return self.checked >= self.total
+
+    @property
+    def scope(self) -> str:
+        """'checked 40 of 40 indexed files in 0.0 s': the part of the index this count covers."""
+        return f"checked {self.checked} of {self.total} indexed files in {self.seconds:.1f} s"
+
+    @property
+    def stale(self) -> bool:
+        return bool(self.changed or self.gone)
+
+
+def count_pending(
+    store: VectorStore, limit: int = CHECK_LIMIT, budget_s: float = _COUNT_BUDGET_S, clock: Clock = time.monotonic
+) -> PendingCounts | None:
+    """Read-only: stat each indexed file (at most *limit*, for at most *budget_s* seconds) against the modified time
+    recorded when it was indexed. Never indexes, never walks folders, so files added to a folder since are not in
+    it. None when the store cannot list modified times. May raise what the store raises."""
+    file_mtimes = getattr(store, "file_mtimes", None)
+    if file_mtimes is None:
+        return None
+    recorded: dict[str, float | None] = file_mtimes()
+    start = clock()
+    changed = gone = unchecked = checked = 0
+    for path, mtime in recorded.items():
+        if checked >= limit or (checked and clock() - start > budget_s):
+            break
+        checked += 1
+        if mtime is None:
+            unchecked += 1
+            continue
+        try:
+            current = os.stat(path).st_mtime
+        except FileNotFoundError:
+            gone += 1
+            continue
+        except OSError:
+            unchecked += 1
+            continue
+        if abs(current - mtime) > _MTIME_SLACK:
+            changed += 1
+    return PendingCounts(changed, gone, unchecked, checked, len(recorded), max(0.0, clock() - start))
+
+
+def render_freshness_note(report: FreshnessReport, budget_s: float, counts: PendingCounts | None = None) -> str | None:
+    """A visible last line for a result when the step could not finish (counts only), else None. *counts* is the
+    read-only count taken after the attempt (count_pending): the same numbers `locus_diagnose_connection` shows."""
     if not report.has_note:
         return None
     parts = ["Freshness note:"]
@@ -417,11 +479,17 @@ def render_freshness_note(report: FreshnessReport, budget_s: float) -> str | Non
             f"{report.pending} changed file(s) not yet indexed (the {budget_s:g} s check budget ran out or "
             "embedding stopped); results above may miss them. The next search continues."
         )
+
     if not report.scan_complete:
         parts.append(
             f"the scan of your folders had not finished within {budget_s:g} s (or a folder could not be read), "
             "so files added or changed in the part not scanned may not be searchable yet; the next search "
             "continues where this one stopped."
+        )
+    if report.cut_short and counts is not None and counts.stale:
+        parts.append(
+            f"Index check after this attempt: {counts.changed} indexed file(s) changed on disk and "
+            f"{counts.gone} gone ({counts.scope}); `locus_diagnose_connection` reports the same count."
         )
     if report.removals_refused:
         parts.append(
@@ -476,9 +544,15 @@ def freshen_for_serve(
         if not roots:
             return None
         report = freshen(roots, matcher, embedder, store, settings, budget_s, clock)
+        counts = None
+        if report.cut_short:  # say the number in the diagnostic's own terms, so the two tools agree
+            try:
+                counts = count_pending(store)
+            except Exception:  # noqa: BLE001 - the extra count is a convenience
+                counts = None
     except PolicyError:
         return "Freshness note: skipped, because the policy file has a problem (`locus index --dry-run` names it)."
     except Exception as exc:  # noqa: BLE001 - freshness must never break a search
         print(f"locus_mcp: freshness step failed: {type(exc).__name__}", file=sys.stderr)
         return None
-    return render_freshness_note(report, budget_s)
+    return render_freshness_note(report, budget_s, counts)
