@@ -23,6 +23,7 @@ from locus.config import get_settings
 
 JSON_CLIENTS = ["claude-desktop", "cursor", "copilot", "gemini-cli"]
 FILE_CLIENTS = [*JSON_CLIENTS, "codex"]
+VSCODE_CLIENTS = ["vscode", "vscode-workspace"]
 NO_FILE_CLIENTS = ["claude-code", "windsurf", "lm-studio", "agents-md"]
 
 
@@ -110,6 +111,8 @@ def test_tested_strings_are_the_recorded_forms_and_follow_the_matrix():
         "cursor": "older record only (pre-release, 2026-09-16)",
         "codex": "earlier engine only (0.1.0, 2026-10-01)",
         "copilot": "earlier engine only (0.1.0, 2026-10-01)",
+        "vscode": "not tested",
+        "vscode-workspace": "not tested",
         "gemini-cli": "not tested",
         "windsurf": "not tested",
         "lm-studio": "not tested",
@@ -140,6 +143,8 @@ def test_the_first_set_of_clients_is_there():
         "cursor",
         "codex",
         "copilot",
+        "vscode",
+        "vscode-workspace",
         "gemini-cli",
         "windsurf",
         "lm-studio",
@@ -175,6 +180,10 @@ WINDOWS_DESKTOP = "C:\\Users\\me\\AppData\\Roaming\\Claude\\claude_desktop_confi
         ("copilot", "macos", MAC, "/Users/me/.copilot/mcp-config.json"),
         ("copilot", "linux", ("/home/me", {"COPILOT_HOME": "/opt/copilot"}), "/opt/copilot/mcp-config.json"),
         ("copilot", "windows", WIN, "C:\\Users\\me\\.copilot\\mcp-config.json"),
+        ("vscode", "macos", MAC, "/Users/me/Library/Application Support/Code/User/mcp.json"),
+        ("vscode", "linux", LIN, "/home/me/.config/Code/User/mcp.json"),
+        ("vscode", "linux", XDG, "/xdg/Code/User/mcp.json"),
+        ("vscode", "windows", WIN, "C:\\Users\\me\\AppData\\Roaming\\Code\\User\\mcp.json"),
         ("gemini-cli", "macos", MAC, "/Users/me/.gemini/settings.json"),
         ("gemini-cli", "linux", LIN, "/home/me/.gemini/settings.json"),
         ("gemini-cli", "windows", WIN, "C:\\Users\\me\\.gemini\\settings.json"),
@@ -196,6 +205,10 @@ def test_resolved_config_path_per_client_and_os(name, os_name, where, expected):
         ("copilot", "macos", "~/.copilot/mcp-config.json"),
         ("copilot", "windows", "%USERPROFILE%\\.copilot\\mcp-config.json"),
         ("gemini-cli", "macos", "~/.gemini/settings.json"),
+        ("vscode", "macos", "~/Library/Application Support/Code/User/mcp.json"),
+        ("vscode", "windows", "%APPDATA%\\Code\\User\\mcp.json"),
+        ("vscode-workspace", "macos", ".vscode/mcp.json"),
+        ("vscode-workspace", "windows", ".vscode\\mcp.json"),
     ],
 )
 def test_displayed_config_path_is_the_vendors_own_form(name, os_name, expected):
@@ -245,6 +258,79 @@ def test_the_printed_json_snippet_is_the_entry(run, exe, name):
     _, out, _ = run("--client", name, "--command", exe)
     snippet = out[out.index("{") : out.rindex("}") + 1]
     assert json.loads(snippet) == {"mcpServers": {"locus": {"command": exe, "args": ["serve"]}}}
+
+
+def test_vscode_is_listed_as_not_tested_with_both_files(run, home):
+    code, out, _ = run("--list")
+    assert code == 0
+    assert re.search(r"^vscode\s+~/Library/Application Support/Code/User/mcp.json\s+not tested$", out, re.M)
+    assert re.search(r"^vscode-workspace\s+\.vscode/mcp.json\s+not tested$", out, re.M)
+    assert tree(home) == []
+
+
+@pytest.mark.parametrize("name", VSCODE_CLIENTS)
+def test_the_vscode_dry_run_prints_a_servers_object_with_a_stdio_type(run, home, exe, name):
+    code, out, _ = run("--client", name, "--command", exe)
+    snippet = out[out.index("{") : out.rindex("}") + 1]
+    assert code == 0 and "Tested by Locus: not tested" in out and "Nothing was written" in out
+    assert json.loads(snippet) == {"servers": {"locus": {"type": "stdio", "command": exe, "args": ["serve"]}}}
+    assert '"mcpServers"' not in out.split("Add this under", 1)[1].split("Note:", 1)[0]
+    assert "deprecated" in out and "--client copilot" in out
+    assert tree(home) == []
+
+
+def test_the_vscode_workspace_file_is_in_the_folder_the_command_runs_from(run, tmp_path, exe):
+    _, out, _ = run("--client", "vscode-workspace", "--command", exe)
+    assert str(tmp_path / ".vscode" / "mcp.json") in out
+
+
+@pytest.mark.parametrize("name", VSCODE_CLIENTS)
+def test_vscode_write_creates_the_file_with_servers_and_type(run, home, exe, tmp_path, name):
+    code, out, _ = run("--client", name, "--command", exe, "--write", "--yes")
+    path = tmp_path / ".vscode" / "mcp.json" if name == "vscode-workspace" else config_path(name, home)
+    assert code == 0 and path.is_file()
+    assert json.loads(path.read_text()) == {"servers": {"locus": {"type": "stdio", "command": exe, "args": ["serve"]}}}
+    assert backups(path) == []
+
+
+@pytest.mark.parametrize("name", VSCODE_CLIENTS)
+def test_vscode_write_keeps_other_servers_inputs_and_backs_up(run, home, exe, tmp_path, name):
+    path = tmp_path / ".vscode" / "mcp.json" if name == "vscode-workspace" else config_path(name, home)
+    other = {"type": "stdio", "command": "npx", "args": ["-y", "x"]}
+    inputs = [{"id": "k", "type": "promptString"}]
+    original = write_json(path, {"inputs": inputs, "servers": {"other": other}}, indent=4)
+    code, out, _ = run("--client", name, "--command", exe, "--write", "--yes")
+    data = json.loads(path.read_text())
+    assert code == 0 and "1 other server entry" in out
+    assert data["inputs"] == inputs
+    assert data["servers"]["other"] == other
+    assert data["servers"]["locus"] == {"type": "stdio", "command": exe, "args": ["serve"]}
+    assert "mcpServers" not in data
+    assert [b.read_bytes() for b in backups(path)] == [original]
+    code, out, _ = run("--client", name, "--command", exe, "--write", "--yes")
+    assert code == 0 and "nothing changed" in out and len(backups(path)) == 1
+
+
+def test_vscode_asks_before_writing_and_declines_cleanly(run, home, exe, monkeypatch):
+    monkeypatch.setattr("sys.stdin", _Tty("n\n"))
+    code, out, _ = run("--client", "vscode", "--command", exe, "--write")
+    assert code == 1 and "Write this change?" in out and "Nothing was written" in out
+    assert not config_path("vscode", home).exists()
+
+
+def test_vscode_refuses_a_servers_key_that_is_not_an_object(run, home, exe):
+    path = config_path("vscode", home)
+    raw = write_json(path, {"servers": [1]})
+    code, out, err = run("--client", "vscode", "--command", exe, "--write", "--yes")
+    assert code == 2 and '"servers" key that is not an object' in err and path.read_bytes() == raw
+    assert '"servers"' in out and backups(path) == []
+
+
+def test_vscode_remove_write_removes_only_the_locus_entry(run, home, exe):
+    path = config_path("vscode", home)
+    write_json(path, {"servers": {"a": {"command": "1"}, "locus": {"type": "stdio", "command": exe}}})
+    code, _, _ = run("--client", "vscode", "--remove", "--write", "--yes")
+    assert code == 0 and json.loads(path.read_text()) == {"servers": {"a": {"command": "1"}}}
 
 
 def test_the_printed_toml_snippet_is_the_table(run, exe):
