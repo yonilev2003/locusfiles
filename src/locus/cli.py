@@ -12,6 +12,7 @@ import math
 import os
 import shlex
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -592,6 +593,110 @@ def cmd_stats(_: argparse.Namespace) -> int:
     return 0
 
 
+_PYPI_URL = "https://pypi.org/pypi/locusfiles/json"
+
+
+def _latest_version() -> str | None:
+    """The newest released version, from one HTTPS GET to PyPI. Only `locus status --check-update` calls this."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(_PYPI_URL, timeout=5) as resp:  # noqa: S310 - fixed https URL
+            return str(json.load(resp)["info"]["version"])
+    except Exception:  # noqa: BLE001 - offline, blocked, malformed: the caller prints "could not check"
+        return None
+
+
+def _clients_with_locus() -> tuple[list[str], list[str]]:
+    """(clients whose config file has a `locus` entry, clients we cannot check). Read-only: reads files, writes none."""
+    import re
+
+    from . import clients
+
+    os_name, found, unchecked = clients.current_os(), [], []
+    for client in clients.REGISTRY:
+        path = clients.resolve_path(client, os_name, os.environ, str(Path.home())) if client.writes_files else None
+        if path is None:
+            unchecked.append(client.name)
+            continue
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except OSError:
+            continue  # no config file: not configured
+        if re.search(r'"locus"\s*:|\.locus\]', text):
+            found.append(client.name)
+    return found, unchecked
+
+
+def _ago(timestamp: float | None) -> str:
+    if timestamp is None:
+        return "unknown"
+    from datetime import UTC, datetime
+
+    hours = max(0.0, (time.time() - timestamp) / 3600)
+    age = f"{hours:.0f} h ago" if hours < 48 else f"{hours / 24:.0f} days ago"
+    return f"{datetime.fromtimestamp(timestamp, UTC):%Y-%m-%d %H:%M} UTC ({age})"
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """One screen of read-only facts. Opens the index without creating it, loads no embedding model, and makes no
+    network call unless --check-update is given."""
+    from . import __version__
+    from .ingest.embedder import expected_embedder_name
+    from .ingest.freshness import count_pending
+
+    settings = get_settings()
+    try:
+        embedder = expected_embedder_name(settings)
+    except RuntimeError:
+        embedder = settings.embedder
+    store = _existing_store(settings)
+    info: dict = {"version": __version__, "embedder": embedder, "paused": killswitch.paused_by(settings.data_dir)}
+    if store is None:
+        info["index"] = None
+    else:
+        counts = count_pending(store)
+        info["index"] = {
+            "files": len(store.list_paths()),
+            "chunks": store.count(),
+            "last_change": getattr(store, "last_write_time", lambda: None)(),
+            "pending": None
+            if counts is None
+            else {"changed": counts.changed, "gone": counts.gone, "scope": counts.scope},
+        }
+    found, unchecked = _clients_with_locus()
+    info["clients"] = {"configured": found, "not_checked": unchecked}
+    if args.check_update:
+        info["latest_version"] = _latest_version()
+
+    if args.json:
+        _emit_json(info)
+        return 0
+    print(f"version    : {__version__}")
+    if args.check_update:
+        latest = info["latest_version"]
+        note = "could not check" if latest is None else f"{latest} (up to date)" if latest == __version__ else latest
+        print(f"latest     : {note}")
+    idx = info["index"]
+    if idx is None:
+        print("index      : none yet (run `locus index <folder>`)")
+    else:
+        print(f"index      : {idx['files']} files, {idx['chunks']} chunks, last change {_ago(idx['last_change'])}")
+        pend = idx["pending"]
+        print(
+            "pending    : not checked"
+            if pend is None
+            else f"pending    : {pend['changed']} changed on disk, {pend['gone']} gone ({pend['scope']})"
+        )
+    reason = info["paused"]
+    print("paused     : " + ("no" if reason is None else "yes (LOCUS_DISABLED is set)" if reason == "env" else "yes"))
+    print(f"embedder   : {embedder}")
+    configured = ", ".join(found) or "none found"
+    print(f"clients    : {configured}")
+    print(f"             not checked (no config file to read): {', '.join(unchecked)}")
+    return 0
+
+
 # locus doctor's install hints: uv first, then pipx (README.md installs from PyPI that way); the
 # source-checkout form comes last, for contributors.
 _REINSTALL_HINT = (
@@ -962,6 +1067,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("stats", help="show index statistics")
     p.set_defaults(func=cmd_stats)
+
+    p = sub.add_parser(
+        "status",
+        help="one screen: version, index size, files pending, paused, embedder, clients (read-only)",
+        description="Read-only. Makes no network call unless --check-update is given.",
+    )
+    p.add_argument("--check-update", action="store_true", help="ask PyPI for the newest version (one HTTPS request)")
+    p.add_argument("--json", action="store_true", help="print the same facts as JSON")
+    p.set_defaults(func=cmd_status)
 
     p = sub.add_parser(
         "pause",
