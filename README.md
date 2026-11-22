@@ -605,6 +605,27 @@ has already received. See [SECURITY.md](SECURITY.md).
   themselves be sensitive, and sits in the same folder as the index. The local API and the tunnel mode keep their own
   counts-only logs in the same folder (see their pages).
 
+## Keep the index in sync in the background (optional, off by default)
+
+`locus watch <folder>` runs in a terminal. If you would rather have it start at login, `locus service` sets that up:
+
+```bash
+locus service install ~/Documents/notes --dry-run   # print the unit file, change nothing
+locus service install ~/Documents/notes             # shows what it will do, then asks
+locus service status
+locus service uninstall                             # stops it and deletes the unit file
+```
+
+- Nothing is installed unless you run `install` and confirm (or pass `--yes`). It writes one file: a launchd agent
+  (`~/Library/LaunchAgents/locus.watch.plist`) on macOS, a systemd user unit (`~/.config/systemd/user/locus-watch.service`)
+  on Linux. Windows is not supported.
+- It runs at low CPU and disk priority and logs to `~/.locus/service.log`. It stops the watchers while the computer
+  is on battery power and while Locus is paused (`locus pause`), and starts them again afterwards.
+- It never passes `--yes` to `locus watch`. With a hosted embedder, which asks every time, `install` refuses; a closed
+  folder such as Downloads has to be opened once with a normal `locus watch` before the job can watch it.
+- The unit files are tested as text and the commands against a fake `launchctl` / `systemctl`; the first real install on
+  each system is yours to check with `locus service status`.
+
 ## File types
 
 Markdown, text, code, CSV, HTML, PDF, DOCX, PPTX, XLSX, ODS, ODT, RTF, EPUB, IPYNB and subtitle files.

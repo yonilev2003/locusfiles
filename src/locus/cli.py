@@ -535,6 +535,51 @@ def cmd_watch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_service(args: argparse.Namespace) -> int:
+    """`locus service install | uninstall | status | run`: `locus watch` in the background (background.py)."""
+    from . import background
+    from .configure import _locus_command
+    from .preflight import needs_consent
+
+    platform = background.detect_platform()
+    if platform is None:
+        print("locus service: only macOS (launchd) and Linux (systemd --user) are supported.", file=sys.stderr)
+        return EXIT_USAGE
+    if args.action in ("install", "run") and not args.folders:
+        print(f"locus service {args.action}: name at least one folder.", file=sys.stderr)
+        return EXIT_USAGE
+    settings = get_settings()
+    home = Path.home()
+    if args.action == "run":
+        return background.run_service([Path(f) for f in args.folders], settings.data_dir, platform)
+    if args.action == "uninstall":
+        return background.uninstall(platform, home, runner=background.run_command, out=sys.stdout, err=sys.stderr)
+    if args.action == "status":
+        return background.status(platform, home, settings.data_dir, runner=background.run_command, out=sys.stdout)
+    folders = [Path(f).expanduser().resolve() for f in args.folders]
+    for folder in folders:
+        if not folder.is_dir():
+            print(f"locus service: no such folder: {folder}", file=sys.stderr)
+            return EXIT_USAGE
+    if needs_consent(settings):
+        print(
+            f"locus service: LOCUS_EMBEDDER={settings.embedder} sends chunk text to a hosted service and asks each "
+            "time; a background job cannot ask. Use the local embedder for the service, or run `locus watch` yourself.",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    plan = background.make_plan(platform, home, settings.data_dir, folders, _locus_command())
+    return background.install(
+        plan,
+        yes=args.yes,
+        dry_run=args.dry_run,
+        runner=background.run_command,
+        stdin=sys.stdin,
+        out=sys.stdout,
+        err=sys.stderr,
+    )
+
+
 def cmd_sync_notion(args: argparse.Namespace) -> int:
     from .ingest.indexer import index_folder
     from .ingest.notion_source import sync_notion
@@ -952,6 +997,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-initial", action="store_true", help="skip the initial full index")
     p.add_argument("-y", "--yes", action="store_true", help=yes_help)
     p.set_defaults(func=cmd_watch)
+
+    p = sub.add_parser(
+        "service",
+        help="run `locus watch` in the background (opt-in): install, uninstall or show the status",
+        description="install: write a launchd agent (macOS) or a systemd user unit (Linux) that keeps the folders "
+        "in sync at low priority, pauses on battery power and during `locus pause`. It shows what it will do and "
+        "asks first (--yes to skip the question, --dry-run to print the unit file and change nothing). "
+        "uninstall: stop it and delete the unit file. status: say whether it is installed and running.",
+    )
+    p.add_argument("action", choices=["install", "uninstall", "status", "run"], help="run is what the unit starts")
+    p.add_argument("folders", nargs="*", help="folders to keep in sync (install, run)")
+    p.add_argument("-y", "--yes", action="store_true", help="install without asking")
+    p.add_argument("--dry-run", action="store_true", help="install: print the unit file, write and start nothing")
+    p.set_defaults(func=cmd_service)
 
     p = sub.add_parser(
         "sync-notion",
