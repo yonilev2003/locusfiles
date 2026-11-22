@@ -1,6 +1,7 @@
 """The ONNX route of LocalEmbedder (fastembed), offline: `fastembed` is a fake module, no model, no network."""
 
 import sys
+import time
 import types
 
 import pytest
@@ -234,3 +235,44 @@ def test_e5_small_is_registered_with_fastembed_once_and_loaded_on_onnx():
     reg = _FakeTextEmbedding.registered[0]
     assert reg["model"] == E5 and reg["dim"] == 384 and reg["normalization"] is True and reg["pooling"] == "MEAN"
     assert reg["model_file"] == "onnx/model_qint8_avx512_vnni.onnx"
+
+
+E5 = "intfloat/multilingual-e5-small"
+
+
+def test_the_download_notice_gives_the_size_and_says_to_run_again_if_interrupted(capsys):
+    emb._announce_download(E5)
+    err = capsys.readouterr().err
+    assert "about 134 MB" in err and "run the same command again" in err
+
+
+def test_download_progress_reports_megabytes_from_the_partial_files_on_stderr_only(tmp_path, capsys):
+    blobs = tmp_path / ("models--" + E5.replace("/", "--")) / "blobs"
+    blobs.mkdir(parents=True)
+    (blobs / "abc.incomplete").write_bytes(b"x" * 5_000_000)
+    with emb._download_progress(E5, str(tmp_path), interval=0.01):
+        time.sleep(0.2)
+    captured = capsys.readouterr()
+    assert "model download 5 MB of about 134 MB" in captured.err
+    assert captured.out == ""
+
+
+def test_download_progress_mentions_bytes_an_earlier_attempt_left(tmp_path, capsys):
+    blobs = tmp_path / ("models--" + E5.replace("/", "--")) / "blobs"
+    blobs.mkdir(parents=True)
+    (blobs / "abc.incomplete").write_bytes(b"x" * 3_000_000)
+    with emb._download_progress(E5, str(tmp_path), interval=60):
+        pass
+    captured = capsys.readouterr()
+    assert "left 3 MB on disk" in captured.err
+    assert captured.out == ""
+
+
+def test_download_progress_is_silent_offline_and_when_nothing_is_cached(monkeypatch, tmp_path, capsys):
+    with emb._download_progress(E5, str(tmp_path), interval=60):
+        pass
+    assert capsys.readouterr().err == ""
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    with emb._download_progress(E5, str(tmp_path), interval=0.01):
+        time.sleep(0.05)
+    assert capsys.readouterr().err == ""
