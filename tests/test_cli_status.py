@@ -86,8 +86,8 @@ def test_status_before_any_index_says_none_yet(tmp_path, capsys, monkeypatch):
 def test_pending_number_is_the_one_diagnose_reports(world, capsys):
     root, _settings, store = world
     later = time.time() + 120
-    for p in list(root.glob("*.md"))[:3]:
-        os.utime(p, (later, later))
+    for name in ("f0.md", "f1.md", "f2.md"):  # explicit: glob order is filesystem-dependent and could hit f5
+        os.utime(root / name, (later, later))
     (root / "f5.md").unlink()
     out = _run(capsys)
     m = re.search(r"pending    : (\d+) changed on disk, (\d+) gone", out)
