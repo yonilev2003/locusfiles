@@ -1,4 +1,4 @@
-"""Local lexical (BM25) leg: a prototype, off by default and wired into nothing.
+"""Local lexical (BM25) leg for hybrid search: opt-in (LOCUS_LEXICAL=1), off by default.
 
 A SQLite FTS5 index next to the vector index (`<data_dir>/<collection>.lexical.sqlite`) that ranks chunks by
 BM25, plus a reciprocal-rank-fusion helper to combine its ranking with the dense one. SQLite and FTS5 are in
@@ -10,10 +10,11 @@ Two tokenisations, fixed in advance by the 2026-10-25 retrieval experiment and r
          token with a leading prefix letter (ו ב ל כ מ ה ש) or two-letter prefix (וה שה מה לה בה כש וב ול ומ וכ)
          stripped, so "בשולחן" is found by "שולחן". The same function builds the index text and the query terms.
 
-Opt-in: `lexical_enabled()` reads `LOCUS_LEXICAL` (1/true/yes/on). Nothing in the engine calls this module yet:
-`index_file`, `locus query` and `locus_search` neither write nor read it, with or without the variable. Wiring it in
-(an index-time write beside the Chroma upsert, a query-time fusion) is further work that needs its
-own change, a re-index of existing collections, and a measurement on real files.
+Opt-in: `lexical_enabled()` reads `LOCUS_LEXICAL` (1/true/yes/on). ChromaStore (store.py) wires it in: with the
+variable on, every upsert / delete_path also writes this index, and a query that carries its text fuses the vector
+ranking with BM25 by reciprocal rank fusion; `locus index --rebuild-lexical` rebuilds it from the chunk text already
+in Chroma. With the variable off the engine does not import this module and behaves exactly as before. Any failure
+here falls back to vector-only (logged on stderr, never stdout).
 """
 
 from __future__ import annotations

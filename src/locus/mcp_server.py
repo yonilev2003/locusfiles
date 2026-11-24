@@ -75,7 +75,7 @@ from .ingest.errors import (
 from .ingest.freshness import count_pending, freshen_for_serve
 from .ingest.parsers import format_pages, parse_file, parse_page_spec, read_pdf
 from .ingest.shared_embedder import start_helper_early
-from .ingest.store import Hit, VectorStore, _under
+from .ingest.store import Hit, VectorStore, _under, query_text_kwargs
 from .licence import INSTRUCTIONS_SENTENCE
 from .policy import secret_content
 from .relay_key import PUBLIC_KEY_ENV, PUBLIC_KEY_FIELD, parse_relay_public_key
@@ -565,7 +565,11 @@ async def locus_search(
             time_kwargs["order"] = "modified_desc"
         try:
             hits, hidden = _restr.visible_hits(
-                guard, lambda n: store.query(query_embedding, k=n, path_prefix=path_prefix, **time_kwargs), top_k
+                guard,
+                lambda n: store.query(
+                    query_embedding, k=n, path_prefix=path_prefix, **time_kwargs, **query_text_kwargs(query)
+                ),
+                top_k,
             )
         except Exception as exc:  # the local index, not the embedder: never blame the API key for it
             return _index_error_text(exc)

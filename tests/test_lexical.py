@@ -1,11 +1,11 @@
 """Night 3 P3: the local lexical (BM25) leg prototype. Synthetic text only.
 
-It is opt-in (LOCUS_LEXICAL), off by default, and wired into nothing: the last tests assert that indexing and
-searching behave exactly as before whether or not the variable is set.
+It is opt-in (LOCUS_LEXICAL), off by default; the store-level wiring is tested in test_hybrid_lexical.py.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +13,6 @@ from pathlib import Path
 import pytest
 
 from locus.config import DEFAULT_EXTENSIONS, Settings
-from locus.ingest import lexical
 from locus.ingest.lexical import (
     LexicalIndex,
     heb_tokens,
@@ -218,13 +217,8 @@ def _settings(tmp_path: Path) -> Settings:
     )
 
 
-@pytest.mark.parametrize("flag", [None, "1"])
-def test_indexing_and_search_are_identical_with_or_without_the_variable(tmp_path, monkeypatch, flag):
-    """Nothing calls the lexical module yet, so LOCUS_LEXICAL changes neither what is stored nor what is returned."""
-    if flag is None:
-        monkeypatch.delenv("LOCUS_LEXICAL", raising=False)
-    else:
-        monkeypatch.setenv("LOCUS_LEXICAL", flag)
+def test_indexing_and_search_with_the_variable_off_write_no_lexical_file(tmp_path, monkeypatch):
+    monkeypatch.delenv("LOCUS_LEXICAL", raising=False)
     notes = tmp_path / "notes"
     notes.mkdir()
     (notes / "a.md").write_text("The zebra crossing project was approved in March.")
@@ -234,15 +228,15 @@ def test_indexing_and_search_are_identical_with_or_without_the_variable(tmp_path
     store = ChromaStore(s.data_dir, s.collection, emb.name)
     index_folder(notes, emb, store, s, log=lambda _: None)
     assert store.count() == 2
-    hits = store.query(emb.embed_query("zebra crossing approved"), k=2)
+    hits = store.query(emb.embed_query("zebra crossing approved"), k=2, query_text="zebra crossing approved")
     assert hits[0].path.endswith("a.md")
     assert not list(s.data_dir.glob("*.lexical.sqlite"))  # no second file appeared
 
 
-def test_the_engine_does_not_import_the_lexical_module():
+def test_the_engine_does_not_import_the_lexical_module_while_the_variable_is_off():
     code = (
         "import sys, locus.mcp_server, locus.cli, locus.ingest.indexer, locus.ingest.store, locus.ingest.collection;"
         "sys.exit(1 if 'locus.ingest.lexical' in sys.modules else 0)"
     )
-    assert subprocess.run([sys.executable, "-c", code], capture_output=True).returncode == 0
-    assert lexical.__doc__ and "wired into nothing" in lexical.__doc__
+    env = {k: v for k, v in os.environ.items() if k != "LOCUS_LEXICAL"}
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True, env=env).returncode == 0
