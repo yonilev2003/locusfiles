@@ -212,7 +212,7 @@ The parse list is the default extension list in `src/locus/config.py` (`DEFAULT_
   checks; not measured).
 - **Index freshness.** Before `locus_search` and `locus_list_sources` answer, a bounded step (2 seconds by default)
   indexes new and changed files. On a very large folder it may take several calls, and removed files are cleaned up
-  fully with `locus index <folder> --prune`. Read in the code, not tested live.
+  fully with `locus index <folder> --prune`. Read in the code, tested live.
 
 ### Retrieval quality, measured (retrieval only, public passages)
 
