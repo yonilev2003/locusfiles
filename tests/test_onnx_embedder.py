@@ -246,6 +246,19 @@ def test_the_download_notice_gives_the_size_and_says_to_run_again_if_interrupted
     assert "about 134 MB" in err and "run the same command again" in err
 
 
+def test_the_torch_route_states_no_size_because_its_download_is_larger(tmp_path, capsys):
+    emb._announce_download(E5, "torch")
+    err = capsys.readouterr().err
+    assert "134" not in err and "MB" not in err and "run the same command again" in err
+    blobs = tmp_path / ("models--" + E5.replace("/", "--")) / "blobs"
+    blobs.mkdir(parents=True)
+    (blobs / "abc.incomplete").write_bytes(b"x" * 5_000_000)
+    with emb._download_progress(E5, str(tmp_path), interval=0.01, route="torch"):
+        time.sleep(0.2)
+    err = capsys.readouterr().err
+    assert "model download 5 MB ..." in err and "134" not in err
+
+
 def test_download_progress_reports_megabytes_from_the_partial_files_on_stderr_only(tmp_path, capsys):
     blobs = tmp_path / ("models--" + E5.replace("/", "--")) / "blobs"
     blobs.mkdir(parents=True)

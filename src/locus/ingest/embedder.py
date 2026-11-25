@@ -366,12 +366,13 @@ def prepare_hf_download() -> None:
     os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 
-def _announce_download(model: str) -> None:
+def _announce_download(model: str, route: str = "onnx") -> None:
     """Say on stderr that the first-run download starts (it is silent otherwise). Not when HF_HUB_OFFLINE is set:
-    nothing can be downloaded then, and the error that follows says so."""
+    nothing can be downloaded then, and the error that follows says so. The size is only given on the ONNX route:
+    the PyTorch route fetches different (larger) files, so no size is stated there."""
     if _hf_offline():
         return
-    size = _MODEL_DOWNLOAD_MB.get(model.lower())
+    size = _MODEL_DOWNLOAD_MB.get(model.lower()) if route == "onnx" else None
     about = f", about {size} MB" if size else ""
     print(
         f"Locus: downloading the embedding model {model} (first run only{about}). "
@@ -381,7 +382,8 @@ def _announce_download(model: str) -> None:
     )
 
 
-# Download size in MB of the model files Locus fetches (README Install: 134 MB). Only a hint for the progress line.
+# Download size in MB of the model files the ONNX route fetches (README Install: 134 MB). Only a hint for the progress
+# line; the PyTorch route downloads different files, so it states no size.
 _MODEL_DOWNLOAD_MB = {"intfloat/multilingual-e5-small": 134}
 
 
@@ -400,7 +402,7 @@ def _downloaded_bytes(model: str, cache_dir: str | None) -> int:
 
 
 @contextlib.contextmanager
-def _download_progress(model: str, cache_dir: str | None, interval: float = 3.0) -> Iterator[None]:
+def _download_progress(model: str, cache_dir: str | None, interval: float = 3.0, route: str = "onnx") -> Iterator[None]:
     """Print the megabytes downloaded so far to stderr (never stdout) every *interval* seconds while the body runs.
 
     huggingface_hub's own bar counts files, not bytes, so the one large file shows no movement; this reads the size of
@@ -410,7 +412,7 @@ def _download_progress(model: str, cache_dir: str | None, interval: float = 3.0)
         yield
         return
     done = threading.Event()
-    expected = _MODEL_DOWNLOAD_MB.get(model.lower())
+    expected = _MODEL_DOWNLOAD_MB.get(model.lower()) if route == "onnx" else None
     of = f" of about {expected} MB" if expected else ""
     start = _downloaded_bytes(model, cache_dir)
     if start >= 1_000_000:
@@ -640,8 +642,8 @@ class LocalEmbedder:
         except ImportError:
             raise
         except Exception:  # noqa: BLE001 - not downloaded yet, incomplete, or a test double without the argument
-            _announce_download(model)
-            with _download_progress(model, None):
+            _announce_download(model, "torch")
+            with _download_progress(model, None, route="torch"):
                 return SentenceTransformer(model, **kwargs)
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
