@@ -390,7 +390,10 @@ def index_file(
     if not text or not text.strip():
         store.delete_path(str(path))
         stats.files_skipped += 1
-        if not parsed.no_text:  # a scanned PDF has its own count and message
+        if parsed.skip_reason:
+            stats.note_skip(parsed.skip_reason, path)
+            log(f"not indexed: {path}: {SKIPPED_LABELS[parsed.skip_reason]}")
+        elif not parsed.no_text:  # a scanned PDF has its own count and message
             stats.note_skip("html_no_text" if path.suffix.lower() in _HTML_SUFFIXES else "no_text", path)
         return 0
     if secret_content(text):  # a credential whatever the name: never indexed, earlier entries removed

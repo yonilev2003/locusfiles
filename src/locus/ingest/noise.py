@@ -14,7 +14,8 @@ import re
 
 # Bump when what the parsers or the noise filters extract changes in a way old rows should not keep.
 # 1 = before the noise filter (rows carry no stamp); 2 = base64 stripped, base64 lines of a chunk dropped.
-PARSER_VERSION = 2
+# 3 = text read as UTF-16, cp1255 or cp1252 when sane.
+PARSER_VERSION = 3
 PARSER_VERSION_KEY = "parser_version"
 
 _DATA_URI = re.compile(r"data:[A-Za-z0-9.+/-]+(?:;[A-Za-z0-9=.+-]+)*;base64,[A-Za-z0-9+/_=-]+")
