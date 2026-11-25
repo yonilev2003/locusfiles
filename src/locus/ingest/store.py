@@ -20,9 +20,11 @@ import unicodedata
 import uuid
 from collections import Counter
 from collections.abc import Callable, Collection, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+from .noise import PARSER_VERSION, PARSER_VERSION_KEY
 
 # Collection metadata key for the RET-002 input_type policy ("v1" / "none", see embedder.py). Absent on
 # collections created before RET-002.
@@ -167,6 +169,12 @@ def _is_missing_collection(exc: Exception) -> bool:
     return isinstance(exc, ValueError) or type(exc).__name__ in {"NotFoundError", "InvalidCollectionException"}
 
 
+def _stamp(meta: dict[str, Any]) -> int:
+    """The parser version stamped on a chunk's metadata; 1 for rows written before the stamp existed."""
+    value = meta.get(PARSER_VERSION_KEY)
+    return int(value) if isinstance(value, int) else 1
+
+
 @dataclass
 class _PathSummary:
     """What ChromaStore._path_summary caches: per file the modified time it had when indexed, and the roots
@@ -177,9 +185,18 @@ class _PathSummary:
     path_roots: dict[str, tuple[str, ...]]  # path -> its chunks' distinct roots; "" holds those of chunks with no path
     root_counts: Counter[str]  # root -> how many entries of path_roots carry it
     roots: list[str]  # sorted(root_counts): the distinct roots
+    outdated: set[str] = field(default_factory=set)  # files an older parser indexed (parser_version below current)
 
-    def replace(self, paths: Collection[str], mtimes: dict[str, float | None], path_roots: dict[str, set[str]]) -> None:
+    def replace(
+        self,
+        paths: Collection[str],
+        mtimes: dict[str, float | None],
+        path_roots: dict[str, set[str]],
+        outdated: Collection[str] = (),
+    ) -> None:
         """Swap what is held for *paths* for what was just read for them; a path with no chunk left disappears."""
+        self.outdated.difference_update(paths)
+        self.outdated.update(outdated)
         for path in paths:
             self.mtimes.pop(path, None)
             for root in self.path_roots.pop(path, ()):
@@ -688,6 +705,15 @@ class ChromaStore:
         value = metas[0].get("file_hash")
         return (str(value) if value else None), _as_mtime(metas[0].get("mtime"))
 
+    def parser_version(self, path: str) -> int:
+        """The parser version stamped on *path*'s chunks when it was indexed; 1 for rows with no stamp
+        (indexed before the stamp existed) and for a path that is not indexed."""
+        with self._lock:
+            self._sync()
+            res = self._col.get(where={"path": {"$eq": path}}, limit=1, include=["metadatas"])
+        metas = res.get("metadatas") or []
+        return _stamp(metas[0]) if metas and metas[0] else 1
+
     def file_states(self) -> dict[str, tuple[str | None, float | None]]:
         """path -> (file_hash, mtime) for every indexed file, from ONE paged metadata read: what `file_state`
         returns per path, for a caller (`index --roots`) that would otherwise do one `get` per file seen.
@@ -704,7 +730,11 @@ class ChromaStore:
                     path = str(meta["path"])
                     if path not in states:  # every chunk of a file carries the same two values
                         value = meta.get("file_hash")
-                        states[path] = ((str(value) if value else None), _as_mtime(meta.get("mtime")))
+                        stale = _stamp(meta) < PARSER_VERSION  # an older parser: no recorded time, so it is redone
+                        states[path] = (
+                            (str(value) if value else None),
+                            None if stale else _as_mtime(meta.get("mtime")),
+                        )
         return states
 
     def list_paths(self) -> list[str]:
@@ -720,11 +750,14 @@ class ChromaStore:
             self._sync()
             return int(self._col.count())
 
-    def _read_summary(self, where: dict[str, Any] | None) -> tuple[dict[str, float | None], dict[str, set[str]]]:
+    def _read_summary(
+        self, where: dict[str, Any] | None
+    ) -> tuple[dict[str, float | None], dict[str, set[str]], set[str]]:
         """(path -> mtime at indexing, path -> distinct roots) from a paged read of the metadata of the chunks
         matching *where* (None: all). A path's mtime is the first one its chunks carry; "" stands for no path."""
         mtimes: dict[str, float | None] = {}
         roots: dict[str, set[str]] = {}
+        outdated: set[str] = set()
         for res in self._pages(where, ["metadatas"]):
             for meta in res.get("metadatas") or []:
                 if not meta:
@@ -732,9 +765,11 @@ class ChromaStore:
                 path = str(meta["path"]) if meta.get("path") else ""
                 if path and mtimes.get(path) is None:
                     mtimes[path] = _as_mtime(meta.get("mtime"))
+                if path and _stamp(meta) < PARSER_VERSION:
+                    outdated.add(path)
                 if meta.get("root"):
                     roots.setdefault(path, set()).add(sys.intern(str(meta["root"])))
-        return mtimes, roots
+        return mtimes, roots, outdated
 
     def _path_summary(self) -> tuple[dict[str, float | None], list[str]]:
         """(path -> mtime at indexing, distinct roots) from ONE paged read of every chunk's metadata (hold the
@@ -748,8 +783,8 @@ class ChromaStore:
             if self._dirty:
                 touched = sorted(self._dirty)
                 # reads first, changes after: a failed read leaves the summary and the touched set as they were
-                mtimes, roots = self._read_summary({"path": {"$in": touched}})
-                summary.replace(touched, mtimes, roots)
+                mtimes, roots, outdated = self._read_summary({"path": {"$in": touched}})
+                summary.replace(touched, mtimes, roots, outdated)
                 self._dirty = set()
             return summary.mtimes, summary.roots
         summary = _PathSummary(self._generation, {}, {}, Counter(), [])
@@ -764,6 +799,14 @@ class ChromaStore:
         with self._lock:
             self._sync()
             return dict(self._path_summary()[0])
+
+    def outdated_paths(self) -> set[str]:
+        """Indexed files whose chunks were written by an older parser (no stamp counts as version 1): freshness and
+        `index --roots` index them again even though the file did not change. Kept with the path summary."""
+        with self._lock:
+            self._sync()
+            self._path_summary()
+            return set(self._summary.outdated) if self._summary is not None else set()
 
     def has_path_under(self, prefix: str) -> bool:
         """True when some indexed file is *prefix* or inside it (a real folder boundary). One folder-scoped read that

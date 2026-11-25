@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from . import docformats
 from .hebrew_text_order import normalise_hebrew_pdf_text
+from .noise import strip_base64
 
 TEXT_EXTENSIONS: frozenset[str] = frozenset(
     {
@@ -139,8 +141,15 @@ def _is_repetitive_log(text: str) -> bool:
     return len({_DIGITS.sub("0", ln) for ln in lines}) < _LOG_MIN_UNIQUE_SHARE * len(lines)
 
 
-def parse_file(path: Path) -> str | None:
-    """Return the text content of *path*, or None if the format is unsupported or is machine-made noise."""
+def parse_file(path: Path, *, strip: bool = False) -> str | None:
+    """Return the text content of *path*, or None if the format is unsupported or is machine-made noise.
+    The text is as it is in the file, so the credential check sees all of it (a JWT's payload can be a 200-character
+    run); with *strip* base64 payloads (data: URIs, long base64 runs) are removed from it."""
+    text = _parse_raw(path)
+    return strip_base64(text) if strip and text else text
+
+
+def _parse_raw(path: Path) -> str | None:
     ext = path.suffix.lower()
     if ext in TEXT_EXTENSIONS:
         if noise_name_reason(path):
@@ -374,13 +383,24 @@ class Parsed:
     n_pages: int = 0
 
 
-def parse_document(path: Path) -> Parsed:
-    """parse_file, with PDF page boundaries and flags. Same text as parse_file."""
+def strip_parsed(parsed: Parsed) -> Parsed:
+    """*parsed* with base64 payloads removed from its text and, for a PDF, from each page."""
+    if parsed.pages:
+        pages = [(n, strip_base64(t)) for n, t in parsed.pages]
+        return dataclasses.replace(parsed, text="\n\n".join(t for _, t in pages), pages=pages)
+    return dataclasses.replace(parsed, text=strip_base64(parsed.text) if parsed.text else parsed.text)
+
+
+def parse_document(path: Path, *, strip: bool = True) -> Parsed:
+    """parse_file, with PDF page boundaries and flags. Base64 payloads are removed unless *strip* is False (the indexer
+    checks for credentials on the unstripped text first, then calls strip_parsed)."""
     if path.suffix.lower() == ".pdf":
         got = read_pdf(path)
         pages = None if got.no_text else got.pages
-        return Parsed(got.text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
-    return Parsed(parse_file(path))
+        parsed = Parsed(got.text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
+    else:
+        parsed = Parsed(parse_file(path))
+    return strip_parsed(parsed) if strip else parsed
 
 
 # Elements whose children are text that belongs to the paragraph (a hyperlink, a tracked insertion,
