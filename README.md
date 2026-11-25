@@ -642,6 +642,14 @@ commands, a malicious file could try to use those tools to carry file text out. 
 keep approval prompts on for tools that send or fetch, and do not combine Locus with such tools for folders that
 hold files from strangers (downloads, shared drives, email attachments).
 
+## Tell us what failed
+
+Something broke, or an answer was wrong? Run `locus feedback`. It opens a prefilled GitHub issue in your browser, only
+when you run it (`locus feedback --print` prints the address instead). The text holds the Locus version, Python
+version, operating system and embedder name, nothing else: no paths, file names, questions or index contents. Locus
+sends nothing itself, but opening the page is a request to github.com whose address contains that text, so GitHub
+receives it when the page opens, even if you close the tab. No issue is created unless you submit it.
+
 ## FAQ
 
 ### What is Locus?
