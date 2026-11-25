@@ -97,7 +97,7 @@ def test_no_chunk_marker_survives_a_new_process_and_resets_when_the_file_changes
     assert (settings.data_dir / "freshness-seen-night.json").exists()
     parses: list[str] = []
     real = indexer_module.parse_document
-    monkeypatch.setattr(indexer_module, "parse_document", lambda p: (parses.append(p.name), real(p))[1])
+    monkeypatch.setattr(indexer_module, "parse_document", lambda p, **kw: (parses.append(p.name), real(p, **kw))[1])
     again = freshen([root], matcher, embedder, store, settings, budget_s=5.0)  # a fresh pass reads the marker file
     assert parses == [] and again.errors == 0 and not again.cut_short
     (root / "empty.txt").write_text("now it has words")
@@ -118,10 +118,10 @@ def test_one_slow_empty_file_is_parsed_once_not_on_every_call(world, monkeypatch
     ticks = {"now": 0.0}
     real = indexer_module.parse_document
 
-    def slow(path):
+    def slow(path, **kw):
         if path.name == "a_scan.md":
             ticks["now"] += 10.0  # eats the whole budget, like a scanned PDF
-        return real(path)
+        return real(path, **kw)
 
     monkeypatch.setattr(indexer_module, "parse_document", slow)
     matcher = _matcher([root], tmp)

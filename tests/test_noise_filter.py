@@ -75,7 +75,7 @@ def test_drop_base64_lines_removes_wrapped_payload_and_keeps_the_prose_around_it
 
 
 def test_notebook_text_has_no_payload_in_markdown_or_code_cell(tmp_path: Path):
-    text = parse_file(_notebook(tmp_path / "a.ipynb")) or ""
+    text = parse_file(_notebook(tmp_path / "a.ipynb"), strip=True) or ""
     assert PAYLOAD[:50] not in text
     assert "Quarterly churn model" in text and "pricing and onboarding" in text
 
@@ -137,8 +137,8 @@ def test_the_read_path_checks_the_credential_on_the_unstripped_text(tmp_path: Pa
     note.write_text(f"token: {_jwt(400)}\n", encoding="utf-8")
     from locus.policy import secret_content
 
-    assert secret_content(parse_file(note, strip=False) or "")
-    assert not secret_content(parse_file(note) or "")  # the stripped text hides it: only the raw text may be checked
+    assert secret_content(parse_file(note) or "")  # what a read sees: the file as it is
+    assert not secret_content(parse_file(note, strip=True) or "")  # the stripped text hides it: never check that
 
 
 def test_old_row_is_reindexed_once_even_if_the_file_is_unchanged(tmp_path: Path):

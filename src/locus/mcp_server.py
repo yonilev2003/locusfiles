@@ -1180,7 +1180,7 @@ async def locus_read_file(
                         "(read later ones with `pages`); "
                     )
         else:
-            text = parse_file(file_path, strip=False) or ""  # as in the file: the credential check below sees it all
+            text = parse_file(file_path) or ""
     except PermissionError:  # UX-004 "no access": the file is there, this process may not read it
         return (
             f"Error: {path!r} is in the index, but Locus has no access to it on disk now (permission "

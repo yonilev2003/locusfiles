@@ -141,10 +141,10 @@ def _is_repetitive_log(text: str) -> bool:
     return len({_DIGITS.sub("0", ln) for ln in lines}) < _LOG_MIN_UNIQUE_SHARE * len(lines)
 
 
-def parse_file(path: Path, *, strip: bool = True) -> str | None:
+def parse_file(path: Path, *, strip: bool = False) -> str | None:
     """Return the text content of *path*, or None if the format is unsupported or is machine-made noise.
-    Base64 payloads (data: URIs, long base64 runs) are removed from the text of every format, unless *strip* is False:
-    the credential check must see the text as it is in the file (a JWT's payload can be a 200-character run)."""
+    The text is as it is in the file, so the credential check sees all of it (a JWT's payload can be a 200-character
+    run); with *strip* base64 payloads (data: URIs, long base64 runs) are removed from it."""
     text = _parse_raw(path)
     return strip_base64(text) if strip and text else text
 
@@ -392,13 +392,14 @@ def strip_parsed(parsed: Parsed) -> Parsed:
 
 
 def parse_document(path: Path, *, strip: bool = True) -> Parsed:
-    """parse_file, with PDF page boundaries and flags. Same text as parse_file (including *strip*)."""
+    """parse_file, with PDF page boundaries and flags. Base64 payloads are removed unless *strip* is False (the indexer
+    checks for credentials on the unstripped text first, then calls strip_parsed)."""
     if path.suffix.lower() == ".pdf":
         got = read_pdf(path)
         pages = None if got.no_text else got.pages
         parsed = Parsed(got.text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
     else:
-        parsed = Parsed(parse_file(path, strip=False))
+        parsed = Parsed(parse_file(path))
     return strip_parsed(parsed) if strip else parsed
 
 
