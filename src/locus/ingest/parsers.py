@@ -7,6 +7,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -145,7 +146,10 @@ def parse_file(path: Path, *, strip: bool = False) -> str | None:
     """Return the text content of *path*, or None if the format is unsupported or is machine-made noise.
     The text is as it is in the file, so the credential check sees all of it (a JWT's payload can be a 200-character
     run); with *strip* base64 payloads (data: URIs, long base64 runs) are removed from it."""
-    text = _parse_raw(path)
+    try:
+        text = _parse_raw(path)
+    except UnreadableText:  # no encoding made sense of the bytes: no text, the same as any file Locus cannot read
+        return None
     return strip_base64(text) if strip and text else text
 
 
@@ -196,6 +200,50 @@ def _cap_spreadsheet(text: str, cap: int | None) -> str:
 _UTF8_MAX_INVALID_SHARE = 0.05
 
 
+class UnreadableText(ValueError):
+    """The bytes of a text file decode to nothing that looks like text in any encoding Locus tries."""
+
+
+def _looks_sane(text: str) -> bool:
+    """True when *text* reads like text: at most 1% replacement characters, control characters or unassigned code
+    points. Garbage decoded with the wrong code page (or a binary file) fails this; an empty text passes."""
+    if not text:
+        return True
+    odd = sum(
+        1
+        for ch in text
+        if ch == "\ufffd" or (ch not in "\t\n\r\f" and unicodedata.category(ch) in ("Cc", "Co", "Cn", "Cs"))
+    )
+    return odd <= 0.01 * len(text)
+
+
+def _hebrew_share(text: str) -> float:
+    letters = [ch for ch in text if ch.isalpha()]
+    return sum(1 for ch in letters if "\u05d0" <= ch <= "\u05ea") / len(letters) if letters else 0.0
+
+
+def _legacy_decode(raw: bytes) -> str:
+    """Text that is neither UTF-8 nor UTF-16 with a byte-order mark: UTF-16 without one, then cp1255 (Hebrew
+    Windows) when most of the letters come out Hebrew, else cp1252. Raises UnreadableText when the result does not
+    look like text."""
+    if raw.count(b"\x00") >= 0.2 * len(
+        raw
+    ):  # UTF-16 without a byte-order mark: Latin text has a NUL in every other byte
+        even_nuls = raw[0::2].count(b"\x00")
+        odd_nuls = raw[1::2].count(b"\x00")
+        text = raw.decode("utf-16-be" if even_nuls > odd_nuls else "utf-16-le", errors="replace")
+        if _looks_sane(text):
+            return text
+        raise UnreadableText("utf-16")
+    hebrew = raw.decode("cp1255", errors="replace")
+    western = raw.decode("cp1252", errors="replace")
+    candidates = [hebrew, western] if _hebrew_share(hebrew) >= 0.5 else [western, hebrew]
+    for text in candidates:
+        if _looks_sane(text):
+            return text
+    raise UnreadableText("legacy")
+
+
 def _read_text(path: Path) -> str:
     # Detect common non-UTF-8 encodings instead of decoding everything as UTF-8 with
     # errors="ignore", which silently drops accented/non-ASCII characters and turns
@@ -205,6 +253,8 @@ def _read_text(path: Path) -> str:
         return raw.decode("utf-16", errors="replace")
     if raw.startswith(b"\xef\xbb\xbf"):
         return raw.decode("utf-8-sig", errors="replace")
+    if raw and raw.count(b"\x00") >= 0.2 * len(raw):  # NUL bytes are valid UTF-8, but this is UTF-16 with no BOM
+        return _legacy_decode(raw)
     try:
         return raw.decode("utf-8")
     except UnicodeDecodeError:
@@ -214,14 +264,11 @@ def _read_text(path: Path) -> str:
         # content is *not* valid UTF-8, not the file size: a long, mostly-ASCII cp1252 file has
         # a tiny replacement share too, but nearly all of its accented letters are invalid.
         lenient = raw.decode("utf-8", errors="replace")
-        bad = lenient.count("�") - raw.count(b"\xef\xbf\xbd")  # minus genuine U+FFFD in the file
+        bad = lenient.count("\ufffd") - raw.count(b"\xef\xbf\xbd")  # minus genuine U+FFFD in the file
         non_ascii = len(lenient) - len(lenient.encode("ascii", "ignore"))
         if bad <= _UTF8_MAX_INVALID_SHARE * non_ascii:
             return lenient
-        # cp1252 (Windows Latin-1 superset) maps every byte to *some* character, so this
-        # never raises — a reasonable fallback for legacy-encoded exports; still far better
-        # than silently dropping every non-ASCII character.
-        return raw.decode("cp1252", errors="replace")
+        return _legacy_decode(raw)
 
 
 # PDF guards (W4). Environment settings, read where used like the spreadsheet cap above.
@@ -381,6 +428,7 @@ class Parsed:
     truncated: bool = False
     pages_read: int = 0
     n_pages: int = 0
+    skip_reason: str | None = None  # why there is no text, when the parser knows: a key of indexer.SKIPPED_LABELS
 
 
 def strip_parsed(parsed: Parsed) -> Parsed:
@@ -399,7 +447,10 @@ def parse_document(path: Path, *, strip: bool = True) -> Parsed:
         pages = None if got.no_text else got.pages
         parsed = Parsed(got.text, pages, got.no_text, got.truncated, got.pages_read, got.n_pages)
     else:
-        parsed = Parsed(parse_file(path))
+        try:
+            parsed = Parsed(_parse_raw(path))
+        except UnreadableText:
+            parsed = Parsed(None, skip_reason="unreadable_encoding")
     return strip_parsed(parsed) if strip else parsed
 
 
