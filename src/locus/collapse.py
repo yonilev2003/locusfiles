@@ -41,15 +41,40 @@ def collapse_duplicates(hits: list[Hit]) -> list[Hit]:
     return rows
 
 
+PER_FILE_MAX = 2  # chunks one file may take in the first k results while other files match
+
+
+def _limit_per_file(rows: list[Hit]) -> list[int]:
+    """Indexes of *rows* (rank order) that keep at most PER_FILE_MAX chunks of any one file."""
+    taken: dict[str, int] = {}
+    keep: list[int] = []
+    for i, row in enumerate(rows):
+        if taken.get(row.path, 0) < PER_FILE_MAX:
+            taken[row.path] = taken.get(row.path, 0) + 1
+            keep.append(i)
+    return keep
+
+
 def visible_collapsed_hits(guard: Any, fetch: Callable[[int], list[Hit]], k: int) -> tuple[list[Hit], int]:
     """The first *k* visible hits after collapsing duplicates, and how many ranked hits the folder rules hid.
-    When duplicates leave fewer than *k* rows, more are fetched (up to restrictions.OVERFETCH_LIMIT) to fill the
-    page. `also_in` lists only copies among the hits fetched. `hidden` counts what was hidden before the last
-    kept row of the final fetch, so it can be a little high when a refill happened."""
+    At most PER_FILE_MAX chunks of one file come back while other files match (a 5 MB spreadsheet can rank all of the
+    top 10 otherwise); only when no other file matches does the page fill up with more chunks of the same file.
+    When duplicates or the per-file limit leave fewer than *k* rows, more are fetched (up to
+    restrictions.OVERFETCH_LIMIT) to fill the page. `also_in` lists only copies among the hits fetched. `hidden`
+    counts what was hidden before the last kept row of the final fetch, so it can be a little high when a refill
+    happened."""
     n = k
     while True:
         kept, hidden = restrictions.visible_hits(guard, fetch, n)
         rows = collapse_duplicates(kept)
-        if len(rows) >= k or len(kept) < n or n >= restrictions.OVERFETCH_LIMIT:
-            return rows[:k], hidden
+        keep = _limit_per_file(rows)
+        if len(keep) >= k:
+            return [rows[i] for i in keep[:k]], hidden
+        if len(kept) < n or n >= restrictions.OVERFETCH_LIMIT:  # nothing more to fetch: top up with the rest, in rank
+            chosen = set(keep)
+            for i in range(len(rows)):
+                if len(chosen) >= k:
+                    break
+                chosen.add(i)
+            return [rows[i] for i in sorted(chosen)], hidden
         n = min(n * 3, restrictions.OVERFETCH_LIMIT)
