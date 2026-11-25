@@ -39,6 +39,49 @@ Then ask Claude Code: *"Using Locus, what did I decide about pricing?"* Each sea
 the chunk number, so your assistant can cite where an answer came from. Other assistants:
 [Works with](#works-with). Try it first on the bundled [demo folder](#try-it-on-the-demo-folder).
 
+## Quick start for non-experts (pre-release)
+
+Locus `0.2.0rc2` is a **pre-release**: it is the version we are testing, and the older 0.1.4 is still what PyPI offers
+by default, so the commands below name the version. Tested on one Mac (Apple silicon); Windows is not verified.
+
+1. **Install `uv`**, the tool that installs Locus and brings its own Python
+   ([official instructions](https://docs.astral.sh/uv/getting-started/installation/)). On a Mac, open Terminal and run
+   `curl -LsSf https://astral.sh/uv/install.sh | sh`, then close the Terminal window and open a new one.
+2. **Check that it worked** with `uv --version`. If the Terminal says "command not found", the folder `uv` installs
+   into is not on your PATH yet: run `uv tool update-shell`, then close and reopen the Terminal.
+3. **Install Locus** (no account, no API key, about 530 MB in total):
+
+   ```bash
+   uv tool install --python 3.12 --prerelease allow "locusfiles[local]==0.2.0rc2"
+   ```
+
+4. **Check the install**: `locus doctor`. The first run downloads the embedding model (134 MB). On a slow
+   connection this can take several minutes; if it stops or fails, run the same command again and it continues.
+   Every line should end in OK. The first time, it also asks one question about commercial use (see
+   [Licence](#licence)); answer it and it continues.
+5. **Choose one small folder** and index it: `locus estimate ~/Documents/notes` shows the size first, then
+   `locus index ~/Documents/notes`.
+6. **Connect your assistant.** For Claude Code:
+   `claude mcp add --scope user locus -- "$(command -v locus)" serve`. Other assistants: [Connect your
+   assistant](#connect-your-assistant).
+
+Then ask your assistant: *"Using Locus, what did I decide about pricing?"* Assistants do not always call Locus by
+themselves, so naming it in the question helps.
+
+### What Locus can and cannot see
+
+- **Only the folders you name.** Nothing is indexed until you run `locus index <folder>` on it.
+- **New files appear without asking.** When your assistant searches through Locus with the on-device embedder (the
+  default), the indexed folders are rescanned first, within a 2 second budget, so a file you saved a minute ago is
+  usually found. If the budget runs out the answer says so.
+- **Downloads is closed** until you open it on purpose. Credentials, keys and browser profiles are left out by built-in folder rules.
+- **There is no list of recent files from your whole computer.** Locus only knows the modification times of files
+  inside the folders you indexed, so "what did I work on yesterday?" is answered from those folders only.
+- **Scans and photos are not read.** There is no OCR: a scanned PDF or a picture of text has no searchable text.
+- **A very large spreadsheet or CSV file can dominate the results** for some questions, because one big file produces
+  many matching pieces. If an answer is mostly one table, ask about a different file by name.
+- **The index is readable text, not encrypted.** It sits on your computer in `~/.locus`.
+
 ## Why Locus
 
 - **It finds the right files, not just matching words.** Semantic search across the folders you choose; the default
