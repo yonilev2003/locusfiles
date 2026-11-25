@@ -80,6 +80,10 @@ def _isolated(tmp_path, monkeypatch):
     os.environ["LOCUS_EMBEDDER"] = "local"
     os.environ["LOCUS_DATA_DIR"] = str(tmp_path / "data")
     os.environ["LOCUS_WARMUP"] = "1"
+    # These tests fake `sentence_transformers`. Deleting every LOCUS_ variable also deleted LOCUS_LOCAL_BACKEND, so on
+    # a machine with fastembed installed the ONNX route ran instead and loaded (or downloaded) the real model, and
+    # the proxy-refused watch case could hang forever. Pin the route the fakes stand in for.
+    os.environ["LOCUS_LOCAL_BACKEND"] = "torch"
     monkeypatch.setattr(config, "_SOURCE_CHECKOUT", None)
     work = tmp_path / "work"
     work.mkdir()
@@ -329,3 +333,14 @@ def test_a_model_already_on_this_computer_is_loaded_offline_first_and_a_missing_
     calls.clear()
     LocalEmbedder("not/downloaded")
     assert calls == [{"local_files_only": True}, {}]
+
+
+def test_the_isolation_pins_the_torch_route_even_when_fastembed_is_installed(monkeypatch):
+    """With fastembed importable, the ONNX route would load the real model; the fakes in this file need torch."""
+    fake = ModuleType("fastembed")
+    fake.TextEmbedding = object  # type: ignore[attr-defined]  # would be used (and fail) if the route were not forced
+    monkeypatch.setitem(sys.modules, "fastembed", fake)
+    from locus.ingest.embedder import local_backend
+
+    assert os.environ["LOCUS_LOCAL_BACKEND"] == "torch"
+    assert local_backend(MODEL) == ("torch", None)
