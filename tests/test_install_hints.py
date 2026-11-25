@@ -40,3 +40,18 @@ def test_a_final_release_keeps_the_plain_commands(monkeypatch):
     ):
         assert "--prerelease" not in text and "--pre" not in text
     assert 'uv tool install --reinstall --python 3.12 "locusfiles[local]"' in cli._local_extra_hint()
+
+
+def test_a_local_label_does_not_make_a_release_a_pre_release():
+    assert hints.is_prerelease("0.2.0+abc") is False and hints.is_prerelease("1.0.0.post1+local") is False
+    assert hints.is_prerelease("0.2.0rc3+local") is True
+
+
+def test_the_mcp_server_error_texts_carry_the_flags_too(monkeypatch):
+    import locus
+    from locus import mcp_server
+
+    monkeypatch.setattr(locus, "__version__", "0.2.0rc3")
+    assert "--prerelease allow" in hints.uv_install("relay")
+    src = open(mcp_server.__file__, encoding="utf-8").read()
+    assert 'uv tool install --reinstall --python 3.12 "locusfiles[' not in src  # every hint goes through hints.py

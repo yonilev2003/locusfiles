@@ -56,7 +56,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
-from . import __version__, closed_folders, killswitch, remote_guard, support
+from . import __version__, closed_folders, hints, killswitch, remote_guard, support
 from . import restrictions as _restr
 from .collapse import visible_collapsed_hits
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
@@ -1638,7 +1638,7 @@ async def locus_help(
         return support.with_language_line(
             "Locus's bundled help articles could not be read on this computer "
             f"({type(exc).__name__}), so this install looks damaged. Reinstall Locus with the tool you "
-            'installed it with: `uv tool install --reinstall --python 3.12 "locusfiles[local]"`, or with pipx: '
+            f"installed it with: `{hints.uv_install('local')}`, or with pipx: "
             "`pipx reinstall locusfiles`. Then restart the AI app. The Locus website's /support and "
             "/docs/connect pages cover the same topics."
         )
@@ -3087,9 +3087,10 @@ async def _run_relay_async(settings: Settings) -> int:
         print(
             f"error: --transport relay needs the `relay` extra, and {missing} could not be imported.\n"
             "Install it with the tool you installed Locus with: "
-            'uv tool install --reinstall --python 3.12 "locusfiles[relay]" '
+            f"{hints.uv_install('relay')} "
             '(with on-device embeddings: "locusfiles[local,relay]"), or with pipx: '
-            'pipx install --force "locusfiles[relay]" (or "locusfiles[local,relay]"). From a source '
+            f"{hints.pipx_install('relay')} "
+            '(or "locusfiles[local,relay]"). From a source '
             'checkout: pip install -e ".[relay]". Restarting won\'t help until it is installed.',
             file=sys.stderr,
         )

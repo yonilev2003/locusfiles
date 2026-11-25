@@ -14,9 +14,8 @@ def is_prerelease(version: str | None = None) -> bool:
     """True for a version with an alpha, beta, rc or dev part ("0.2.0rc3", "0.2.0.dev1"); default: the installed one."""
     if version is None:
         from . import __version__ as version
-    return bool(
-        re.search(r"(?:a|b|c|rc|alpha|beta|pre|preview|dev)[.\-_]?\d*", re.sub(r"^v?\d+(?:\.\d+)*", "", version))
-    )
+    rest = re.sub(r"^v?\d+(?:\.\d+)*", "", version.split("+")[0].lower())  # a local label ("+abc") says nothing
+    return bool(re.match(r"[.\-_]?(?:a|b|c|rc|alpha|beta|pre|preview|dev)[.\-_]?\d*", rest))
 
 
 def uv_install(extra: str, *, reinstall: bool = True) -> str:
