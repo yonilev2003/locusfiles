@@ -213,16 +213,16 @@ def test_indexing_a_parent_in_every_way_leaves_downloads_out(world, capsys, tmp_
     monkeypatch.setattr(cli, "get_settings", lambda: fresh_settings)
     monkeypatch.setattr(cli, "_components", lambda _s: (world.embedder, fresh))
     for argv in (
-        ("index", str(world.home), "--yes"),
+        ("index", str(world.home), "--all", "--yes"),
         ("index", "--roots", str(world.home), "--yes", "--all"),
-        ("index", str(world.home / "Documents" / ".."), "--yes"),
+        ("index", str(world.home / "Documents" / ".."), "--all", "--yes"),
     ):
         assert run(capsys, *argv)[0] == 0
         assert {Path(p).name for p in fresh.list_paths()} == {"plan.md"}, argv
 
 
 def test_a_prune_over_the_parent_removes_the_hidden_rows_for_good_and_says_how_many_files_are_closed(world, capsys):
-    code, out = run(capsys, "index", str(world.home), "--prune", "--yes")
+    code, out = run(capsys, "index", str(world.home), "--all", "--prune", "--yes")
     assert code == 0 and world.names() == {"plan.md"}
     assert "file(s) in ~/Downloads are closed" in out
 
@@ -230,7 +230,7 @@ def test_a_prune_over_the_parent_removes_the_hidden_rows_for_good_and_says_how_m
 def test_the_watcher_on_the_parent_does_not_pick_up_a_new_downloads_file(world, capsys):
     def watch() -> None:
         try:
-            cli.main(["watch", str(world.home), "--yes"])
+            cli.main(["watch", str(world.home), "--all", "--yes"])
         except BaseException:  # noqa: BLE001 - abandoned when the test ends, as in test_watcher.py
             pass
 

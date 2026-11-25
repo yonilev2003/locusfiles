@@ -326,6 +326,23 @@ def guard_for(settings: Any) -> Guard:
     return guard
 
 
+def mark_refused(kind: str) -> None:
+    """The running tool call is answering with a refusal (a path that is not indexed, one the folder rules close, a file
+    that holds a credential): the audit line carries `refused` with *kind*. A kind set earlier is kept."""
+    call = _CALL.get()
+    if call is not None and not call.refused:
+        call.refused = kind
+
+
+def audit_refused(data_dir: Path, tool: str, kind: str) -> None:
+    """One audit line for a command-line call that was refused (paused, folder rules, not an indexed file): no paths, no
+    characters, `refused` set. Never raises."""
+    try:
+        audit.log_call(data_dir, "cli", {"tool": tool, "client": "locus-cli", "paths": [], "chars": 0, "refused": kind})
+    except Exception:  # noqa: BLE001
+        return
+
+
 def note(*, paths: list[str] | None = None, hidden: int = 0, truncated: bool = False) -> None:
     """What the running tool call is about to return, for the audit log: the paths, how many results the folder rules
     hid, whether the answer was cut."""

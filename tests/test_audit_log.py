@@ -209,3 +209,34 @@ def test_the_audit_command_prints_counts_and_paths_only(world, capsys):
     with pytest.raises(SystemExit) as stop:
         cli.main(["audit", "--since", "yesterday"])
     assert stop.value.code == 2
+
+
+def test_a_read_of_a_path_that_is_not_indexed_is_logged_as_refused(world):
+    notes, settings = world
+    asyncio.run(srv.locus_read_file(path=str(notes.parent / "elsewhere.md")))
+    row = lines(settings)[0]
+    assert row["tool"] == "locus_read_file" and row["refused"] == "not_indexed" and row["paths"] == []
+
+
+def test_a_read_closed_by_the_folder_rules_is_logged_as_refused(world):
+    notes, settings = world
+    (settings.data_dir / "policy.toml").write_text(f'[deny]\npaths = ["{notes / "private"}"]\n', encoding="utf-8")
+    asyncio.run(srv.locus_read_file(path=str(notes / "private" / "diary.md")))
+    assert lines(settings)[0]["refused"] == "folder_rules"
+
+
+def test_a_successful_read_has_no_refused_field(world):
+    notes, settings = world
+    asyncio.run(srv.locus_read_file(path=str(notes / "plan.md")))
+    assert "refused" not in lines(settings)[0]
+
+
+def test_a_paused_command_line_query_is_logged_as_refused_and_counted(world, capsys):
+    notes, settings = world
+    killswitch.pause(settings.data_dir)
+    capsys.readouterr()
+    with pytest.raises(SystemExit):
+        cli.main(["query", QUERY, "--json"])
+    rows = audit.read_lines(settings.data_dir / "audit")
+    assert rows and rows[-1]["refused"] == "paused" and rows[-1]["client"] == "locus-cli"
+    assert audit.summarize(rows)["refused"] == 1

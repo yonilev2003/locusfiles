@@ -106,7 +106,7 @@ def test_a_walk_over_home_indexes_no_downloads_file(world):
 
 def test_the_run_summary_says_how_many_files_are_closed_and_how_to_open_them(world, capsys):
     home, _ = world
-    code, out, _ = run(capsys, "index", str(home), "--yes")
+    code, out, _ = run(capsys, "index", str(home), "--all", "--yes")
     assert code == 0
     assert "3 file(s) in ~/Downloads are closed: run `locus index ~/Downloads` to open (it asks first)." in out
     assert "lecture1" not in out and "bank-statement" not in out  # counts only, no file names
@@ -177,7 +177,7 @@ def test_index_downloads_with_yes_opens_it_and_indexes_all_three_files(world, ca
 def test_once_opened_a_walk_over_home_includes_it(world, capsys):
     home, settings = world
     assert run(capsys, "index", str(home / "Downloads"), "--yes")[0] == 0
-    assert run(capsys, "index", str(home), "--prune", "--yes")[0] == 0
+    assert run(capsys, "index", str(home), "--all", "--prune", "--yes")[0] == 0
     assert names(settings) == {"lecture1.md", "notes.md", "bank-statement.md", "plan.md"}
 
 
@@ -225,7 +225,7 @@ def test_a_sub_folder_entry_opens_only_that_sub_folder(world, capsys):
     assert m.decide(home / "Downloads" / "uni", is_dir=True).allowed
     assert m.decide(home / "Downloads", is_dir=True).allowed  # walked through on the way; its own files stay closed
     assert m.decide(home / "Downloads" / "other", is_dir=True).reason == "closed_folder"
-    assert run(capsys, "index", str(home), "--yes")[0] == 0
+    assert run(capsys, "index", str(home), "--all", "--yes")[0] == 0
     assert names(settings) == {"week1.md", "plan.md"}
 
 
@@ -372,7 +372,7 @@ def test_after_the_migration_a_prune_keeps_the_downloads_rows(world, capsys):
     home, settings = world
     _index_the_old_way(home, settings)
     run(capsys, "stats")  # any command that reads the index runs the migration first
-    assert run(capsys, "index", str(home), "--prune", "--yes")[0] == 0
+    assert run(capsys, "index", str(home), "--all", "--prune", "--yes")[0] == 0
     assert names(settings) == {"lecture1.md", "notes.md", "bank-statement.md", "plan.md"}
 
 

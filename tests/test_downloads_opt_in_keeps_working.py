@@ -147,7 +147,7 @@ def test_A3_rows_survive_the_upgrade_a_prune_and_a_freshness_pass(world, capsys)
     code, _, err = run(capsys, "stats")  # the upgrade: the first command that reads the index
     assert code == 0 and "closed folder from this version on" in err
 
-    assert run(capsys, "index", str(home), "--prune", "--yes")[0] == 0
+    assert run(capsys, "index", str(home), "--all", "--prune", "--yes")[0] == 0
     assert set(store_of(settings).list_paths()) == rows  # nothing dropped, nothing duplicated
 
     embedder, store = HashEmbedder(), store_of(settings)
