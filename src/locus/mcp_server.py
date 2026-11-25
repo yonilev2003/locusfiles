@@ -576,7 +576,7 @@ async def locus_search(
     elif order == "modified_desc":
         order_note = "modified_desc"
     _restr.note(
-        paths=[p for h in hits for p in (h.path, *h.also_in)],
+        paths=[p for h in hits for p in (h.path, *(p for p, _ in h.also_in))],
         hidden=hidden,
         truncated=sum(len(h.text) for h in hits) > SEARCH_CHAR_BUDGET,
     )
@@ -590,7 +590,7 @@ async def locus_search(
         hits,
         scored=query is not None,
         title_newest_first=newest_first,
-        untrusted=guard.untrusted([p for h in hits for p in (h.path, *h.also_in)]),
+        untrusted=guard.untrusted([p for h in hits for p in (h.path, *(p for p, _ in h.also_in))]),
     )
     if query is None and more_files:
         try:
@@ -933,9 +933,13 @@ def _format_search_results(
         # PDF chunks only; after the score, so "chunk N, score" still parses as before
         page = f", p.{hit.page}" if hit.page is not None else ""
         head = f"## {i}. {hit.path}  (chunk {hit.chunk_index}{score}{page}{when}, {size:,} chars"
-        mark = [_restr.UNTRUSTED_FOLDER_LINE] if untrusted.intersection((hit.path, *hit.also_in)) else []
+        mark = (
+            [_restr.UNTRUSTED_FOLDER_LINE] if untrusted.intersection((hit.path, *(p for p, _ in hit.also_in))) else []
+        )
         if hit.also_in:  # the same chunk text sits in these paths too (collapse.py): cite any of them
-            mark.append("also in: " + ", ".join(hit.also_in))
+            listed = ", ".join(f"{p} (chunk {i})" for p, i in hit.also_in)
+            more = f", and {hit.also_in_more} more" if hit.also_in_more else ""
+            mark.append(f"also in: {listed}{more}")
         if full == i - 1 and used + size <= budget:
             full = i
             used += size

@@ -65,8 +65,10 @@ class Hit:
     mtime: float | None = None
     # First page of the chunk for PDF chunks indexed with page numbers (1-based); None otherwise.
     page: int | None = None
-    # Other paths whose chunk has the same text, collapsed into this hit (collapse.py); empty when none.
-    also_in: tuple[str, ...] = ()
+    # Other (path, chunk_index) pairs whose chunk has the same text, collapsed into this hit (collapse.py); at most
+    # collapse.ALSO_IN_MAX of them, `also_in_more` counts the ones left out. Empty when none.
+    also_in: tuple[tuple[str, int], ...] = ()
+    also_in_more: int = 0
 
 
 class VectorStore(Protocol):

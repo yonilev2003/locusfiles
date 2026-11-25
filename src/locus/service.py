@@ -97,7 +97,9 @@ class SearchHit:
     page: int | None  # first PDF page of the chunk, 1-based
     text: str
     truncated: bool = False  # `text` was cut at the caller's per-hit limit
-    also_in: list[str] | None = None  # other paths with the same chunk text, collapsed into this row; omitted if none
+    # other copies of the same text collapsed into this row, each {"path", "chunk_index"}; at most 5; omitted if none
+    also_in: list[dict[str, Any]] | None = None
+    also_in_more: int = 0  # copies beyond the ones in `also_in`; omitted when 0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,6 +117,8 @@ class SearchResult:
         for row in data["results"]:
             if row.get("also_in") is None:
                 del row["also_in"]  # an optional field: absent unless the row stands for several copies
+            if not row.get("also_in_more"):
+                row.pop("also_in_more", None)
         return data
 
 
@@ -471,7 +475,8 @@ def _search_hit(hit: Hit, mcp: Any, scored: bool, max_chars: int | None) -> Sear
         page=hit.page,
         text=text,
         truncated=cut,
-        also_in=list(hit.also_in) or None,
+        also_in=[{"path": p, "chunk_index": i} for p, i in hit.also_in] or None,
+        also_in_more=hit.also_in_more,
     )
 
 
