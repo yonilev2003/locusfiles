@@ -222,6 +222,9 @@ def freshen(
     start = clock()
     scan_deadline, deadline = start + budget_s * _SCAN_SHARE, start + budget_s
     recorded = store.file_mtimes()  # type: ignore[attr-defined]  # one metadata read: path -> mtime at indexing
+    for outdated in getattr(store, "outdated_paths", set)():  # an older parser's rows: indexed again, file unchanged
+        if outdated in recorded:
+            recorded[outdated] = None
     live_roots = [Path(r) for r in roots if Path(r).is_dir()]  # a missing root (unmounted volume) deletes nothing
     root_texts = [str(r) for r in live_roots]
     nothing = _SeenNothing(settings.data_dir / f"freshness-seen-{settings.collection}.json")

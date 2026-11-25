@@ -158,3 +158,31 @@ def test_old_row_is_reindexed_once_even_if_the_file_is_unchanged(tmp_path: Path)
     assert index_file(note, tmp_path, embedder, store, settings, IndexStats(), log=log) > 0
     assert store.parser_version(str(note)) == PARSER_VERSION
     assert index_file(note, tmp_path, embedder, store, settings, IndexStats(), log=log) == 0
+
+
+def test_freshness_and_index_roots_redo_a_file_an_older_parser_indexed_without_touching_it(tmp_path: Path):
+    from locus.ingest.freshness import freshen
+    from locus.policy import Matcher, Policy
+
+    store, embedder, settings = _store(tmp_path)
+    root = tmp_path / "notes"
+    root.mkdir()
+    note = root / "n.md"
+    note.write_text("# Plan\n\nPricing decision and launch risks.\n", encoding="utf-8")
+    matcher = Matcher(Policy(roots=(str(root),)), tmp_path)
+    freshen([root], matcher, embedder, store, settings, budget_s=5.0)
+    assert store.parser_version(str(note)) == PARSER_VERSION
+    assert str(note) not in store.outdated_paths()
+
+    got = store._col.get(include=["metadatas", "documents", "embeddings"])
+    old = [{k: v for k, v in m.items() if k != "parser_version"} for m in got["metadatas"]]
+    store._col.delete(ids=got["ids"])
+    store._col.upsert(ids=got["ids"], embeddings=got["embeddings"], documents=got["documents"], metadatas=old)
+    store = ChromaStore(settings.data_dir, settings.collection, embedder.name)  # a new process: no cached summary
+    assert store.parser_version(str(note)) == 1
+    assert str(note) in store.outdated_paths()  # an old row: nothing may skip it
+    assert store.file_states()[str(note)][1] is None
+
+    freshen([root], matcher, embedder, store, settings, budget_s=5.0)  # the file itself did not change
+    assert store.parser_version(str(note)) == PARSER_VERSION
+    assert str(note) not in store.outdated_paths()
