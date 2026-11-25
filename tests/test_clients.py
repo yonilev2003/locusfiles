@@ -21,7 +21,7 @@ import pytest
 from locus import cli, clients, config, licence
 from locus.config import get_settings
 
-JSON_CLIENTS = ["claude-desktop", "cursor", "copilot", "gemini-cli"]
+JSON_CLIENTS = ["claude-desktop", "cursor", "copilot", "vscode", "gemini-cli"]
 FILE_CLIENTS = [*JSON_CLIENTS, "codex"]
 NO_FILE_CLIENTS = ["claude-code", "windsurf", "lm-studio", "agents-md"]
 
@@ -110,6 +110,8 @@ def test_tested_strings_are_the_recorded_forms_and_follow_the_matrix():
         "cursor": "older record only (pre-release, 2026-09-16)",
         "codex": "earlier engine only (0.1.0, 2026-10-01)",
         "copilot": "earlier engine only (0.1.0, 2026-10-01)",
+        "vscode": "not tested",
+        "vscode-workspace": "not tested",
         "gemini-cli": "not tested",
         "windsurf": "not tested",
         "lm-studio": "not tested",
@@ -140,6 +142,8 @@ def test_the_first_set_of_clients_is_there():
         "cursor",
         "codex",
         "copilot",
+        "vscode",
+        "vscode-workspace",
         "gemini-cli",
         "windsurf",
         "lm-studio",
@@ -175,6 +179,8 @@ WINDOWS_DESKTOP = "C:\\Users\\me\\AppData\\Roaming\\Claude\\claude_desktop_confi
         ("copilot", "macos", MAC, "/Users/me/.copilot/mcp-config.json"),
         ("copilot", "linux", ("/home/me", {"COPILOT_HOME": "/opt/copilot"}), "/opt/copilot/mcp-config.json"),
         ("copilot", "windows", WIN, "C:\\Users\\me\\.copilot\\mcp-config.json"),
+        ("vscode", "macos", MAC, "/Users/me/.copilot/mcp-config.json"),
+        ("vscode", "windows", WIN, "C:\\Users\\me\\.copilot\\mcp-config.json"),
         ("gemini-cli", "macos", MAC, "/Users/me/.gemini/settings.json"),
         ("gemini-cli", "linux", LIN, "/home/me/.gemini/settings.json"),
         ("gemini-cli", "windows", WIN, "C:\\Users\\me\\.gemini\\settings.json"),
@@ -195,6 +201,9 @@ def test_resolved_config_path_per_client_and_os(name, os_name, where, expected):
         ("codex", "linux", "~/.codex/config.toml"),
         ("copilot", "macos", "~/.copilot/mcp-config.json"),
         ("copilot", "windows", "%USERPROFILE%\\.copilot\\mcp-config.json"),
+        ("vscode", "macos", "~/.copilot/mcp-config.json"),
+        ("vscode-workspace", "macos", ".mcp.json"),
+        ("vscode-workspace", "windows", ".mcp.json"),
         ("gemini-cli", "macos", "~/.gemini/settings.json"),
     ],
 )
@@ -245,6 +254,27 @@ def test_the_printed_json_snippet_is_the_entry(run, exe, name):
     _, out, _ = run("--client", name, "--command", exe)
     snippet = out[out.index("{") : out.rindex("}") + 1]
     assert json.loads(snippet) == {"mcpServers": {"locus": {"command": exe, "args": ["serve"]}}}
+
+
+def test_vscode_workspace_file_is_dot_mcp_json_in_the_folder_the_command_runs_from(run, tmp_path, exe):
+    _, out, _ = run("--client", "vscode-workspace", "--command", exe)
+    assert str(tmp_path / ".mcp.json") in out
+    assert ".vscode" not in out.split("Add this under", 1)[0]
+
+
+def test_vscode_workspace_write_keeps_other_servers_and_backs_up(run, exe, tmp_path):
+    path = tmp_path / ".mcp.json"
+    other = {"command": "npx", "args": ["-y", "x"]}
+    original = write_json(path, {"mcpServers": {"other": other}}, indent=4)
+    code, out, _ = run("--client", "vscode-workspace", "--command", exe, "--write", "--yes")
+    data = json.loads(path.read_text())
+    assert code == 0 and data["mcpServers"]["other"] == other
+    assert data["mcpServers"]["locus"] == {"command": exe, "args": ["serve"]}
+    assert "servers" not in data and [b.read_bytes() for b in backups(path)] == [original]
+
+
+def test_vscode_user_file_is_the_copilot_file(home):
+    assert config_path("vscode", home) == config_path("copilot", home)
 
 
 def test_the_printed_toml_snippet_is_the_table(run, exe):

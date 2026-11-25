@@ -84,7 +84,7 @@ def _url(host: str, *parts: str) -> str:
 class Location:
     """Where a config file lives: a base folder that depends on the OS and the path below it."""
 
-    base: str  # home | appdata | xdg_config | copilot_home
+    base: str  # home | appdata | xdg_config | copilot_home | cwd
     rel: tuple[str, ...]
 
 
@@ -124,6 +124,14 @@ Answer only from what it returns and cite the file path of every result you use 
 `chunk_index`). If nothing relevant comes back, say so instead of guessing.
 """
 AGENTS_NOTE = "The --json flag of `locus query` requires Locus 0.2.0 or later."
+
+VSCODE_DOCS = (_url("code.visualstudio.com", "docs", "agents", "reference", "mcp-configuration"),)
+VSCODE_NOTES = (
+    "VS Code's current page (read 2026-11-22) names two native destinations for GitHub Copilot, both with a top-level "
+    '"mcpServers" object: .mcp.json at the workspace root and ~/.copilot/mcp-config.json for the user. The older '
+    '.vscode/mcp.json with a "servers" object belongs to the deprecated Local harness and is not written.',
+    "Not tested with VS Code and GitHub Copilot at all; this is the documented shape.",
+)
 
 REGISTRY: tuple[Client, ...] = (
     Client(
@@ -207,6 +215,33 @@ REGISTRY: tuple[Client, ...] = (
             "Only command, args and env are written. Copilot CLI 1.0.96 reads such an entry as a local server with "
             "all tools (checked with `copilot mcp get locus` in a scratch folder on 2026-11-17: that shows how the "
             "file is read, not a connection).",
+        ),
+    ),
+    Client(
+        name="vscode",
+        label="VS Code (GitHub Copilot), user",
+        kind=JSON_KIND,
+        locations=_everywhere("copilot_home", "mcp-config.json"),
+        docs=VSCODE_DOCS,
+        tested=TESTED_NOT,
+        notes=VSCODE_NOTES
+        + (
+            "This is the same file as `--client copilot`: ~/.copilot/mcp-config.json, or $COPILOT_HOME/mcp-config.json "
+            "when COPILOT_HOME is set. It is listed under this name so that a VS Code user finds it.",
+        ),
+    ),
+    Client(
+        name="vscode-workspace",
+        label="VS Code (GitHub Copilot), this workspace",
+        kind=JSON_KIND,
+        locations=_everywhere("cwd", ".mcp.json"),
+        docs=VSCODE_DOCS,
+        tested=TESTED_NOT,
+        notes=VSCODE_NOTES
+        + (
+            "The file is .mcp.json in the folder you run this command from: run it at the root of the workspace. A "
+            "file in a workspace is often committed and shared, and it holds the absolute path of locus on this "
+            "computer, so check before committing it.",
         ),
     ),
     Client(
@@ -299,6 +334,7 @@ def display_path(client: Client, os_name: str) -> str | None:
         "appdata": "%APPDATA%",
         "xdg_config": "~/.config",
         "copilot_home": "%USERPROFILE%\\.copilot" if win else "~/.copilot",
+        "cwd": ".",
     }
     return str(_pure(os_name)(roots[loc.base], *loc.rel))
 
@@ -316,6 +352,8 @@ def resolve_path(client: Client, os_name: str, env: Mapping[str, str], home: str
         root = pure(xdg) if xdg and pure(xdg).is_absolute() else pure(home, ".config")
     elif loc.base == "copilot_home":
         root = pure(env["COPILOT_HOME"]) if env.get("COPILOT_HOME") else pure(home, ".copilot")
+    elif loc.base == "cwd":
+        root = pure(os.getcwd())  # only meaningful for the OS this computer runs
     else:
         root = pure(home)
     return str(root.joinpath(*loc.rel))
