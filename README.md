@@ -182,6 +182,8 @@ The parse list is the default extension list in `src/locus/config.py` (`DEFAULT_
   not verified.
 - Hosted modes and Notion sync refuse to run unless `LOCUS_ENABLE_HOSTED=1` or `LOCUS_ENABLE_NOTION=1`. Read from
   the source on 2026-11-14 in an AI-assisted review run by us; **no independent audit**.
+- `locus status --check-update` makes one request to PyPI to read the newest version; without the flag `locus status`
+  makes none.
 - The library that runs the embedding model (ONNX Runtime 1.31 and later) has its own usage telemetry on macOS and
   Linux; Locus switches it off. Details, and what was and was not verified, are under "What leaves your computer".
 
@@ -527,6 +529,10 @@ each would send or write if you do.
   setting existed can have left a device-ID file and a queue database in ONNX Runtime's own folder under your user
   folder (on macOS, `~/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime/`); they are not Locus's
   and you can delete them.
+- **`locus status --check-update` (only when you add that flag).** One HTTPS request to
+  `https://pypi.org/pypi/locusfiles/json` (a fixed address, with a short timeout of 5 seconds per step) to read the newest stable version.
+  Nothing is sent but the request itself, which PyPI sees like any download request (your IP address). Without the
+  flag, `locus status` makes no network call.
 - **Your own provider key (`voyage`, `openai`).** Chunk text goes from your computer to that provider when you
   index, and each search query goes the same way, under your own account. `locus index` shows what would be sent
   and where, and asks first.
