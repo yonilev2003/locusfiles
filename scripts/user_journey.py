@@ -10,7 +10,7 @@ README tells a user to do and checks what a user would see:
 Standard library only, so it runs the same on macOS, Linux and Windows. Exit code 0 only if every step passed.
 
   python scripts/user_journey.py                                    # from this checkout's `locusfiles[local]`
-  python scripts/user_journey.py --package "locusfiles[local]==0.2.0rc2" --prerelease   # from PyPI
+  python scripts/user_journey.py --package "locusfiles[local]==0.2.0rc3" --prerelease   # from PyPI
   python scripts/user_journey.py --report journey.json              # also write a machine-readable report
 
 The real embedding model is used (first run downloads it); `--fresh-model` also ignores any cached copy.

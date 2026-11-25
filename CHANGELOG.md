@@ -20,6 +20,25 @@ same model were measured as equivalent, so that part needs no re-index.
 already held files from Downloads, Locus carries that over once and says so on stderr; otherwise open it with
 `locus index ~/Downloads --yes`.
 
+### Since `0.2.0rc2`
+
+- Search: identical chunks collapse into one row (`also_in` lists up to five other copies with their chunk numbers and a
+  count of the rest); at most two chunks of one file in the first results while other files match, so one large
+  spreadsheet cannot fill a page; parallel searches share one freshness run.
+- Indexing: base64 payloads are removed and only the base64 lines of a chunk are dropped, the credential check runs on
+  the text before anything is stripped, and files indexed by an older parser are indexed once more; text files in UTF-16,
+  cp1255 (Hebrew Windows) or cp1252 are read when the result looks sane and skipped with a notice otherwise; the end
+  of `locus index` lists skipped files by reason with names; a Markdown note named like `design-tokens.md` is no
+  longer refused by name.
+- Commands: `locus status` (read-only; `--check-update` is the one optional request, to PyPI), `locus quickstart`,
+  `locus feedback` (the page address with version, Python, OS and embedder reaches GitHub when it opens),
+  `locus --version`. The home folder is refused as a single folder to index, watch or quickstart unless `--all`.
+- Setup and help: model download shows progress and gives a retry message on a timeout; reinstall hints carry
+  `--prerelease allow` while a pre-release is installed; `locus setup --client claude-desktop` prints the line to paste
+  into Claude's profile; `locus doctor` names the Claude Desktop log on macOS; the server announces its name, title,
+  description, website and icon; the audit log marks refused calls.
+- CI: a timeout on every job; the macOS jobs of the Smoke and User-journey workflows use `macos-latest`.
+
 ### Since `0.2.0rc1`
 
 - **Security fix:** a file is now refused by content, not just by name, when it holds a credential of a
