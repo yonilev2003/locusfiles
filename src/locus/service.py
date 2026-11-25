@@ -101,6 +101,10 @@ class SearchHit:
     also_in: list[dict[str, Any]] | None = None
     also_in_more: int = 0  # copies beyond the ones in `also_in`; omitted when 0
 
+    def all_paths(self) -> list[str]:
+        """Every path this row shows: its own and those listed in `also_in` (what an audit line must name)."""
+        return [self.path, *(d["path"] for d in self.also_in or [])]
+
 
 @dataclass(frozen=True, kw_only=True)
 class SearchResult:

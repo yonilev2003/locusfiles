@@ -508,7 +508,7 @@ class ApiApp:
             200,
             result.to_dict(),
             results=len(result.results),
-            paths=list(dict.fromkeys(h.path for h in result.results)),
+            paths=list(dict.fromkeys(p for h in result.results for p in h.all_paths())),
         )
 
     def _sources(self, request: SourcesQuery) -> Reply:

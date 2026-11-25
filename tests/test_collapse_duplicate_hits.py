@@ -124,3 +124,14 @@ def test_a_capped_row_says_how_many_more_in_the_mcp_text_and_json(tmp_path, monk
     assert len(row["also_in"]) == 5 and row["also_in_more"] == 5  # 11 copies: one shown, five listed, five counted
     text = asyncio.run(srv.locus_search(query="pricing decision tiers yearly discount", top_k=20))
     assert "and 5 more" in text and text.count("(chunk 0)") == 5
+
+
+def test_the_audit_line_names_every_path_a_collapsed_row_showed(tmp_path, monkeypatch):
+    from locus import audit, restrictions
+
+    engine, root = _setup(tmp_path, monkeypatch)
+    result = engine.search("pricing decision tiers yearly discount", k=5)
+    restrictions.audit_service(tmp_path / "data", "query", result)
+    paths = [p for line in audit.read_lines(tmp_path / "data" / "audit") for p in line["paths"]]
+    for folder in ("project", "backup", "archive"):
+        assert str(root / folder / "pricing.md") in paths
