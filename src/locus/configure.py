@@ -41,7 +41,7 @@ from typing import Any, TextIO
 
 from dotenv import dotenv_values
 
-from . import config, support
+from . import config, hints, support
 from .config import Settings, get_settings
 
 EXIT_SAVED = 0
@@ -408,8 +408,8 @@ def run_setup(
             print(
                 "locus setup: note: on-device embeddings need the `local` extra "
                 "(about 530 MB installed, with the model). "
-                'Install it with `uv tool install --reinstall --python 3.12 "locusfiles[local]"` (or pipx: '
-                '`pipx install --force "locusfiles[local]"`) before you index.',
+                f"Install it with `{hints.uv_install('local')}` (or pipx: "
+                f"`{hints.pipx_install('local')}`) before you index.",
                 file=stderr,
             )
     if collection is not None:

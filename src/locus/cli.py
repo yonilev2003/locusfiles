@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
-from . import audit, closed_folders, killswitch, restrictions
+from . import audit, closed_folders, hints, killswitch, restrictions
 from .config import Settings, get_settings, require_hosted, require_notion
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, input_type_status
@@ -782,18 +782,21 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 # locus doctor's install hints: uv first, then pipx (README.md installs from PyPI that way); the
 # source-checkout form comes last, for contributors.
-_REINSTALL_HINT = (
-    "reinstall with the tool you installed Locus with: "
-    'uv tool install --reinstall --python 3.12 "locusfiles[local]" (keep the extras you installed, '
-    'e.g. "locusfiles[relay]"), or pipx reinstall locusfiles. '
-    "From a source checkout: pip install -e '.[dev]'"
-)
-_LOCAL_EXTRA_HINT = (
-    "install the local extra: "
-    'uv tool install --reinstall --python 3.12 "locusfiles[local]", or '
-    'pipx install --force "locusfiles[local]". '
-    "From a source checkout: pip install -e '.[dev,local]'"
-)
+def _reinstall_hint() -> str:
+    return (
+        "reinstall with the tool you installed Locus with: "
+        f"{hints.uv_install('local')} (keep the extras you installed, "
+        f'e.g. "locusfiles[relay]"), or {hints.pipx_reinstall()}. '
+        "From a source checkout: pip install -e '.[dev]'"
+    )
+
+
+def _local_extra_hint() -> str:
+    return (
+        "install the local extra: "
+        f"{hints.uv_install('local')}, or {hints.pipx_install('local')}. "
+        "From a source checkout: pip install -e '.[dev,local]'"
+    )
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
@@ -819,7 +822,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             __import__(mod)
             check(f"dependency: {mod}", True)
         except ImportError as exc:
-            check(f"dependency: {mod}", False, f"not importable ({exc}) — {_REINSTALL_HINT}")
+            check(f"dependency: {mod}", False, f"not importable ({exc}) — {_reinstall_hint()}")
 
     try:
         settings = get_settings()
@@ -848,7 +851,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         if backend == "onnx":
             check("dependency: fastembed (on-device ONNX; LOCUS_EMBEDDER=local)", True)
         elif backend == "onnx-missing":
-            check("dependency: fastembed (LOCUS_LOCAL_BACKEND=onnx)", False, _LOCAL_EXTRA_HINT)
+            check("dependency: fastembed (LOCUS_LOCAL_BACKEND=onnx)", False, _local_extra_hint())
         elif backend == "torch":
             try:
                 import sentence_transformers  # noqa: F401
@@ -858,7 +861,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
                 check(
                     "dependency: fastembed or sentence-transformers (LOCUS_EMBEDDER=local)",
                     False,
-                    _LOCAL_EXTRA_HINT,
+                    _local_extra_hint(),
                 )
     elif settings.embedder == "managed":
         check(
