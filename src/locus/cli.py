@@ -804,6 +804,9 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
 
     print("\n2/5 estimate")
     t = time.monotonic()
+    if not folder.expanduser().is_dir():
+        print(f"{folder} is not a folder on this computer; check the spelling, or drag the folder into the terminal.")
+        return fail("estimate", t, EXIT_NEEDS_YES)
     got = _scan_and_estimate(str(folder), 10.0)
     if isinstance(got, int):
         return fail("estimate", t, got)
@@ -813,11 +816,13 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
 
     print("\n3/5 index")
     t = time.monotonic()
-    matcher = _deny_list_for(folder, settings)
+    rerun = _command("locus", "quickstart", str(folder), flags={"--yes": True})
+    # The same closed-folder rules and prompt as `locus index FOLDER`: Downloads is asked about once, or refused
+    # without a terminal and without --yes.
+    matcher = _deny_list_for(folder, settings, ask=(args.yes, rerun))
     if isinstance(matcher, int):
         return fail("index", t, matcher)
     embedder, store = _components(settings)
-    rerun = _command("locus", "quickstart", str(folder), flags={"--yes": True})
     refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
     if refused is not None:
         return fail("index", t, refused)
@@ -836,6 +841,14 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
     code = _report(stats)
     if code:
         return fail("index", t, code)
+    here = str(folder.expanduser().resolve())
+    if stats.files_indexed == 0 and not any(p == here or p.startswith(here + os.sep) for p in store.list_paths()):
+        print(
+            f"Nothing was indexed from {folder}: {stats.files_seen} files seen, {stats.files_skipped} skipped, "
+            f"{stats.denied} left out by the folder rules. Locus reads text, Markdown, Word, PDF with text and "
+            "similar files (not scans or photos); point it at a folder that has some."
+        )
+        return fail("index", t, 1)
     stage("index", t)
 
     print(f"\n4/5 connect {args.client}")

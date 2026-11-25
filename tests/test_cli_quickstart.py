@@ -79,3 +79,34 @@ def test_a_missing_folder_stops_with_the_stage_and_the_rerun_command(home, capsy
     with pytest.raises(SystemExit) as stop:
         cli.main(["quickstart", str(tmp_path / "nope")])
     assert stop.value.code != 0
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert "quickstart stopped at estimate" in text and "re-run `locus quickstart " in text
+    assert str(tmp_path / "nope") in text
+
+
+def test_a_folder_with_nothing_to_index_stops_with_a_clear_message(home, capsys, tmp_path):
+    folder = tmp_path / "empty"
+    folder.mkdir()
+    (folder / "photo.jpg").write_bytes(b"\xff\xd8\xff")
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["quickstart", str(folder)])
+    out = capsys.readouterr()
+    text = out.out + out.err
+    assert stop.value.code == 1
+    assert f"Nothing was indexed from {folder}" in text and "not scans or photos" in text
+    assert "quickstart stopped at index" in text and "5/5 sample query" not in text
+
+
+def test_quickstart_asks_about_a_closed_folder_like_index_does(home, capsys, monkeypatch):
+    downloads = home / "Downloads"
+    downloads.mkdir()
+    (downloads / "note.md").write_text("a note about the roadmap\n", encoding="utf-8")
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["quickstart", str(downloads)])  # no terminal, no --yes
+    out = capsys.readouterr()
+    assert stop.value.code == 2 and "quickstart stopped at index" in out.out
+    assert "Downloads" in out.out + out.err and "--yes" in out.out + out.err
+    assert not any("seen=" in line for line in out.out.splitlines())  # nothing was indexed
