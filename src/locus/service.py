@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from . import __version__, restrictions
+from .collapse import visible_collapsed_hits
 from .config import Settings, get_settings
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable
@@ -96,6 +97,13 @@ class SearchHit:
     page: int | None  # first PDF page of the chunk, 1-based
     text: str
     truncated: bool = False  # `text` was cut at the caller's per-hit limit
+    # other copies of the same text collapsed into this row, each {"path", "chunk_index"}; at most 5; omitted if none
+    also_in: list[dict[str, Any]] | None = None
+    also_in_more: int = 0  # copies beyond the ones in `also_in`; omitted when 0
+
+    def all_paths(self) -> list[str]:
+        """Every path this row shows: its own and those listed in `also_in` (what an audit line must name)."""
+        return [self.path, *(d["path"] for d in self.also_in or [])]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -109,7 +117,13 @@ class SearchResult:
     content_notice: str = CONTENT_NOTICE
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        data = asdict(self)
+        for row in data["results"]:
+            if row.get("also_in") is None:
+                del row["also_in"]  # an optional field: absent unless the row stands for several copies
+            if not row.get("also_in_more"):
+                row.pop("also_in_more", None)
+        return data
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -282,7 +296,7 @@ class Engine:
                         f"The query could not be embedded ({type(exc).__name__}). Nothing was searched.",
                     ) from exc
                 try:
-                    hits, hidden = restrictions.visible_hits(
+                    hits, hidden = visible_collapsed_hits(
                         guard, lambda n: store.query(vector, k=n, path_prefix=path_prefix, **time_kwargs), k
                     )
                 except Exception as exc:  # noqa: BLE001
@@ -465,6 +479,8 @@ def _search_hit(hit: Hit, mcp: Any, scored: bool, max_chars: int | None) -> Sear
         page=hit.page,
         text=text,
         truncated=cut,
+        also_in=[{"path": p, "chunk_index": i} for p, i in hit.also_in] or None,
+        also_in_more=hit.also_in_more,
     )
 
 

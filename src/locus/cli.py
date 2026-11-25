@@ -1,6 +1,6 @@
 """Command-line entry point.
 
-locus index | estimate | query | serve | watch | sync-notion | stats | doctor | setup | license
+locus index | estimate | quickstart | query | serve | watch | sync-notion | stats | doctor | setup | license
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import os
 import platform
 import shlex
 import sys
+import time
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -308,21 +309,32 @@ def _existing_store(settings: Settings) -> ChromaStore | None:
         return None
 
 
+def _scan_and_estimate(folder: str, sample_seconds: float):
+    """The folder walked and estimated as `locus index` would see it: (settings, scan, estimate, chunk line), or an
+    exit code when the deny-list cannot be read."""
+    from .ingest.chunk_policy import settings_for_preview
+    from .ingest.estimator import estimate, scan
+
+    settings = get_settings()
+    matcher = _deny_list_for(Path(folder), settings)
+    if isinstance(matcher, int):
+        return matcher
+    settings, chunk_line = settings_for_preview(settings, _existing_store(settings))
+    result = scan(Path(folder), settings, matcher)
+    return settings, result, estimate(result.files, settings, sample_seconds=sample_seconds), chunk_line
+
+
 def cmd_estimate(args: argparse.Namespace) -> int:
     """PROD-012: files, bytes by type and estimated tokens for a folder. Builds no embedder and
     opens no connection (the local embedder alone would download a model)."""
     import json
 
-    from .ingest.chunk_policy import settings_for_preview
-    from .ingest.estimator import estimate, render_estimate, scan
+    from .ingest.estimator import render_estimate
 
-    settings = get_settings()
-    matcher = _deny_list_for(Path(args.folder), settings)
-    if isinstance(matcher, int):
-        return matcher
-    settings, chunk_line = settings_for_preview(settings, _existing_store(settings))
-    result = scan(Path(args.folder), settings, matcher)
-    est = estimate(result.files, settings, sample_seconds=args.sample_seconds)
+    got = _scan_and_estimate(args.folder, args.sample_seconds)
+    if isinstance(got, int):
+        return got
+    settings, result, est, chunk_line = got
     if args.json:
         payload = {
             "root": str(result.root),
@@ -628,6 +640,146 @@ def cmd_stats(_: argparse.Namespace) -> int:
     return 0
 
 
+_PYPI_URL = "https://pypi.org/pypi/locusfiles/json"
+
+
+def _latest_version() -> str | None:
+    """The newest released version, from one HTTPS GET to PyPI. Only `locus status --check-update` calls this."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(_PYPI_URL, timeout=5) as resp:  # noqa: S310 - fixed https URL
+            return str(json.load(resp)["info"]["version"])
+    except Exception:  # noqa: BLE001 - offline, blocked, malformed: the caller prints "could not check"
+        return None
+
+
+def _version_key(version: str) -> tuple:
+    """Sortable form of a PEP 440-style version ("0.2.0.dev1" < "0.2.0rc3" < "0.2.0" < "0.2.0.post1" < "0.2.1");
+    () when it cannot be read. Accepts the common spellings (rc3, .rc3, -rc.3, c3, alpha1, beta2) and drops a
+    local part after "+". A pre-release (or dev release) sorts before the final release of the same number."""
+    import re
+
+    m = re.match(r"v?(\d+(?:\.\d+)*)(.*)$", version.strip().lower().split("+")[0])
+    if not m:
+        return ()
+    nums = tuple(int(n) for n in m.group(1).split("."))
+    nums += (0,) * (4 - len(nums))
+    rest = m.group(2)
+    pre = re.match(r"[._-]?(a|alpha|b|beta|c|rc|pre|preview)[._-]?(\d*)", rest)
+    if pre:
+        stage = {"a": 0, "alpha": 0, "b": 1, "beta": 1}.get(pre.group(1), 2)
+        return (nums, stage, int(pre.group(2) or 0), 0)
+    if re.match(r"[._-]?dev", rest):
+        return (nums, -1, 0, 0)
+    return (nums, 3, 0, 1 if re.match(r"[._-]?post", rest) else 0)
+
+
+def _update_note(installed: str, latest: str | None) -> str:
+    """One line for `locus status --check-update`. PyPI's `info.version` is the newest *stable* release, so a
+    pre-release newer than it is not told that the older stable one is the latest."""
+    if latest is None:
+        return "could not check"
+    have, newest = _version_key(installed), _version_key(latest)
+    if not have or not newest:
+        return latest
+    if newest == have:
+        return f"{latest} (up to date)"
+    if newest > have:
+        return f"{latest} (newer than the {installed} you run)"
+    kind = "a pre-release" if have[1] < 3 else "newer"
+    return f"nothing newer than {installed} (the newest stable release on PyPI is {latest}; yours is {kind})"
+
+
+def _clients_with_locus() -> tuple[list[str], list[str]]:
+    """(clients whose config file has a `locus` entry, clients we cannot check). Read-only: reads files, writes none."""
+    import re
+
+    from . import clients
+
+    os_name, found, unchecked = clients.current_os(), [], []
+    for client in clients.REGISTRY:
+        path = clients.resolve_path(client, os_name, os.environ, str(Path.home())) if client.writes_files else None
+        if path is None:
+            unchecked.append(client.name)
+            continue
+        try:
+            text = Path(path).read_text(encoding="utf-8")
+        except OSError:
+            continue  # no config file: not configured
+        if re.search(r'"locus"\s*:|\.locus\]', text):
+            found.append(client.name)
+    return found, unchecked
+
+
+def _ago(timestamp: float | None) -> str:
+    if timestamp is None:
+        return "unknown"
+    from datetime import UTC, datetime
+
+    hours = max(0.0, (time.time() - timestamp) / 3600)
+    age = f"{hours:.0f} h ago" if hours < 48 else f"{hours / 24:.0f} days ago"
+    return f"{datetime.fromtimestamp(timestamp, UTC):%Y-%m-%d %H:%M} UTC ({age})"
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """One screen of read-only facts. Opens the index without creating it, loads no embedding model, and makes no
+    network call unless --check-update is given."""
+    from . import __version__
+    from .ingest.embedder import expected_embedder_name
+    from .ingest.freshness import count_pending
+
+    settings = get_settings()
+    try:
+        embedder = expected_embedder_name(settings)
+    except RuntimeError:
+        embedder = settings.embedder
+    store = _existing_store(settings)
+    info: dict = {"version": __version__, "embedder": embedder, "paused": killswitch.paused_by(settings.data_dir)}
+    if store is None:
+        info["index"] = None
+    else:
+        counts = count_pending(store)
+        info["index"] = {
+            "files": len(store.list_paths()),
+            "chunks": store.count(),
+            "last_change": getattr(store, "last_write_time", lambda: None)(),
+            "pending": None
+            if counts is None
+            else {"changed": counts.changed, "gone": counts.gone, "scope": counts.scope},
+        }
+    found, unchecked = _clients_with_locus()
+    info["clients"] = {"configured": found, "not_checked": unchecked}
+    if args.check_update:
+        info["latest_version"] = _latest_version()  # PyPI's newest stable release
+
+    if args.json:
+        _emit_json(info)
+        return 0
+    print(f"version    : {__version__}")
+    if args.check_update:
+        latest = info["latest_version"]
+        print(f"latest     : {_update_note(__version__, latest)}")
+    idx = info["index"]
+    if idx is None:
+        print("index      : none yet (run `locus index <folder>`)")
+    else:
+        print(f"index      : {idx['files']} files, {idx['chunks']} chunks, last change {_ago(idx['last_change'])}")
+        pend = idx["pending"]
+        print(
+            "pending    : not checked"
+            if pend is None
+            else f"pending    : {pend['changed']} changed on disk, {pend['gone']} gone ({pend['scope']})"
+        )
+    reason = info["paused"]
+    print("paused     : " + ("no" if reason is None else "yes (LOCUS_DISABLED is set)" if reason == "env" else "yes"))
+    print(f"embedder   : {embedder}")
+    configured = ", ".join(found) or "none found"
+    print(f"clients    : {configured}")
+    print(f"             not checked (no config file to read): {', '.join(unchecked)}")
+    return 0
+
+
 # locus doctor's install hints: uv first, then pipx (README.md installs from PyPI that way); the
 # source-checkout form comes last, for contributors.
 _REINSTALL_HINT = (
@@ -797,6 +949,127 @@ def cmd_setup(args: argparse.Namespace) -> int:
         return run_client_setup(args)
     mode = "managed" if args.managed else "local"
     return run_setup(mode, collection=args.collection, new_key=args.new_key, skip_check=args.skip_check).code
+
+
+def cmd_quickstart(args: argparse.Namespace) -> int:
+    """First-run path: doctor, estimate, index (with progress and an ETA), the client entry, one sample query. Each
+    step is the command of the same name, so nothing here is a second implementation; the time of each is printed."""
+    import time
+
+    from .clients import run_client_setup
+    from .ingest.estimator import render_estimate
+    from .ingest.indexer import index_folder
+
+    folder = Path(args.folder)
+    stages: list[tuple[str, float]] = []
+
+    def stage(name: str, started: float) -> None:
+        stages.append((name, time.monotonic() - started))
+
+    def fail(name: str, started: float, code: int) -> int:
+        stage(name, started)
+        _print_stage_times(stages)
+        print(f"quickstart stopped at {name} (exit {code}); fix that, then re-run `locus quickstart {folder}`.")
+        return code or 1
+
+    print("1/5 doctor")
+    t = time.monotonic()
+    code = cmd_doctor(argparse.Namespace(remote=None, token_env=None))
+    if code:
+        return fail("doctor", t, code)
+    stage("doctor", t)
+
+    print("\n2/5 estimate")
+    t = time.monotonic()
+    if not folder.expanduser().is_dir():
+        print(f"{folder} is not a folder on this computer; check the spelling, or drag the folder into the terminal.")
+        return fail("estimate", t, EXIT_NEEDS_YES)
+    got = _scan_and_estimate(str(folder), 10.0)
+    if isinstance(got, int):
+        return fail("estimate", t, got)
+    settings, result, est, _ = got
+    print(render_estimate(result, est, settings))
+    stage("estimate", t)
+
+    print("\n3/5 index")
+    t = time.monotonic()
+    rerun = _command("locus", "quickstart", str(folder), flags={"--yes": True})
+    # The same closed-folder rules and prompt as `locus index FOLDER`: Downloads is asked about once, or refused
+    # without a terminal and without --yes.
+    matcher = _deny_list_for(folder, settings, ask=(args.yes, rerun))
+    if isinstance(matcher, int):
+        return fail("index", t, matcher)
+    embedder, store = _components(settings)
+    refused = _consent_gate(folder, settings, store, assume_yes=args.yes, rerun=rerun, matcher=matcher)
+    if refused is not None:
+        return fail("index", t, refused)
+    last = 0.0
+
+    def progress(stats: IndexStats) -> None:
+        nonlocal last
+        done, now = stats.files_indexed + stats.files_skipped + len(stats.errors), time.monotonic()
+        if now - last < 1.0 and done < est.files:
+            return
+        last = now
+        eta = (now - t) / done * max(est.files - done, 0) if done else 0.0
+        print(f"  {done}/{est.files} files, about {eta:.0f}s left", flush=True)
+
+    stats = index_folder(folder, embedder, store, settings, matcher=matcher, on_file=progress)
+    code = _report(stats)
+    if code:
+        return fail("index", t, code)
+    here = str(folder.expanduser().resolve())
+    if stats.files_indexed == 0 and not any(p == here or p.startswith(here + os.sep) for p in store.list_paths()):
+        print(
+            f"Nothing was indexed from {folder}: {stats.files_seen} files seen, {stats.files_skipped} skipped, "
+            f"{stats.denied} left out by the folder rules. Locus reads text, Markdown, Word, PDF with text and "
+            "similar files (not scans or photos); point it at a folder that has some."
+        )
+        return fail("index", t, 1)
+    stage("index", t)
+
+    print(f"\n4/5 connect {args.client}")
+    t = time.monotonic()
+    code = run_client_setup(
+        argparse.Namespace(
+            client=args.client,
+            list_clients=False,
+            write=args.write,
+            print_only=not args.write,
+            yes=args.yes,
+            remove=False,
+            target_os="auto",
+            command=None,
+            env=None,
+            collection=None,
+            new_key=False,
+            skip_check=False,
+        )  # fmt: skip
+    )
+    stage("connect", t)
+    if code:  # declined or refused: the answer below does not depend on it
+        print("(the client entry was not written; the index and the query below are unaffected)")
+
+    print("\n5/5 sample query")
+    t = time.monotonic()
+    paths = [p for p in store.list_paths() if p == here or p.startswith(here + os.sep)]  # this folder, not an older one
+    question = Path(paths[0]).stem.replace("-", " ").replace("_", " ") if paths else ""
+    print(f'locus query "{question}"')
+    code = cmd_query(argparse.Namespace(query=question, json=False, k=3, prefix=here, width=100)) if paths else 1
+    if code:
+        return fail("query", t, code)
+    stage("query", t)
+
+    _print_stage_times(stages)
+    print(f"Next: ask your assistant a question about {folder.name}; it should cite these file paths.")
+    return 0
+
+
+def _print_stage_times(stages: list[tuple[str, float]]) -> None:
+    print("\nTime per stage:")
+    for name, seconds in stages:
+        print(f"  {name:<10}{seconds:7.1f} s")
+    print(f"  {'total':<10}{sum(s for _, s in stages):7.1f} s")
 
 
 def _os_env(name: str) -> str:
@@ -1010,6 +1283,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_stats)
 
     p = sub.add_parser(
+        "status",
+        help="one screen: version, index size, files pending, paused, embedder, clients (read-only)",
+        description="Read-only. Makes no network call unless --check-update is given.",
+    )
+    p.add_argument("--check-update", action="store_true", help="ask PyPI for the newest version (one HTTPS request)")
+    p.add_argument("--json", action="store_true", help="print the same facts as JSON")
+    p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser(
         "pause",
         help="stop the file tools at once (search, list sources, read file, the local API, query --json)",
         description="Creates <data dir>/PAUSED. Every AI app that runs `locus serve` from this data folder gets one "
@@ -1052,6 +1334,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --remote: the environment variable that holds the token (default LOCUS_MCP_TOKEN)",
     )
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser(
+        "quickstart",
+        help="first run in one command: check, estimate, index a folder, connect an AI app, try one query",
+        description="Runs doctor, estimate, index, the client entry (printed; --write adds it after showing the file "
+        "and asking, with a backup) and one sample query on the folder, and prints the time of each step.",
+    )
+    p.add_argument("folder")
+    p.add_argument(
+        "--client", default="claude-code", metavar="NAME", help="the AI app to connect (default claude-code)"
+    )
+    p.add_argument("--write", action="store_true", help="write the client entry instead of printing it (asks first)")
+    p.add_argument("-y", "--yes", action="store_true", help="do not ask: confirms a hosted embedder and --write")
+    p.set_defaults(func=cmd_quickstart)
 
     p = sub.add_parser(
         "license",

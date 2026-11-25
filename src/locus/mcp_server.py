@@ -58,6 +58,7 @@ from pydantic import Field, ValidationError
 
 from . import __version__, closed_folders, killswitch, remote_guard, support
 from . import restrictions as _restr
+from .collapse import visible_collapsed_hits
 from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
@@ -72,7 +73,7 @@ from .ingest.errors import (
     SubscriptionInactive,
     client_outdated_message,
 )
-from .ingest.freshness import freshen_for_serve
+from .ingest.freshness import count_pending, freshen_for_serve
 from .ingest.parsers import format_pages, parse_file, parse_page_spec, read_pdf
 from .ingest.shared_embedder import start_helper_early
 from .ingest.store import Hit, VectorStore, _under
@@ -564,7 +565,7 @@ async def locus_search(
         if order == "modified_desc":
             time_kwargs["order"] = "modified_desc"
         try:
-            hits, hidden = _restr.visible_hits(
+            hits, hidden = visible_collapsed_hits(
                 guard, lambda n: store.query(query_embedding, k=n, path_prefix=path_prefix, **time_kwargs), top_k
             )
         except Exception as exc:  # the local index, not the embedder: never blame the API key for it
@@ -575,7 +576,9 @@ async def locus_search(
     elif order == "modified_desc":
         order_note = "modified_desc"
     _restr.note(
-        paths=[h.path for h in hits], hidden=hidden, truncated=sum(len(h.text) for h in hits) > SEARCH_CHAR_BUDGET
+        paths=[p for h in hits for p in (h.path, *(p for p, _ in h.also_in))],
+        hidden=hidden,
+        truncated=sum(len(h.text) for h in hits) > SEARCH_CHAR_BUDGET,
     )
     header = _search_header(after_ts, before_ts, path_prefix, order_note)
     if not hits:
@@ -587,7 +590,7 @@ async def locus_search(
         hits,
         scored=query is not None,
         title_newest_first=newest_first,
-        untrusted=guard.untrusted([h.path for h in hits]),
+        untrusted=guard.untrusted([p for h in hits for p in (h.path, *(p for p, _ in h.also_in))]),
     )
     if query is None and more_files:
         try:
@@ -761,8 +764,6 @@ NOTHING_SEARCHED = "Nothing was searched, so this does not mean that nothing mat
 # Indexed and current modified times closer than this count as equal (the indexer stores the exact
 # st_mtime float, so an untouched file compares equal; the slack only absorbs rounding).
 _MTIME_SLACK = 1e-3
-# locus_diagnose_connection stats at most this many indexed files (one stat each, counts only).
-FRESHNESS_CHECK_LIMIT = 20_000
 
 
 def _provider_of(embedder_name: str) -> tuple[str, str | None]:
@@ -930,7 +931,13 @@ def _format_search_results(
         # PDF chunks only; after the score, so "chunk N, score" still parses as before
         page = f", p.{hit.page}" if hit.page is not None else ""
         head = f"## {i}. {hit.path}  (chunk {hit.chunk_index}{score}{page}{when}, {size:,} chars"
-        mark = [_restr.UNTRUSTED_FOLDER_LINE] if hit.path in untrusted else []
+        mark = (
+            [_restr.UNTRUSTED_FOLDER_LINE] if untrusted.intersection((hit.path, *(p for p, _ in hit.also_in))) else []
+        )
+        if hit.also_in:  # the same chunk text sits in these paths too (collapse.py): cite any of them
+            listed = ", ".join(f"{p} (chunk {i})" for p, i in hit.also_in)
+            more = f", and {hit.also_in_more} more" if hit.also_in_more else ""
+            mark.append(f"also in: {listed}{more}")
         if full == i - 1 and used + size <= budget:
             full = i
             used += size
@@ -1506,47 +1513,27 @@ async def locus_diagnose_connection(
 def _index_state_lines(store: VectorStore) -> list[str]:
     """UX-004: the index state in the plan's words (4.4.6): not_indexed, stale or ready, from the
     modified time each file had when it was indexed against the one it has now (one stat per file,
-    at most FRESHNESS_CHECK_LIMIT), plus when the index last changed. Counts and times only, never
+    at most freshness.CHECK_LIMIT, one second), plus when the index last changed. Counts and times only, never
     a path. Files added to an indexed folder since are not counted: finding them means walking the
     folders, which this check does not do."""
-    file_mtimes = getattr(store, "file_mtimes", None)
-    if file_mtimes is None:
-        return []
     try:
-        recorded: dict[str, float | None] = file_mtimes()
+        counts = count_pending(store)
     except Exception as exc:  # noqa: BLE001 - a diagnostic reports, it does not fail
         return [f"index state: unknown ({type(exc).__name__})"]
-    if not recorded:
+    if counts is None:
+        return []
+    if counts.total == 0:
         return ["index state: not_indexed (nothing is indexed in this collection yet: run `locus index <folder>`)"]
-    changed = missing = unchecked = checked = 0
-    for path, mtime in recorded.items():
-        if checked >= FRESHNESS_CHECK_LIMIT:
-            break
-        checked += 1
-        if mtime is None:
-            unchecked += 1
-            continue
-        try:
-            current = os.stat(path).st_mtime
-        except FileNotFoundError:
-            missing += 1
-            continue
-        except OSError:
-            unchecked += 1
-            continue
-        if abs(current - mtime) > _MTIME_SLACK:
-            changed += 1
-    total = len(recorded)
-    scope = f"checked {checked} of {total} indexed files" if checked < total else f"checked all {total} indexed files"
-    if changed or missing:
+    scope = counts.scope
+    if counts.stale:
         lines = [
-            f"index state: stale ({changed} changed on disk and {missing} gone since they were indexed; {scope}) "
-            "— refresh with `locus index <folder> --prune`, or keep `locus watch <folder>` running"
+            f"index state: stale ({counts.changed} changed on disk and {counts.gone} gone since they were indexed; "
+            f"{scope}) — refresh with `locus index <folder> --prune`, or keep `locus watch <folder>` running"
         ]
     else:
         lines = [f"index state: ready (no indexed file changed on disk since it was indexed; {scope})"]
-    if unchecked:
-        lines.append(f"  not checked: {unchecked} file(s) (no recorded modified time, or not readable)")
+    if counts.unchecked:
+        lines.append(f"  not checked: {counts.unchecked} file(s) (no recorded modified time, or not readable)")
     lines.append(f"  last index change: {_when(getattr(store, 'last_write_time', lambda: None)())}")
     return lines
 
