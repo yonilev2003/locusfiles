@@ -123,6 +123,17 @@ _SECRET_WORDS = frozenset(
         "cookies",
     }
 )
+# "token" in the name of a Markdown note is not a credential name only when every other word in the name is a topic
+# word from the list below (`design-tokens.md`, `token-economics.md`); content checks (`secret_content`) still apply.
+# A note called just `tokens.md`, any other qualifier (`api-token.md`, `stripe-token.md`, `token-backup.md`), every
+# other secret word, and "token" in other file types (`api-token.txt`, `accessToken.json`) keep the file out.
+_TOKEN_WORDS = frozenset({"token", "tokens"})
+_TOKEN_TOPIC_WORDS = frozenset(
+    {"design", "economics", "css", "theme", "themes", "color", "colors", "brand", "style", "styles", "ui", "tailwind",
+     "figma", "w3c", "llm", "context", "count", "counting", "limit", "limits", "usage", "budget", "model", "notes",
+     "note", "guide", "spec", "specs", "system", "pricing", "cost", "costs", "language", "parser", "lexer", "ideas"}
+)  # fmt: skip
+_PROSE_SUFFIXES = (".md", ".markdown", ".mdx", ".rst")
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _NON_WORD = re.compile(r"[^a-z0-9]+")
 
@@ -284,7 +295,13 @@ def secret_name(name: str) -> bool:
     if low.endswith(_SECRET_SUFFIXES):
         return True
     words = _NON_WORD.split(_CAMEL.sub(" ", name).casefold())
-    return bool(_SECRET_WORDS.intersection(words)) or "apikey" in "".join(words)
+    found = _SECRET_WORDS.intersection(words)
+    if found and found <= _TOKEN_WORDS and low.endswith(_PROSE_SUFFIXES):
+        stem = [w for w in _NON_WORD.split(_CAMEL.sub(" ", name.rsplit(".", 1)[0]).casefold()) if w]
+        others = [w for w in stem if w not in _TOKEN_WORDS]
+        if others and all(w in _TOKEN_TOPIC_WORDS for w in others):
+            found = frozenset()  # `design-tokens.md` is a note about design tokens; what is inside is still checked
+    return bool(found) or "apikey" in "".join(words)
 
 
 # Content that is a credential whatever the file is called. Conservative on purpose: each pattern is a fixed,

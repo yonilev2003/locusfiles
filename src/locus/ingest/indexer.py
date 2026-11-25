@@ -81,6 +81,11 @@ class IndexStats:
     stop: IndexStop | None = None
     files_pending: int = 0
     pending_paths: list[str] = field(default_factory=list)
+    # Files left out of the index and why (a key of SKIPPED_LABELS) -> their paths, for the end-of-run report.
+    skipped_files: dict[str, list[str]] = field(default_factory=dict)
+
+    def note_skip(self, reason: str, path: Path | str) -> None:
+        self.skipped_files.setdefault(reason, []).append(str(path))
 
     def summary(self) -> str:
         line = (
@@ -180,6 +185,32 @@ def stop_message(
     )
     parts.append(resume or f"To continue, re-run `locus index {root}` — unchanged files are skipped.")
     return " ".join(parts)
+
+
+# Why a file read for indexing ended up with nothing to index (IndexStats.note_skip) -> the words the report uses.
+SKIPPED_LABELS: dict[str, str] = {
+    "html_no_text": "HTML with no text of its own (only images or scripts)",
+    "no_text": "no readable text (empty, a scan, or content Locus cannot read)",
+    "unreadable_encoding": "text in an encoding Locus could not read safely",
+    "secret_content": "refused: the text looks like a credential",
+    "secret_name": "refused: the file name looks like a credential",
+    "only_base64": "nothing but base64 data",
+}
+SKIPPED_NAMES_SHOWN = 5
+_HTML_SUFFIXES = frozenset({".html", ".htm", ".xhtml"})
+
+
+def skipped_report(stats: IndexStats) -> list[str]:
+    """One line per reason with the first few names, for the end of a run; empty when nothing was left out."""
+    lines = []
+    for reason, label in SKIPPED_LABELS.items():
+        paths = stats.skipped_files.get(reason)
+        if not paths:
+            continue
+        shown = ", ".join(paths[:SKIPPED_NAMES_SHOWN])
+        more = f", and {len(paths) - SKIPPED_NAMES_SHOWN} more" if len(paths) > SKIPPED_NAMES_SHOWN else ""
+        lines.append(f"not indexed, {label}: {len(paths)} file(s): {shown}{more}")
+    return lines
 
 
 # Why iter_files left something out; the `on_skip` hook receives one of these with the path.
@@ -359,11 +390,14 @@ def index_file(
     if not text or not text.strip():
         store.delete_path(str(path))
         stats.files_skipped += 1
+        if not parsed.no_text:  # a scanned PDF has its own count and message
+            stats.note_skip("html_no_text" if path.suffix.lower() in _HTML_SUFFIXES else "no_text", path)
         return 0
     if secret_content(text):  # a credential whatever the name: never indexed, earlier entries removed
         store.delete_path(str(path))
         stats.files_skipped += 1
         stats.denied += 1
+        stats.note_skip("secret_content", path)
         log(f"not indexed: {path} holds what looks like a credential (secret-content)")
         return 0
     parsed = strip_parsed(parsed)  # base64 payloads go only now: a JWT's long payload must not hide it from the check
@@ -371,6 +405,7 @@ def index_file(
     if not text or not text.strip():
         store.delete_path(str(path))
         stats.files_skipped += 1
+        stats.note_skip("only_base64", path)
         return 0
 
     chunk_tokens = effective_chunk_tokens(settings, store)
@@ -385,6 +420,7 @@ def index_file(
     if not chunks:
         store.delete_path(str(path))
         stats.files_skipped += 1
+        stats.note_skip("only_base64", path)
         return 0
 
     def _count_retry() -> None:
@@ -463,6 +499,8 @@ def index_folder(
         elif reason == "hard_link":
             hard_linked += 1
         elif reason in DENIED_SKIP_REASONS:
+            if reason == "denied_secret_file":
+                stats.note_skip("secret_name", p)
             stats.denied += 1
             denied_by_rule[reason.removeprefix("denied_")] += 1
 
@@ -559,6 +597,8 @@ def index_folder(
             f"not indexed: {big} is over the {settings.max_file_mb:g} MB file limit; "
             "set LOCUS_MAX_FILE_MB higher and run `locus index` again to include it"
         )
+    for line in skipped_report(stats):
+        log(line)
     log(stats.summary())
     return stats
 
