@@ -289,3 +289,33 @@ def test_download_progress_is_silent_offline_and_when_nothing_is_cached(monkeypa
     with emb._download_progress(E5, str(tmp_path), interval=0.01):
         time.sleep(0.05)
     assert capsys.readouterr().err == ""
+
+
+def test_a_timeout_during_the_download_gets_a_friendly_retry_message_not_a_raw_error():
+    class ReadTimeout(Exception):  # stands in for httpx.ReadTimeout / urllib3's ReadTimeoutError
+        pass
+
+    try:
+        try:
+            raise ReadTimeout("HTTPSConnectionPool(host='huggingface.co', port=443): Read timed out. (read timeout=10)")
+        except ReadTimeout as inner:
+            raise RuntimeError("An error happened while trying to locate the file on the Hub") from inner
+    except RuntimeError as exc:
+        text = emb.local_model_error(E5, exc)
+    assert "timed out" in text and "Run the same command again" in text and "continues where it stopped" in text
+    assert "ReadTimeout" not in text and "HTTPSConnectionPool" not in text and "RuntimeError" not in text
+
+
+def test_a_non_timeout_failure_keeps_the_existing_message():
+    text = emb.local_model_error(E5, OSError("no route to host"))
+    assert "OSError" in text and "Check that this computer is online" in text
+
+
+def test_download_progress_does_not_repeat_an_identical_line(tmp_path, capsys):
+    blobs = tmp_path / ("models--" + E5.replace("/", "--")) / "blobs"
+    blobs.mkdir(parents=True)
+    (blobs / "abc.incomplete").write_bytes(b"x" * 5_000_000)
+    with emb._download_progress(E5, str(tmp_path), interval=0.01):
+        time.sleep(0.3)  # many ticks, no new bytes
+    lines = [ln for ln in capsys.readouterr().err.splitlines() if ln.startswith("Locus: model download")]
+    assert len(lines) == 1
