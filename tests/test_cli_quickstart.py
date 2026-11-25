@@ -110,3 +110,19 @@ def test_quickstart_asks_about_a_closed_folder_like_index_does(home, capsys, mon
     assert stop.value.code == 2 and "quickstart stopped at index" in out.out
     assert "Downloads" in out.out + out.err and "--yes" in out.out + out.err
     assert not any("seen=" in line for line in out.out.splitlines())  # nothing was indexed
+
+
+def test_the_sample_query_stays_inside_the_folder_given(home, capsys, tmp_path):
+    first = tmp_path / "older"
+    first.mkdir()
+    (first / "zebra-notes.md").write_text("zebra migration notes for the older folder\n", encoding="utf-8")
+    second = tmp_path / "newer"
+    second.mkdir()
+    (second / "quarterly-plan.md").write_text("quarterly plan for the newer folder\n", encoding="utf-8")
+    capsys.readouterr()
+    for folder in (first, second):
+        with pytest.raises(SystemExit):
+            cli.main(["quickstart", str(folder)])
+        out = capsys.readouterr().out
+    assert 'locus query "quarterly plan"' in out
+    assert str(second.resolve()) in out and str(first.resolve()) not in out.split("5/5 sample query")[1]

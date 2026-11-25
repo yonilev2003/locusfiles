@@ -834,7 +834,7 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
         if now - last < 1.0 and done < est.files:
             return
         last = now
-        eta = (now - t) / done * (est.files - done) if done else 0.0
+        eta = (now - t) / done * max(est.files - done, 0) if done else 0.0
         print(f"  {done}/{est.files} files, about {eta:.0f}s left", flush=True)
 
     stats = index_folder(folder, embedder, store, settings, matcher=matcher, on_file=progress)
@@ -875,10 +875,10 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
 
     print("\n5/5 sample query")
     t = time.monotonic()
-    paths = store.list_paths()
+    paths = [p for p in store.list_paths() if p == here or p.startswith(here + os.sep)]  # this folder, not an older one
     question = Path(paths[0]).stem.replace("-", " ").replace("_", " ") if paths else ""
     print(f'locus query "{question}"')
-    code = cmd_query(argparse.Namespace(query=question, json=False, k=3, prefix=None, width=100)) if paths else 1
+    code = cmd_query(argparse.Namespace(query=question, json=False, k=3, prefix=here, width=100)) if paths else 1
     if code:
         return fail("query", t, code)
     stage("query", t)
