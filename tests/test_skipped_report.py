@@ -71,6 +71,18 @@ def test_a_markdown_note_named_like_design_tokens_is_indexed_but_real_credential
     assert not secret_name("design-tokens.md") and not secret_name("Token economics.md")
     assert not secret_name("designTokens.md") and secret_name("tokens.md") and secret_name("api-token.md")
     assert secret_name("github-token.md") and secret_name("design-tokens.txt")  # other file types stay refused
+    for provider in (
+        "discord-token.md",
+        "stripe-token.md",
+        "openai-token.md",
+        "vercel token.md",
+        "token-backup.md",
+        "token-prod.md",
+        "tokens-2024.md",
+        "service-token.rst",
+        "my_token.md",
+    ):
+        assert secret_name(provider), provider  # a provider or any unlisted word keeps the note out
     for refused in (
         "api-token.txt",
         "accessToken.json",

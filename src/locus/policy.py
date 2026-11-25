@@ -123,14 +123,15 @@ _SECRET_WORDS = frozenset(
         "cookies",
     }
 )
-# "token" in the name of a Markdown note with other words around it is not a credential name (`design-tokens.md`,
-# `token-economics.md`); content checks (`secret_content`) still apply to the text. A note called just `tokens.md`,
-# one with a credential qualifier (`api-token.md`, `github-token.md`), every other secret word, and "token" in other
-# file types (`api-token.txt`, `accessToken.json`) keep the file out.
+# "token" in the name of a Markdown note is not a credential name only when every other word in the name is a topic
+# word from the list below (`design-tokens.md`, `token-economics.md`); content checks (`secret_content`) still apply.
+# A note called just `tokens.md`, any other qualifier (`api-token.md`, `stripe-token.md`, `token-backup.md`), every
+# other secret word, and "token" in other file types (`api-token.txt`, `accessToken.json`) keep the file out.
 _TOKEN_WORDS = frozenset({"token", "tokens"})
-_CREDENTIAL_QUALIFIERS = frozenset(
-    {"api", "access", "auth", "bearer", "refresh", "oauth", "github", "gitlab", "session", "personal", "jwt", "bot",
-     "slack", "npm", "pypi", "service", "private", "secret", "my", "id", "login", "pat"}
+_TOKEN_TOPIC_WORDS = frozenset(
+    {"design", "economics", "css", "theme", "themes", "color", "colors", "brand", "style", "styles", "ui", "tailwind",
+     "figma", "w3c", "llm", "context", "count", "counting", "limit", "limits", "usage", "budget", "model", "notes",
+     "note", "guide", "spec", "specs", "system", "pricing", "cost", "costs", "language", "parser", "lexer", "ideas"}
 )  # fmt: skip
 _PROSE_SUFFIXES = (".md", ".markdown", ".mdx", ".rst")
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
@@ -297,7 +298,8 @@ def secret_name(name: str) -> bool:
     found = _SECRET_WORDS.intersection(words)
     if found and found <= _TOKEN_WORDS and low.endswith(_PROSE_SUFFIXES):
         stem = [w for w in _NON_WORD.split(_CAMEL.sub(" ", name.rsplit(".", 1)[0]).casefold()) if w]
-        if len(stem) > 1 and not _CREDENTIAL_QUALIFIERS.intersection(stem):
+        others = [w for w in stem if w not in _TOKEN_WORDS]
+        if others and all(w in _TOKEN_TOPIC_WORDS for w in others):
             found = frozenset()  # `design-tokens.md` is a note about design tokens; what is inside is still checked
     return bool(found) or "apikey" in "".join(words)
 
