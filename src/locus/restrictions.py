@@ -246,7 +246,7 @@ def audit_service(data_dir: Path, tool: str, result: Any) -> None:
     same files, so it is counted too (client "locus-cli"). Paths and counts only. Never raises."""
     try:
         paths = (
-            [h.path for h in getattr(result, "results", [])]
+            [p for h in getattr(result, "results", []) for p in h.all_paths()]
             or list(getattr(result, "paths", []))
             or ([result.path] if hasattr(result, "path") else [])
         )

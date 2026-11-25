@@ -310,6 +310,9 @@ def kill_switch_active(data_dir: Path) -> bool:
 
 _NAME_RE = re.compile(r"^[A-Za-z0-9_./:-]{1,64}$")
 _SEARCH_HEADER = re.compile(r"^## \d+\. (?P<path>.+?)  \(chunk \d+", re.M)
+# A collapsed row lists the other copies of its text: "also in: /a (chunk 0), /b (chunk 2), and 3 more".
+_ALSO_IN = re.compile(r"^also in: (?P<list>.+)$", re.M)
+_ALSO_IN_ENTRY = re.compile(r"(?:^|, )(?P<path>.+?) \(chunk \d+\)")
 
 
 @dataclass(frozen=True)
@@ -398,6 +401,11 @@ def summarize_response(
         return None, []
     if info.tool == "locus_search":
         found = [m.group("path") for m in _SEARCH_HEADER.finditer(text)]
+        shown = [
+            e.group("path") for line in _ALSO_IN.finditer(text) for e in _ALSO_IN_ENTRY.finditer(line.group("list"))
+        ]
+        rows = [p for p in found if p in known]
+        return len(rows), _unique([*rows, *(p for p in shown if p in known)])  # every path the answer showed
     elif info.tool == "locus_list_sources":
         found = [line[2:] for line in text.splitlines() if line.startswith("- ")]
     else:  # locus_read_file: the path the caller gave, when the answer is not an error text
