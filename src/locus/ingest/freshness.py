@@ -572,6 +572,9 @@ def freshen_for_serve(
     try:
         # Parallel searches (an assistant that fires a dozen at once) must not each spend a full budget: the first
         # one freshens, and for one budget's length after a run that used all of it the others reuse its note.
+        # The freshness window: budget_s (2 s by default) after a run that used its whole budget. A file added or
+        # changed inside that window is not picked up by a search that reuses the note; the first search after the
+        # window freshens again. After a run that finished within budget there is no window: every search freshens.
         if flight.cut_short and flight.finished is not None and clock() - flight.finished < budget_s:
             return flight.note
         try:
