@@ -52,7 +52,7 @@ KILL_SWITCH_FILE = "REMOTE_OFF"
 AUDIT_DIR = "audit"
 
 # The tools a tunnel may reach: read-only, over the index. `search` and `fetch` are the ChatGPT-shaped aliases
-# (remote_tools.py). The two others describe this computer's setup or contact Locus's servers: not for a tunnel.
+# (remote_tools.py). `locus_help(check=true)` describes this computer's setup, so a tunnel refuses it (mcp_server.py).
 REMOTE_TOOLS: tuple[str, ...] = (
     "locus_search",
     "locus_list_sources",
@@ -61,7 +61,6 @@ REMOTE_TOOLS: tuple[str, ...] = (
     "search",
     "fetch",
 )
-LOCAL_ONLY_TOOLS: tuple[str, ...] = ("locus_diagnose_connection", "locus_account_status")
 
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 

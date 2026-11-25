@@ -286,7 +286,7 @@ _MTIME_ROUND_TRIP = 1e-6
 
 def _keep_mtime_current(store: VectorStore, path: Path, recorded: float | None) -> None:
     """An unchanged file whose modified time moved (touch, copy, git checkout): record the new time
-    so the UX-004 freshness check (locus_search, locus_diagnose_connection) stops calling it
+    so the UX-004 freshness check (locus_search, locus_help check) stops calling it
     changed. One metadata update, no re-embedding; only when the times differ."""
     refresh = getattr(store, "refresh_mtime", None)
     if recorded is None or refresh is None:

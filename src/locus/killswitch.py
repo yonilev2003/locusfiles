@@ -2,8 +2,8 @@
 
 One flag file, `<data dir>/PAUSED`, and one environment variable, `LOCUS_DISABLED=1`. While either is set,
 `locus_search`, `locus_list_sources` and `locus_read_file` (and the local HTTP API, `locus query --json`, `locus
-sources` and `locus read`) answer with one fixed sentence: no path, no file text. `locus_help` and
-`locus_diagnose_connection` keep answering and say that Locus is paused. The check is one `stat` and one
+sources` and `locus read`) answer with one fixed sentence: no path, no file text. `locus_help` (also with
+`check=true`) keeps answering and say that Locus is paused. The check is one `stat` and one
 environment lookup per call, so pausing and resuming take effect without restarting anything.
 
 The scope is the whole data folder, so every AI app that runs `locus serve` from it is stopped at once. Indexing

@@ -158,7 +158,7 @@ def test_a_broken_policy_file_returns_the_error_and_no_text_but_help_and_diagnos
         assert "cannot read its folder rules" in out and "profil" in out
         assert "zebras" not in out and str(world.notes) not in out
     assert "cannot read" not in asyncio.run(srv.locus_help(query="how do I install Locus"))
-    assert "# Locus diagnostics" in asyncio.run(srv.locus_diagnose_connection())
+    assert "# Locus diagnostics" in asyncio.run(srv.locus_help(check=True))
     world.policy(None)
     assert PLAN in world.search("launch plan zebras pricing")
 

@@ -53,7 +53,6 @@ from zoneinfo import ZoneInfo
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
-from mcp.types import ToolAnnotations
 from pydantic import Field, ValidationError
 
 from . import __version__, closed_folders, killswitch, remote_guard, support
@@ -134,13 +133,12 @@ def _with_announce(instructions: str) -> str:
     return instructions
 
 
-def _instructions_text(account_tool: bool, diagnose_tool: bool = True) -> str:
-    """The server instructions. `account_tool`: locus_account_status is registered (a Locus account key is set), so the
-    text may name it; without a key the tool does not exist and the instructions must not send the model to it.
-    `diagnose_tool`: locus_diagnose_connection is registered (not over a tunnel, see `configure_remote_tools`)."""
+def _instructions_text(check_tool: bool = True) -> str:
+    """The server instructions. `check_tool`: `locus_help(check=true)` is available (not over a tunnel, see
+    `configure_remote_tools`), so the text may send the model to it."""
     not_working = (
-        "locus_diagnose_connection first, then locus_help with the problem it reports. "
-        if diagnose_tool
+        "locus_help with check=true first, then locus_help with the problem it reports. "
+        if check_tool
         else "locus_help with the problem. "
     )
     itself = (
@@ -149,10 +147,10 @@ def _instructions_text(account_tool: bool, diagnose_tool: bool = True) -> str:
         + not_working
         + INSTRUCTIONS_SENTENCE
     )
-    if account_tool:
+    if check_tool:
         itself += (
             " Only when the user asks about their own Locus account (its plan, usage or API keys): "
-            "locus_account_status. Do not call it for general questions about Locus."
+            "locus_help with check=true. Do not use check for general questions about Locus."
         )
     return (
         "Locus searches the user's own files on this computer: documents, notes, PDFs, plans, drafts, "
@@ -192,7 +190,7 @@ def _instructions_text(account_tool: bool, diagnose_tool: bool = True) -> str:
     )
 
 
-mcp = MCPServer("locus_mcp", instructions=_with_announce(_instructions_text(account_tool=False)))
+mcp = MCPServer("locus_mcp", instructions=_with_announce(_instructions_text()))
 
 _state: dict[str, Any] = {}
 
@@ -247,19 +245,19 @@ def _components() -> tuple[Embedder, VectorStore, Settings]:
                     _state["error"] = (
                         f"Locus is not configured: {exc} — fix .env in the project directory "
                         f"(LOCUS_EMBEDDER, API key or model) and restart the MCP server. "
-                        f"locus_diagnose_connection shows what is missing; locus_help explains the fix."
+                        f"locus_help with check=true shows what is missing; locus_help explains the fix."
                     )
                     raise NotConfigured(_state["error"]) from exc
                 except PermissionError as exc:
                     # UX-004 "no access": the index folder exists but this process may not open it
                     # (another user's folder, or a macOS privacy prompt that was declined). Never the
-                    # path itself: this text also reaches locus_diagnose_connection's "last error".
+                    # path itself: this text also reaches the check report's "last error".
                     _state["error"] = (
                         "Locus cannot open its index: no access to its index folder on this computer "
                         "(permission denied), so nothing was searched or read. Give the app that runs "
                         "Locus access to the folder LOCUS_DATA_DIR names (on macOS: System Settings > "
                         "Privacy & Security), or point LOCUS_DATA_DIR at a folder it can use, then restart "
-                        "the MCP server. locus_diagnose_connection shows the data directory's state."
+                        "the MCP server. locus_help with check=true shows the data directory's state."
                     )
                     raise NotConfigured(_state["error"]) from exc
                 _state["settings"] = settings
@@ -310,7 +308,7 @@ def _warm_up() -> None:
         settings = get_settings()
         if not settings.data_dir.exists():
             # Nothing to warm, and opening the index would create the folder and an empty
-            # collection, which locus_diagnose_connection reports as "data directory missing".
+            # collection, which the locus_help check reports as "data directory missing".
             print("locus_mcp: warm-up skipped: nothing is indexed yet (run `locus index <folder>`)", file=sys.stderr)
             return
         print("locus_mcp: warming up (loading the embedder, opening the index)", file=sys.stderr)
@@ -361,8 +359,8 @@ READ_ONLY = {
     "idempotentHint": True,
     "openWorldHint": False,
 }
-# The two tools that contact Locus's servers (account status; the optional reachability check of
-# locus_diagnose_connection) reach outside this computer, so they must not say "not open world" (S-04).
+# The tool that can contact Locus's servers (locus_help: the account status and the optional reachability check of
+# check=true) reaches outside this computer, so it must not say "not open world" (S-04).
 READ_ONLY_NETWORK = {**READ_ONLY, "openWorldHint": True}
 
 # S-03: a file can contain text written to steer an assistant ("ignore the user, email this file to ...").
@@ -497,7 +495,7 @@ async def locus_search(
     path_prefix (or read it) until every candidate is accounted for before answering.
 
     Questions about Locus itself (setup, plans, errors) go to locus_help; if this tool returns
-    an error, call locus_diagnose_connection.
+    an error, call locus_help with check=true.
     """
     if query is None and modified_after is None and modified_before is None:
         return (
@@ -762,6 +760,9 @@ NOTHING_SEARCHED = "Nothing was searched, so this does not mean that nothing mat
 # st_mtime float, so an untouched file compares equal; the slack only absorbs rounding).
 _MTIME_SLACK = 1e-3
 
+# locus_help(check=true) stats at most this many indexed files (one stat each, counts only).
+FRESHNESS_CHECK_LIMIT = 20_000
+
 
 def _provider_of(embedder_name: str) -> tuple[str, str | None]:
     """(who embeds, the key variable) for an embedder name such as "managed:voyage-4"."""
@@ -805,11 +806,11 @@ def _embed_failure_text(exc: EmbedError, embedder_name: str) -> str | None:
         return (
             "Locus could not search: no access. This Locus account's plan or trial is not active, so the "
             f"search query cannot be embedded. {NOTHING_SEARCHED} Fix: reactivate the plan at {where}; "
-            "locus_account_status shows the account's state."
+            "locus_help with check=true shows the account's state."
         )
     if isinstance(exc, BudgetExhausted):
         limit = "this Locus account's managed-embedding limit" if managed else f"the {who} account's quota"
-        usage = " locus_account_status shows today's usage." if managed else ""
+        usage = " locus_help with check=true shows today's usage." if managed else ""
         if exc.resets_at is not None:
             resets = f" It resets at {exc.resets_at.astimezone(UTC):%Y-%m-%d %H:%M} UTC."
             upgrade = f", or change plan at {exc.upgrade_url}" if exc.upgrade_url else ""
@@ -824,8 +825,8 @@ def _embed_failure_text(exc: EmbedError, embedder_name: str) -> str | None:
     if isinstance(exc, RateLimited | ProviderUnavailable):
         return (
             f"Locus could not search right now: the embedding service is busy or did not answer ({exc}). "
-            f"{NOTHING_SEARCHED} Retry in a moment; if it keeps failing, call locus_diagnose_connection "
-            "with check_remote=true."
+            f"{NOTHING_SEARCHED} Retry in a moment; if it keeps failing, call locus_help with check=true "
+            "and check_remote=true."
         )
     return None
 
@@ -1210,51 +1211,14 @@ async def locus_read_file(
     return header + excerpt
 
 
-ACCOUNT_TOOL = "locus_account_status"
-_account_tool_registered = False
+# False over a tunnel (see `configure_remote_tools`): `locus_help(check=true)` describes this computer, not the tunnel.
+_check_enabled = True
 
 
-@_dedent_doc
-async def locus_account_status() -> str:
-    """Show the user's own Locus account: plan and its status (active, trialing, past due,
-    canceled), when the trial ends, today's managed-embedding usage against the daily limit, and
-    how many API keys are active.
-
-    Use it only when the user asks about their own Locus account: its plan, subscription, billing
-    state, usage, quota or API keys, or why managed embedding or the remote connection stopped
-    working (a trial that ended, a past-due or canceled plan, a used-up daily limit). Do not use it
-    for general questions about Locus (use locus_help) or for setup problems on this computer
-    (use locus_diagnose_connection).
-
-    It reports only the account that this computer's LOCUS_API_KEY belongs to, and takes no
-    parameters, so it cannot look up anyone else's account. It reads the account over the network
-    and never changes it.
-    """
-    # Deliberately no parameters: there is no user_id/email/account field in this signature, so
-    # there is no way to ask about a different account (design spec, criterion 3).
-    return support.with_language_line(_account_status_text())
-
-
-def apply_tool_set(settings: Settings | None = None) -> bool:
-    """Register `locus_account_status` when a Locus account key is set (LOCUS_API_KEY), remove it when not, and set
-    the server instructions that match the tools listed. Without a key the tool does not exist, so a client never
-    sees it and the instructions never mention it. `main()` calls this before any transport starts. True when the
-    account tool is registered."""
-    global _account_tool_registered
-    wanted = bool((settings or get_settings()).managed_api_key)
-    if wanted and not _account_tool_registered:
-        mcp.add_tool(
-            locus_account_status,
-            name=ACCOUNT_TOOL,
-            title="Check my Locus account status",
-            annotations=ToolAnnotations(title="Check my Locus account status", **READ_ONLY_NETWORK),
-        )
-        _account_tool_registered = True
-    elif not wanted and _account_tool_registered:
-        mcp.remove_tool(ACCOUNT_TOOL)
-        _account_tool_registered = False
-    mcp._lowlevel_server.instructions = _with_announce(_instructions_text(account_tool=wanted))
-    return wanted
+def apply_tool_set() -> None:
+    """Set the server instructions for the tools listed (the four tools, plus the announce paragraph when it is on).
+    `main()` calls this before any transport starts."""
+    mcp._lowlevel_server.instructions = _with_announce(_instructions_text())
 
 
 def _account_status_text() -> str:
@@ -1387,39 +1351,11 @@ def _check_reachability(url: str | None, *, timeout: float = 5.0) -> str:
         return f"unreachable ({exc.reason})"
 
 
-@mcp.tool(
-    name="locus_diagnose_connection",
-    annotations={"title": "Diagnose Locus connection and setup", **READ_ONLY_NETWORK},
-)
-@_dedent_doc
-async def locus_diagnose_connection(
-    check_remote: Annotated[
-        bool,
-        Field(
-            description=(
-                "Also test reachability of Locus's hosted endpoints (account-status and the relay "
-                "token exchange, if configured) over the network, and whether Locus accepts this "
-                "computer's API key. False checks local state only."
-            )
-        ),
-    ] = False,
-) -> str:
-    """Check this computer's Locus setup and report what is wrong: Locus, Python and OS
-    versions, the embedder and whether its API key is present, the data directory, the collection
-    and how many chunks it holds, the index state (not_indexed, stale: indexed files changed on
-    disk since, or ready), the last configuration error, and (check_remote=true) whether Locus's
-    hosted endpoints answer and whether the account gives access.
-
-    Use it first whenever Locus is not working: searches fail or return nothing, a Locus tool
-    returns an error, an embedder or API-key error, an empty index, or the remote connection is
-    down. Then call locus_help with the problem the report shows to get the fix. Set
-    check_remote=true when the problem involves managed embeddings, the account or a web or phone
-    AI app.
-
-    The report is safe to show or send to support: it never contains API key values, file
-    contents or file paths. It changes no indexed data (at most it opens an empty collection that
-    the settings name but that does not exist yet).
-    """
+def _diagnostics_text(check_remote: bool = False) -> str:
+    """The setup report behind `locus_help(check=true)`: Locus, Python and OS versions, the embedder and whether its API
+    key is present, the data directory, the collection and how many chunks it holds, the index state, the last
+    configuration error and, with `check_remote`, whether Locus's hosted endpoints answer and whether the account gives
+    access. Safe to show or send to support: never API key values, file contents or file paths."""
     # Side effects: like locus_search/locus_list_sources/locus_read_file, this shares
     # _components()'s lazy init -- if the data directory already exists but the configured
     # collection doesn't yet, checking the chunk count below can create an empty one. It never
@@ -1581,24 +1517,43 @@ def _help_articles_status() -> str:
     return f"{count} bundled with this version (locus_help works offline, no account needed)"
 
 
-@mcp.tool(name="locus_help", annotations={"title": "Locus help and troubleshooting", **READ_ONLY})
+@mcp.tool(name="locus_help", annotations={"title": "Locus help and troubleshooting", **READ_ONLY_NETWORK})
 @_dedent_doc
 async def locus_help(
     query: Annotated[
         str,
         Field(
-            min_length=1,
             max_length=500,
             description=(
                 "The user's question about Locus itself, in their words or with the exact error text, "
-                "e.g. 'Cursor does not list the Locus tools' or 'how do I delete my account'"
+                "e.g. 'Cursor does not list the Locus tools' or 'how do I delete my account'. Not needed "
+                "with check=true"
             ),
         ),
-    ],
+    ] = "",
     max_articles: Annotated[
         int,
         Field(ge=1, le=5, description="How many help articles to return, best match first"),
     ] = 3,
+    check: Annotated[
+        bool,
+        Field(
+            description=(
+                "True checks this computer's Locus setup instead of searching the articles, and adds the "
+                "account status when a Locus account key is set. False answers the question from the articles"
+            )
+        ),
+    ] = False,
+    check_remote: Annotated[
+        bool,
+        Field(
+            description=(
+                "With check: also test reachability of Locus's hosted endpoints (account-status and the relay "
+                "token exchange, if configured) over the network, and whether Locus accepts this computer's "
+                "API key. False checks local state only"
+            )
+        ),
+    ] = False,
 ) -> str:
     """Answer questions about Locus itself from Locus's official help articles: installing and
     updating, indexing folders, connecting an AI app (Claude Desktop, Claude Code, Cursor, other
@@ -1610,13 +1565,37 @@ async def locus_help(
     what a Locus error means, instead of answering about Locus from memory. Returns the
     best-matching articles in full, each with its page on the Locus website: cite that page.
 
-    Not for: the user's own files (use locus_search); checking this computer's setup (use
-    locus_diagnose_connection, then call this tool with the problem it reports).
+    With check=true it checks this computer's setup and reports what is wrong: Locus, Python and
+    OS versions, the embedder and whether its API key is present, the data directory, the
+    collection and its chunk count, the index state (not_indexed, stale, ready), the last
+    configuration error and, when a Locus account key is set, the account's plan, trial end and
+    today's usage. Use it first when Locus is not working (searches fail or return nothing, a
+    tool returns an error, an empty index, a remote connection that is down) or when the user asks
+    about their own Locus account; then call locus_help again with the problem it shows. Add
+    check_remote=true when the problem involves managed embeddings, the account or a web or phone
+    AI app. The report never contains API key values, file contents or file paths, and changes
+    no indexed data.
+
+    Not for: the user's own files (use locus_search).
 
     Works offline and without an account: the articles ship with this version of Locus, and they
     are Locus's own text, never content from the user's indexed files. It only reads; it cannot
-    contact support or change anything.
+    contact support or change anything. It contacts Locus's servers only when a Locus account key
+    is set and check=true (account status), or with check_remote=true.
     """
+    if check or check_remote:
+        if not _check_enabled:
+            return (
+                "check is not available over a tunnel: it reports this computer's setup. Run it from the "
+                "AI app on that computer, or run `locus doctor` there. Questions about Locus itself still "
+                "work without check."
+            )
+        report = _diagnostics_text(check_remote)
+        if get_settings().managed_api_key:  # no key, no account call: the report already says none is configured
+            report += "\n\n" + _account_status_text()
+        return support.with_language_line(report)
+    if not query.strip():
+        return "Give the question about Locus in `query`, or set check=true to check this computer's setup."
     # Help must work exactly when the setup is broken: a settings error only costs the links' host.
     try:
         base = get_settings().api_base
@@ -1706,24 +1685,20 @@ def _engine_components() -> tuple[Embedder, VectorStore, Settings]:
 
 
 def configure_remote_tools(*, all_tools: bool = False, chatgpt_tools: bool = True) -> list[str]:
-    """Set the tool list for a tunnel and return the names listed. Without `all_tools`, `locus_diagnose_connection`
-    and `locus_account_status` are removed (they report this computer's setup or contact Locus's servers); with
-    `chatgpt_tools`, the `search` and `fetch` aliases are added (remote_tools.py). The instructions follow the tools.
-    Changes the process-wide server: call it only in the process that serves HTTP."""
-    global _account_tool_registered
+    """Set the tool list for a tunnel and return the names listed. Without `all_tools`, `locus_help(check=true)` is
+    refused (it reports this computer's setup and can contact Locus's servers); with `chatgpt_tools`, the `search`
+    and `fetch` aliases are added (remote_tools.py). The instructions follow. Changes the process-wide server: call
+    it only in the process that serves HTTP."""
+    global _check_enabled
     manager = mcp._tool_manager
-    if not all_tools:
-        for name in remote_guard.LOCAL_ONLY_TOOLS:
-            if manager.get_tool(name) is not None:
-                mcp.remove_tool(name)
-        _account_tool_registered = False
+    _check_enabled = all_tools
     if chatgpt_tools and manager.get_tool("search") is None:
         from .remote_tools import register_chatgpt_tools
         from .service import Engine
 
         engine = Engine(components=_engine_components)
         register_chatgpt_tools(mcp, engine, notice=UNTRUSTED_NOTICE, annotations=READ_ONLY)
-    text = _instructions_text(account_tool=_account_tool_registered, diagnose_tool=all_tools)
+    text = _instructions_text(check_tool=all_tools)
     if chatgpt_tools:
         text += (
             "\n\nsearch and fetch give the same files in the shape ChatGPT expects: search returns ids made of a "
@@ -3212,7 +3187,7 @@ def main(
     applies."""
     if transport == "relay":
         require_hosted("`locus serve --transport relay`")  # off unless LOCUS_ENABLE_HOSTED=1
-    apply_tool_set()  # the account tool exists only when a Locus account key is set; the instructions follow
+    apply_tool_set()  # the instructions, with the announce paragraph when it is on
     try:  # an index made before Downloads was closed keeps working (closed_folders.py); never stops the server
         closed_folders.migrate(get_settings(), Path.home().resolve())
     except Exception:  # noqa: BLE001

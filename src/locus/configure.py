@@ -8,7 +8,7 @@ and an install that missed it fell through to the `local` default. `locus setup 
    collection, never switched silently). `--collection NAME` names that new collection;
 2. takes the key from LOCUS_API_KEY when it is already set, else asks for it with getpass (never
    echoed). The key is never printed or logged, here or in any error;
-3. checks it with the read-only account-status call that `locus_account_status` makes
+3. checks it with the read-only account-status call that `locus_help(check=true)` makes
    (support.fetch_account_status). That call spends nothing: no embedding request is made;
 4. writes LOCUS_EMBEDDER (and the key, and LOCUS_COLLECTION when given) into the `.env` file the
    engine already reads (config.get_settings), creating it owner-only (0600) or updating it in

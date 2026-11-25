@@ -32,7 +32,7 @@ and still in testing. If you did turn it on, switching back to `LOCUS_EMBEDDER=l
 - **"LOCUS_API_KEY is not set" / "LOCUS_API_KEY was rejected (invalid or revoked)":** the key the hosted
   relay needs is missing, or it was not accepted. Replace it on this computer, or leave the relay off.
 - **"Your Locus subscription isn't active":** the hosted account behind `LOCUS_API_KEY` is not active.
-  `locus_account_status` (present when a key is set) shows which. Local search keeps working.
+  `locus_help` with `check=true` (it shows the account when a key is set) shows which. Local search keeps working.
 - **Daily limit or token budget reached (HTTP 429 or 402):** managed embedding pauses until the
   limit resets. `locus index` stops with a summary you can resume by running it again later. Search of
   what is already indexed keeps working.

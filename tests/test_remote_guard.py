@@ -448,8 +448,7 @@ def test_with_the_audit_off_nothing_is_written(tmp_path):
     assert not (tmp_path / "data" / "audit").exists()
 
 
-def test_the_remote_tools_are_the_read_only_ones_and_the_two_local_tools_are_apart():
-    assert set(rg.REMOTE_TOOLS).isdisjoint(rg.LOCAL_ONLY_TOOLS)
+def test_the_remote_tools_are_the_read_only_ones():
     assert {"locus_search", "locus_list_sources", "locus_read_file", "locus_help", "search", "fetch"} == set(
         rg.REMOTE_TOOLS
     )

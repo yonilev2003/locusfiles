@@ -456,7 +456,7 @@ def test_local_writes_the_embedder_keeps_the_key_and_makes_no_network_call(_isol
     assert _run("--local") == 0
 
     env = _isolated / ".env"
-    # The key stays: `locus serve --transport relay` and locus_account_status still use it.
+    # The key stays: `locus serve --transport relay` and locus_help(check=true) still use it.
     assert env.read_text() == f"LOCUS_EMBEDDER=local\nLOCUS_API_KEY={KEY}\n"
     assert _mode(env) == 0o600
     out = capsys.readouterr()

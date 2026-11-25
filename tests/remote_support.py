@@ -27,14 +27,14 @@ def preserved_server_state() -> Iterator[None]:
     manager = srv.mcp._tool_manager
     tools = dict(manager._tools)
     instructions = srv.mcp._lowlevel_server.instructions
-    registered = srv._account_tool_registered
+    check_enabled = srv._check_enabled
     try:
         yield
     finally:
         manager._tools.clear()
         manager._tools.update(tools)
         srv.mcp._lowlevel_server.instructions = instructions
-        srv._account_tool_registered = registered
+        srv._check_enabled = check_enabled
 
 
 @contextmanager

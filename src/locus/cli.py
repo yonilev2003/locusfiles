@@ -923,7 +923,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--all-tools",
         action="store_true",
-        help="with a public host: also expose locus_diagnose_connection and locus_account_status (off by default)",
+        help="with a public host: also allow locus_help with check=true, which reports this computer's setup "
+        "(off by default)",
     )
     p.set_defaults(func=cmd_serve)
 
@@ -968,7 +969,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="stop the file tools at once (search, list sources, read file, the local API, query --json)",
         description="Creates <data dir>/PAUSED. Every AI app that runs `locus serve` from this data folder gets one "
         "fixed sentence instead of any file, until `locus resume`. LOCUS_DISABLED=1 does the same from the "
-        "environment. Indexing and watching are not stopped. locus_help and locus_diagnose_connection keep answering.",
+        "environment. Indexing and watching are not stopped. locus_help (also with check=true) keeps answering.",
     )
     p.set_defaults(func=cmd_pause)
 

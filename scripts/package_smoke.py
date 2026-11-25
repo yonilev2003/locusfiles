@@ -254,24 +254,31 @@ def mcp_smoke(locus: list[str], env: dict[str, str], cwd: Path, version: str | N
                 raise SmokeError(f"locus_help did not answer from its bundled articles:\n{help_text[:1000]}")
             log("tools/call locus_help answers from the bundled help articles")
         if version is not None:  # the engine must report the wheel's version whatever the dist is called
-            diag = client.send("tools/call", {"name": "locus_diagnose_connection", "arguments": {}})
+            # Older wheels list locus_diagnose_connection; this version folded it into locus_help(check=true).
+            if "locus_diagnose_connection" in names:
+                diag_tool, diag_args = "locus_diagnose_connection", {}
+            else:
+                diag_tool, diag_args = "locus_help", {"check": True}
+            diag = client.send("tools/call", {"name": diag_tool, "arguments": diag_args})
             assert diag is not None
             diag_text = "\n".join(c.get("text", "") for c in diag.get("content", []) if c.get("type") == "text")
             if f"locus version: {version}" not in diag_text:
-                raise SmokeError(f"locus_diagnose_connection does not report version {version}:\n{diag_text[:1000]}")
-            log(f"tools/call locus_diagnose_connection reports version {version}")
+                raise SmokeError(f"{diag_tool} does not report version {version}:\n{diag_text[:1000]}")
+            log(f"tools/call {diag_tool} reports version {version}")
     finally:
         client.close()
 
 
 def smoke(locus: list[str], work: Path, *, installed: bool, version: str | None = None) -> None:
     env = base_env(installed=installed)
-    env.update({
-        "LOCUS_EMBEDDER": "hash",
-        "LOCUS_ALLOW_TEST_EMBEDDER": "1",  # the engine refuses the offline test embedder unless this is set (A9)
-        "LOCUS_DATA_DIR": str(work / "data"),
-        "PYTHONIOENCODING": "utf-8",
-    })
+    env.update(
+        {
+            "LOCUS_EMBEDDER": "hash",
+            "LOCUS_ALLOW_TEST_EMBEDDER": "1",  # the engine refuses the offline test embedder unless this is set (A9)
+            "LOCUS_DATA_DIR": str(work / "data"),
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
     help_text = run([*locus, "--help"], env=env, cwd=work)
     for word in ("index", "query", "serve", "doctor"):
         if word not in help_text:

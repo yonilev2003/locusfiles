@@ -8,7 +8,6 @@ anything on. The refusal is exit code 2 with a message that names the switch and
 from __future__ import annotations
 
 import os
-from dataclasses import replace
 
 import pytest
 
@@ -111,10 +110,7 @@ def test_serve_relay_goes_on_when_switched_on(monkeypatch):
     reached = []
     monkeypatch.setattr(mcp_server, "_run_relay", lambda settings: reached.append(settings.managed_api_key))
     monkeypatch.setattr(mcp_server, "start_warmup", lambda: None)
-    try:
-        assert _exit(["serve", "--transport", "relay"]) == 0
-    finally:
-        mcp_server.apply_tool_set(replace(get_settings(), managed_api_key=None))
+    assert _exit(["serve", "--transport", "relay"]) == 0
     assert reached == [KEY]
 
 
