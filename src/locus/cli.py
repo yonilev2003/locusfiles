@@ -1080,6 +1080,9 @@ def _os_env(name: str) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="locus", description="Local-first personal AI brain over MCP.")
+    from . import __version__
+
+    parser.add_argument("--version", action="version", version=f"locus {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     yes_help = (
