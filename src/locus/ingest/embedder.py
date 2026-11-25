@@ -38,7 +38,7 @@ import urllib.request
 from collections.abc import Callable, Iterable, Iterator
 from typing import Protocol, TypeVar, runtime_checkable
 
-from .. import __version__
+from .. import __version__, hints
 from ..config import DEFAULT_LOCAL_MODEL, Settings, require_hosted, require_real_embedder
 from .errors import ProviderUnavailable, from_provider_exception, from_relay_http
 
@@ -547,7 +547,7 @@ def _fastembed_broken(exc: BaseException) -> str:
     return (
         f"fastembed is installed but cannot be loaded ({type(exc).__name__}: {exc}). "
         f"Fix or reinstall it, or set {LOCAL_BACKEND_ENV}=torch to use sentence-transformers "
-        '(extra `local-torch`: uv tool install --reinstall --python 3.12 "locusfiles[local-torch]").'
+        f"(extra `local-torch`: {hints.uv_install('local-torch')})."
     )
 
 
@@ -833,8 +833,8 @@ def get_embedder(settings: Settings) -> Embedder:
         raise RuntimeError(
             f"LOCUS_EMBEDDER={kind!r} needs an optional dependency ({exc.name}). "
             "Install it with the tool you installed Locus with: "
-            f'uv tool install --reinstall --python 3.12 "locusfiles[{extra}]", or with pipx: '
-            f'pipx install --force "locusfiles[{extra}]". From a source checkout: pip install -e ".[{extra}]".'
+            f"{hints.uv_install(extra)}, or with pipx: "
+            f'{hints.pipx_install(extra)}. From a source checkout: pip install -e ".[{extra}]".'
         ) from exc
     raise RuntimeError(f"Unknown LOCUS_EMBEDDER={kind!r}; expected local | voyage | openai | managed")
 
