@@ -278,10 +278,36 @@ def _through_a_proxy(exc: BaseException) -> bool:
     return False
 
 
+def _timed_out(exc: BaseException) -> bool:
+    """True when the failure, or anything it was raised from, is a timeout (TimeoutError, httpx's ReadTimeout or
+    ConnectTimeout, requests' and urllib3's timeouts) or says the connection timed out."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError) or "timeout" in type(current).__name__.lower():
+            return True
+        if "timed out" in str(current).lower():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def local_model_error(model: str, exc: BaseException) -> str:
     """What `LocalEmbedder` says when its model cannot be loaded: what failed, why the first run
     needs the network, what to do (the HF_HUB_OFFLINE or proxy hint when it applies), and the
     managed alternative. Never a traceback."""
+    if _timed_out(exc) and not _hf_offline():
+        return "\n".join(
+            [
+                f"Locus could not finish downloading its on-device embedding model {model}: the connection to "
+                "huggingface.co timed out. This is usually a slow or interrupted connection, not a problem with "
+                "your files.",
+                "Run the same command again: the download continues where it stopped, and nothing you indexed is lost.",
+                "If it keeps timing out, try another network, or set HTTPS_PROXY if this computer must use a proxy.",
+                "Or use a Locus plan instead, with no model download: run `locus setup --managed`.",
+            ]
+        )
     reason = (str(exc).strip().splitlines() or [""])[0]
     if len(reason) > 200:
         reason = reason[:197] + "..."
@@ -419,12 +445,12 @@ def _download_progress(model: str, cache_dir: str | None, interval: float = 3.0,
         print(f"Locus: an earlier model download left {start / 1e6:.0f} MB on disk{of}.", file=sys.stderr, flush=True)
 
     def report() -> None:
+        last = ""
         while not done.wait(interval):
-            print(
-                f"Locus: model download {_downloaded_bytes(model, cache_dir) / 1e6:.0f} MB{of} ...",
-                file=sys.stderr,
-                flush=True,
-            )
+            line = f"Locus: model download {_downloaded_bytes(model, cache_dir) / 1e6:.0f} MB{of} ..."
+            if line != last:  # nothing new since the last line: say nothing instead of repeating it
+                print(line, file=sys.stderr, flush=True)
+                last = line
 
     thread = threading.Thread(target=report, name="locus-model-download-progress", daemon=True)
     thread.start()
