@@ -291,7 +291,10 @@ def test_download_progress_is_silent_offline_and_when_nothing_is_cached(monkeypa
     assert capsys.readouterr().err == ""
 
 
-def test_a_timeout_during_the_download_gets_a_friendly_retry_message_not_a_raw_error():
+def test_a_timeout_during_the_download_gets_a_friendly_retry_message_not_a_raw_error(monkeypatch):
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising=False)
+
     class ReadTimeout(Exception):  # stands in for httpx.ReadTimeout / urllib3's ReadTimeoutError
         pass
 
