@@ -222,7 +222,7 @@ def test_a_read_closed_by_the_folder_rules_is_logged_as_refused(world):
     notes, settings = world
     (settings.data_dir / "policy.toml").write_text(f'[deny]\npaths = ["{notes / "private"}"]\n', encoding="utf-8")
     asyncio.run(srv.locus_read_file(path=str(notes / "private" / "diary.md")))
-    assert lines(settings)[0]["refused"] in {"folder_rules", "not_indexed"}  # closed before or after the index check
+    assert lines(settings)[0]["refused"] == "folder_rules"
 
 
 def test_a_successful_read_has_no_refused_field(world):

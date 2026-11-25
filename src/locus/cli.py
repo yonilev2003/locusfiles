@@ -249,17 +249,31 @@ def _needs_scope(args: argparse.Namespace, roots: list[Path], matcher: Matcher) 
     return not scoped and not args.all and covers_home
 
 
+def _is_home_or_parent(folder: Path, home: Path) -> bool:
+    """*folder* is the home folder or one of its parents. Compared by what the files system says (`samefile`), so a
+    different spelling of the same place counts: `/users/name` on a case-insensitive macOS volume."""
+    for candidate in (home, *home.parents):
+        if folder == candidate:
+            return True
+        try:
+            if folder.exists() and os.path.samefile(folder, candidate):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _refuse_whole_home(folder: Path, *, allowed: bool = False) -> int | None:
     """The home folder (or a parent of it) named as one folder to index, watch or quickstart: refused unless the user
     said `--all`, the same as `--roots` on the whole home, whichever way the folder is spelled ($HOME, ~, a symlink)."""
     home = Path.home().resolve()
     resolved = folder.expanduser().resolve()
-    if allowed or not (resolved == home or resolved in home.parents):
+    if allowed or not _is_home_or_parent(resolved, home):
         return None
     print(
         f"locus: {folder} is your whole home folder (or contains it): indexing it takes hours and reads far more than "
-        "you meant. Name the folder you want, for example `locus index ~/Documents/notes`, or pass --all to index "
-        "everything under it (the built-in deny-list still applies).",
+        "you meant. Name the folder you want, for example `locus index ~/Documents/notes`. To really index "
+        "everything under it, `locus index` and `locus watch` take --all (the built-in deny-list still applies).",
         file=sys.stderr,
     )
     return EXIT_NEEDS_YES

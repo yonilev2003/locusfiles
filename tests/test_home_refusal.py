@@ -60,3 +60,20 @@ def test_all_opts_in_for_a_plain_index_of_the_home(home, capsys):
     with pytest.raises(SystemExit) as stop:
         cli.main(["index", str(home), "--all"])
     assert stop.value.code == 0 and "your whole home folder" not in capsys.readouterr().err
+
+
+def test_a_differently_cased_spelling_of_the_home_is_refused(home, capsys, tmp_path):
+    swapped = str(home).swapcase()
+    if not os.path.exists(swapped) or not os.path.samefile(swapped, home):
+        pytest.skip("a case-sensitive file system: the swapped spelling is another path")
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["index", swapped])
+    assert stop.value.code == 2 and "your whole home folder" in capsys.readouterr().err
+
+
+def test_a_dry_run_on_the_home_is_allowed(home, capsys):
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["index", str(home), "--dry-run"])
+    assert stop.value.code == 0
