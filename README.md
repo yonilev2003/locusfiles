@@ -1,4 +1,8 @@
 <p align="center">
+<img src="docs/assets/logo.svg" alt="Locus" width="64">
+</p>
+
+<p align="center">
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-dark.svg">
 <img src="docs/assets/wordmark-light.svg" alt="Locus" width="200">

@@ -53,13 +53,13 @@ from zoneinfo import ZoneInfo
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
-from mcp.types import ToolAnnotations
+from mcp.types import Icon, ToolAnnotations
 from pydantic import Field, ValidationError
 
 from . import __version__, closed_folders, hints, killswitch, remote_guard, support
 from . import restrictions as _restr
 from .collapse import visible_collapsed_hits
-from .config import DEFAULT_API_BASE, Settings, get_settings, require_hosted
+from .config import DEFAULT_API_BASE, SITE_URL, Settings, get_settings, require_hosted
 from .ingest.collection import open_index
 from .ingest.embedder import Embedder, LocalModelUnavailable, input_type_status
 from .ingest.errors import (
@@ -193,7 +193,35 @@ def _instructions_text(account_tool: bool, diagnose_tool: bool = True) -> str:
     )
 
 
-mcp = MCPServer("locus_mcp", instructions=_with_announce(_instructions_text(account_tool=False)))
+# Who the server says it is in the initialize answer (shown by apps that list connected servers). The icon is the
+# original Locus mark, the same file as docs/assets/logo.svg, inlined so the installed package carries it.
+LOGO_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><rect width="32" height="32" rx="9" '
+    'fill="#0f172a"/><g transform="translate(4.5 4.5) scale(0.9583)" stroke="#ffffff" stroke-width="2.4" '
+    'stroke-linecap="round"><path d="M9 2.5v5.5M15 2.5v5.5"/><rect x="6" y="8" width="12" height="7" rx="3.5"/>'
+    '<path d="M12 15v3.5M8.5 21.5h7"/></g></svg>'
+)
+SERVER_NAME = "locus"
+SERVER_TITLE = "Locus"
+SERVER_DESCRIPTION = (
+    "Searches the folders you chose on your own computer; every result carries a file path and a chunk number."
+)
+
+mcp = MCPServer(
+    SERVER_NAME,
+    title=SERVER_TITLE,
+    description=SERVER_DESCRIPTION,
+    website_url=SITE_URL,
+    version=__version__,
+    icons=[
+        Icon(
+            src="data:image/svg+xml;base64," + base64.b64encode(LOGO_SVG.encode()).decode(),
+            mime_type="image/svg+xml",
+            sizes=["any"],
+        )
+    ],
+    instructions=_with_announce(_instructions_text(account_tool=False)),
+)
 
 _state: dict[str, Any] = {}
 

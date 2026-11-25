@@ -229,8 +229,8 @@ def mcp_smoke(locus: list[str], env: dict[str, str], cwd: Path, version: str | N
         )
         assert init is not None
         server = init.get("serverInfo", {}).get("name")
-        if server != "locus_mcp":
-            raise SmokeError(f"serverInfo.name is {server!r}, expected 'locus_mcp'")
+        if server != "locus":
+            raise SmokeError(f"serverInfo.name is {server!r}, expected 'locus'")
         client.send("notifications/initialized", notify=True)
         listed = client.send("tools/list", {})
         assert listed is not None

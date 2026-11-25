@@ -118,7 +118,7 @@ def test_a_post_returns_application_json_and_no_session(server):
     assert reply.status == 200
     assert reply.headers["content-type"].startswith("application/json")
     assert "mcp-session-id" not in reply.headers
-    assert reply.json()["result"]["serverInfo"]["name"] == "locus_mcp"
+    assert reply.json()["result"]["serverInfo"]["name"] == "locus"
 
 
 def test_tools_can_be_listed_and_called_without_an_initialize_first(server):
