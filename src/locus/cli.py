@@ -608,17 +608,24 @@ def _latest_version() -> str | None:
 
 
 def _version_key(version: str) -> tuple:
-    """Sortable form of a PEP 440-style version ("0.2.0rc3" < "0.2.0" < "0.2.1"); () when it cannot be read.
-    A pre-release (a, b, rc) sorts before the final release of the same number."""
+    """Sortable form of a PEP 440-style version ("0.2.0.dev1" < "0.2.0rc3" < "0.2.0" < "0.2.0.post1" < "0.2.1");
+    () when it cannot be read. Accepts the common spellings (rc3, .rc3, -rc.3, c3, alpha1, beta2) and drops a
+    local part after "+". A pre-release (or dev release) sorts before the final release of the same number."""
     import re
 
-    m = re.match(r"(\d+(?:\.\d+)*)(?:(a|b|rc)(\d+))?", version.strip())
+    m = re.match(r"v?(\d+(?:\.\d+)*)(.*)$", version.strip().lower().split("+")[0])
     if not m:
         return ()
     nums = tuple(int(n) for n in m.group(1).split("."))
     nums += (0,) * (4 - len(nums))
-    stage = {"a": 0, "b": 1, "rc": 2}.get(m.group(2) or "", 3)
-    return (nums, stage, int(m.group(3) or 0))
+    rest = m.group(2)
+    pre = re.match(r"[._-]?(a|alpha|b|beta|c|rc|pre|preview)[._-]?(\d*)", rest)
+    if pre:
+        stage = {"a": 0, "alpha": 0, "b": 1, "beta": 1}.get(pre.group(1), 2)
+        return (nums, stage, int(pre.group(2) or 0), 0)
+    if re.match(r"[._-]?dev", rest):
+        return (nums, -1, 0, 0)
+    return (nums, 3, 0, 1 if re.match(r"[._-]?post", rest) else 0)
 
 
 def _update_note(installed: str, latest: str | None) -> str:
@@ -633,7 +640,8 @@ def _update_note(installed: str, latest: str | None) -> str:
         return f"{latest} (up to date)"
     if newest > have:
         return f"{latest} (newer than the {installed} you run)"
-    return f"nothing newer than {installed} (the newest stable release on PyPI is {latest}; yours is a pre-release)"
+    kind = "a pre-release" if have[1] < 3 else "newer"
+    return f"nothing newer than {installed} (the newest stable release on PyPI is {latest}; yours is {kind})"
 
 
 def _clients_with_locus() -> tuple[list[str], list[str]]:

@@ -157,7 +157,12 @@ def _pypi_says(monkeypatch, version):
         ("0.2.0rc2", "0.2.0", "0.2.0 (newer than the 0.2.0rc2 you run)"),
         ("0.2.0rc2", "0.2.0rc2", "0.2.0rc2 (up to date)"),
         ("0.2.0", "0.2.0", "0.2.0 (up to date)"),
-        ("0.2.0", "0.1.3", "nothing newer than 0.2.0"),
+        ("0.2.0", "0.1.3", "yours is newer"),
+        ("0.2.0rc2", "0.1.3", "yours is a pre-release"),
+        ("0.2.0.dev1", "0.2.0", "0.2.0 (newer than the 0.2.0.dev1 you run)"),
+        ("0.2.0-rc.1", "0.2.0", "0.2.0 (newer than the 0.2.0-rc.1 you run)"),
+        ("0.2.0rc3+local", "0.2.0rc3", "0.2.0rc3 (up to date)"),
+        ("0.2.0.post1", "0.2.0", "nothing newer than 0.2.0.post1"),
         ("0.1.3", "0.2.0", "0.2.0 (newer than the 0.1.3 you run)"),
     ],
 )
@@ -168,7 +173,7 @@ def test_check_update_compares_versions_and_never_calls_an_older_stable_latest(
     _pypi_says(monkeypatch, latest)
     out = _run(capsys, "--check-update")
     assert expect in out
-    if expect.startswith("nothing newer"):
+    if expect.startswith("nothing newer") or "yours is" in expect:
         assert "(up to date)" not in out and f"latest     : {latest}" not in out
 
 

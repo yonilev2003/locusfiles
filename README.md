@@ -530,7 +530,7 @@ each would send or write if you do.
   folder (on macOS, `~/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime/`); they are not Locus's
   and you can delete them.
 - **`locus status --check-update` (only when you add that flag).** One HTTPS request to
-  `https://pypi.org/pypi/locusfiles/json` (a fixed address, timeout 5 seconds) to read the newest stable version.
+  `https://pypi.org/pypi/locusfiles/json` (a fixed address, with a short timeout of 5 seconds per step) to read the newest stable version.
   Nothing is sent but the request itself, which PyPI sees like any download request (your IP address). Without the
   flag, `locus status` makes no network call.
 - **Your own provider key (`voyage`, `openai`).** Chunk text goes from your computer to that provider when you
