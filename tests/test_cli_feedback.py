@@ -20,6 +20,14 @@ def test_print_shows_the_url_and_does_not_open_a_browser(monkeypatch, capsys):
         assert label in body
 
 
+def test_the_notice_does_not_claim_nothing_is_sent_until_submitting(monkeypatch, capsys):
+    monkeypatch.setattr(webbrowser, "open", lambda u: True)
+    cli.cmd_feedback(cli.build_parser().parse_args(["feedback"]))
+    out = " ".join(capsys.readouterr().out.split())
+    assert "Nothing is sent until you submit" not in out
+    assert "GitHub receives that address when the page opens" in out and "no issue is created unless you submit" in out
+
+
 def test_url_holds_no_path_or_query_text(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     url = cli.feedback_url("local")

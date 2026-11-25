@@ -641,7 +641,8 @@ hold files from strangers (downloads, shared drives, email attachments).
 Something broke, or an answer was wrong? Run `locus feedback`. It opens a prefilled GitHub issue in your browser, only
 when you run it (`locus feedback --print` prints the address instead). The text holds the Locus version, Python
 version, operating system and embedder name, nothing else: no paths, file names, questions or index contents. Locus
-makes no network call for this; you read and edit the text on GitHub and submit it yourself, or close the tab.
+sends nothing itself, but opening the page is a request to github.com whose address contains that text, so GitHub
+receives it when the page opens, even if you close the tab. No issue is created unless you submit it.
 
 ## FAQ
 

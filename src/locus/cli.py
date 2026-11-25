@@ -577,7 +577,9 @@ FEEDBACK_URL = "https://github.com/yonilev2003/locusfiles/issues/new"
 
 def feedback_url(embedder: str) -> str:
     """A prefilled GitHub issue address. Only the Locus version, Python version, OS and embedder name go in: no paths,
-    file names, queries or index contents. Nothing is sent by Locus; the user submits (or not) on GitHub."""
+    file names, queries or index contents. Locus sends nothing itself, but this address is what the browser requests
+    from github.com when it is opened, so GitHub receives these four facts even if the user never submits; the issue
+    exists only if the user submits it."""
     from . import __version__
 
     body = (
@@ -593,7 +595,11 @@ def cmd_feedback(args: argparse.Namespace) -> int:
     if args.print:
         print(url)
         return 0
-    print("Opening a prefilled GitHub issue in your browser. Nothing is sent until you submit it there.")
+    print(
+        "Opening a prefilled GitHub issue in your browser. The page address holds only the Locus version, Python "
+        "version, OS and embedder, and GitHub receives that address when the page opens. Locus sends nothing "
+        "itself, and no issue is created unless you submit it there."
+    )
     if not webbrowser.open(url):
         print(f"Could not open a browser. Open this address yourself:\n{url}")
     return 0
