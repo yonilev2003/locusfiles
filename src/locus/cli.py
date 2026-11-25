@@ -607,6 +607,35 @@ def _latest_version() -> str | None:
         return None
 
 
+def _version_key(version: str) -> tuple:
+    """Sortable form of a PEP 440-style version ("0.2.0rc3" < "0.2.0" < "0.2.1"); () when it cannot be read.
+    A pre-release (a, b, rc) sorts before the final release of the same number."""
+    import re
+
+    m = re.match(r"(\d+(?:\.\d+)*)(?:(a|b|rc)(\d+))?", version.strip())
+    if not m:
+        return ()
+    nums = tuple(int(n) for n in m.group(1).split("."))
+    nums += (0,) * (4 - len(nums))
+    stage = {"a": 0, "b": 1, "rc": 2}.get(m.group(2) or "", 3)
+    return (nums, stage, int(m.group(3) or 0))
+
+
+def _update_note(installed: str, latest: str | None) -> str:
+    """One line for `locus status --check-update`. PyPI's `info.version` is the newest *stable* release, so a
+    pre-release newer than it is not told that the older stable one is the latest."""
+    if latest is None:
+        return "could not check"
+    have, newest = _version_key(installed), _version_key(latest)
+    if not have or not newest:
+        return latest
+    if newest == have:
+        return f"{latest} (up to date)"
+    if newest > have:
+        return f"{latest} (newer than the {installed} you run)"
+    return f"nothing newer than {installed} (the newest stable release on PyPI is {latest}; yours is a pre-release)"
+
+
 def _clients_with_locus() -> tuple[list[str], list[str]]:
     """(clients whose config file has a `locus` entry, clients we cannot check). Read-only: reads files, writes none."""
     import re
@@ -667,7 +696,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     found, unchecked = _clients_with_locus()
     info["clients"] = {"configured": found, "not_checked": unchecked}
     if args.check_update:
-        info["latest_version"] = _latest_version()
+        info["latest_version"] = _latest_version()  # PyPI's newest stable release
 
     if args.json:
         _emit_json(info)
@@ -675,8 +704,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"version    : {__version__}")
     if args.check_update:
         latest = info["latest_version"]
-        note = "could not check" if latest is None else f"{latest} (up to date)" if latest == __version__ else latest
-        print(f"latest     : {note}")
+        print(f"latest     : {_update_note(__version__, latest)}")
     idx = info["index"]
     if idx is None:
         print("index      : none yet (run `locus index <folder>`)")

@@ -133,7 +133,43 @@ def test_check_update_makes_one_get_and_reports(world, capsys, monkeypatch):
     monkeypatch.setattr(urllib.request, "urlopen", fake)
     out = _run(capsys, "--check-update")
     assert seen == [("https://pypi.org/pypi/locusfiles/json", 5)]
-    assert "latest     : 9.9.9" in out
+    assert "latest     : 9.9.9 (newer than the" in out
+
+
+def _pypi_says(monkeypatch, version):
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, *a):
+            return json.dumps({"info": {"version": version}}).encode()
+
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout=None: Resp())
+
+
+@pytest.mark.parametrize(
+    ("installed", "latest", "expect"),
+    [
+        ("0.2.0rc2", "0.1.3", "nothing newer than 0.2.0rc2"),  # a pre-release is not told 0.1.3 is "latest"
+        ("0.2.0rc2", "0.2.0", "0.2.0 (newer than the 0.2.0rc2 you run)"),
+        ("0.2.0rc2", "0.2.0rc2", "0.2.0rc2 (up to date)"),
+        ("0.2.0", "0.2.0", "0.2.0 (up to date)"),
+        ("0.2.0", "0.1.3", "nothing newer than 0.2.0"),
+        ("0.1.3", "0.2.0", "0.2.0 (newer than the 0.1.3 you run)"),
+    ],
+)
+def test_check_update_compares_versions_and_never_calls_an_older_stable_latest(
+    world, capsys, monkeypatch, installed, latest, expect
+):
+    monkeypatch.setattr("locus.__version__", installed)
+    _pypi_says(monkeypatch, latest)
+    out = _run(capsys, "--check-update")
+    assert expect in out
+    if expect.startswith("nothing newer"):
+        assert "(up to date)" not in out and f"latest     : {latest}" not in out
 
 
 def test_check_update_failure_says_could_not_check(world, capsys, monkeypatch):
