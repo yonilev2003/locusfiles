@@ -54,6 +54,10 @@ def cmd_index(args: argparse.Namespace) -> int:
     if args.roots is not None or args.policy is not None or args.folder is None:
         return _index_roots(args, settings)
     folder = Path(args.folder)
+    if (
+        refused_home := _refuse_whole_home(folder, allowed=args.all or args.dry_run)
+    ) is not None:  # a dry run reads only
+        return refused_home
     rerun = _command("locus", "index", str(folder), flags={"--prune": args.prune, "--yes": True})
     matcher = _deny_list_for(folder, settings, ask=None if args.dry_run else (args.yes, rerun))
     if isinstance(matcher, int):
@@ -245,6 +249,22 @@ def _needs_scope(args: argparse.Namespace, roots: list[Path], matcher: Matcher) 
     return not scoped and not args.all and covers_home
 
 
+def _refuse_whole_home(folder: Path, *, allowed: bool = False) -> int | None:
+    """The home folder (or a parent of it) named as one folder to index, watch or quickstart: refused unless the user
+    said `--all`, the same as `--roots` on the whole home, whichever way the folder is spelled ($HOME, ~, a symlink)."""
+    home = Path.home().resolve()
+    resolved = folder.expanduser().resolve()
+    if allowed or not (resolved == home or resolved in home.parents):
+        return None
+    print(
+        f"locus: {folder} is your whole home folder (or contains it): indexing it takes hours and reads far more than "
+        "you meant. Name the folder you want, for example `locus index ~/Documents/notes`, or pass --all to index "
+        "everything under it (the built-in deny-list still applies).",
+        file=sys.stderr,
+    )
+    return EXIT_NEEDS_YES
+
+
 def _ask_for_scope(settings: Settings, roots: list[Path], matcher: Matcher) -> int:
     from .rootscan import render_roots_report, scan_roots
 
@@ -395,6 +415,9 @@ SERVICE_EXIT_CODES = {
     "policy_error": EXIT_NOT_CONFIGURED,
     "internal_error": EXIT_ERROR,
 }
+# Service errors that mean "Locus would not hand this over" (paused, folder rules, not an indexed file): the audit log
+# counts them as refused calls.
+_REFUSAL_CODES = frozenset({"paused", "policy_error", "confinement_refused", "not_indexed"})
 EXIT_CODES_EPILOG = """\
 exit codes (for `query --json`, `sources`, `read` and `api`):
   0  ok
@@ -433,6 +456,8 @@ def _run_service(call, *, as_json: bool, render=None, tool: str = "") -> int:
         elif render is not None:
             render(result)
         return EXIT_OK
+    if error.code in _REFUSAL_CODES:
+        restrictions.audit_refused(get_settings().data_dir, tool, error.code)
     if as_json:
         _emit_json(error.to_dict())
     print(f"error: {error.message}", file=sys.stderr)
@@ -523,6 +548,8 @@ def cmd_watch(args: argparse.Namespace) -> int:
 
     settings = get_settings()
     root = Path(args.folder)
+    if (refused_home := _refuse_whole_home(root, allowed=args.all)) is not None:
+        return refused_home
     rerun = _command("locus", "watch", str(root), flags={"--no-initial": args.no_initial, "--yes": True})
     matcher = _deny_list_for(root, settings, ask=(args.yes, rerun))
     if isinstance(matcher, int):
@@ -961,6 +988,8 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
     from .ingest.indexer import index_folder
 
     folder = Path(args.folder)
+    if (refused_home := _refuse_whole_home(folder)) is not None:
+        return refused_home
     stages: list[tuple[str, float]] = []
 
     def stage(name: str, started: float) -> None:
@@ -1120,7 +1149,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --roots: stop starting new files after N seconds (finishes the current one); "
         "use with --order recent for a time-boxed hot-set pass",
     )
-    p.add_argument("--all", action="store_true", help="with --roots on the whole home: index everything, no scope")
+    p.add_argument("--all", action="store_true", help="on the whole home folder: index everything, no scope")
     p.add_argument("--policy", metavar="FILE", help="policy file (default: <data dir>/policy.toml)")
     p.add_argument(
         "--prune",
@@ -1259,6 +1288,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("watch", help="index a folder, then keep it in sync")
     p.add_argument("folder")
     p.add_argument("--no-initial", action="store_true", help="skip the initial full index")
+    p.add_argument("--all", action="store_true", help="on the whole home folder: watch everything under it")
     p.add_argument("-y", "--yes", action="store_true", help=yes_help)
     p.set_defaults(func=cmd_watch)
 

@@ -1146,13 +1146,16 @@ async def locus_read_file(
         by_nfc = {unicodedata.normalize("NFC", p): p for p in indexed}
         match = by_nfc.get(unicodedata.normalize("NFC", path))
         if match is None:
+            _restr.mark_refused("not_indexed")
             return f"Error: {path!r} is not an indexed file. Call locus_list_sources to see valid paths."
         path = match
     file_path = Path(path)
     indexed_nfc = {unicodedata.normalize("NFC", p) for p in indexed}
     if refusal := _confinement_refusal(path, indexed_nfc):
+        _restr.mark_refused("confinement")
         return refusal
     if blocked := guard.read_refusal(path):  # the folder rules, for the path and for where it leads now
+        _restr.mark_refused("folder_rules")
         return f"Error: {blocked}, so it was not read. {_restr.RULES_REFUSAL_TAIL}"
     is_pdf = file_path.suffix.lower() == ".pdf"
     wanted: list[int] | None = None
@@ -1204,10 +1207,13 @@ async def locus_read_file(
     # to somewhere the index never saw). Check again now that the bytes are read: if the path no longer passes, the
     # text is dropped, never returned (S-05). This narrows the race to a swap that is undone before this line.
     if refusal := _confinement_refusal(path, indexed_nfc):
+        _restr.mark_refused("confinement")
         return f"{refusal} It changed while it was being read, so nothing was returned."
     if blocked := guard.read_refusal(path):
+        _restr.mark_refused("folder_rules")
         return f"Error: {blocked}. It changed while it was being read, so nothing was returned."
     if secret_content(text):
+        _restr.mark_refused("secret_content")
         return f"Error: {path!r} holds what looks like a credential (secret-content), so it was not returned."
     end = start_char + max_chars
     excerpt = text[start_char:end]
