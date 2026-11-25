@@ -36,8 +36,8 @@ from .chunk_policy import effective_chunk_tokens
 from .chunker import Chunk, chunk_pages, chunk_text
 from .embedder import Embedder
 from .errors import BudgetExhausted, EmbedError, ProviderUnavailable, RateLimited, SubscriptionInactive, as_embed_error
-from .noise import PARSER_VERSION, PARSER_VERSION_KEY, is_noise_chunk
-from .parsers import parse_document
+from .noise import PARSER_VERSION, PARSER_VERSION_KEY, drop_base64_lines
+from .parsers import parse_document, strip_parsed
 from .retry import DEFAULT_RETRY, RetryPolicy, embed_with_retry, probe_service
 from .store import VectorStore
 
@@ -341,7 +341,7 @@ def index_file(
         stats.files_skipped += 1
         return 0
 
-    parsed = parse_document(path)
+    parsed = parse_document(path, strip=False)  # the credential check below must see the file as it is
     text = parsed.text
     if parsed.no_text:
         stats.pdf_no_text += 1
@@ -366,14 +366,22 @@ def index_file(
         stats.denied += 1
         log(f"not indexed: {path} holds what looks like a credential (secret-content)")
         return 0
+    parsed = strip_parsed(parsed)  # base64 payloads go only now: a JWT's long payload must not hide it from the check
+    text = parsed.text
+    if not text or not text.strip():
+        store.delete_path(str(path))
+        stats.files_skipped += 1
+        return 0
 
     chunk_tokens = effective_chunk_tokens(settings, store)
     if parsed.pages:
         chunks = chunk_pages(parsed.pages, chunk_tokens, settings.overlap_tokens)
     else:
         chunks = chunk_text(text, chunk_tokens, settings.overlap_tokens)
-    chunks = [c for c in chunks if not is_noise_chunk(c.text)]  # base64 left after the parse step
-    chunks = [Chunk(c.text, i, c.page) for i, c in enumerate(chunks)]
+    # Base64 lines left after the parse step (a payload wrapped at 64 or 76 characters): only those lines go, the prose
+    # around them stays; a chunk that was nothing but payload is dropped.
+    kept = [(drop_base64_lines(c.text), c.page) for c in chunks]
+    chunks = [Chunk(t, i, page) for i, (t, page) in enumerate(k for k in kept if k[0].strip())]
     if not chunks:
         store.delete_path(str(path))
         stats.files_skipped += 1

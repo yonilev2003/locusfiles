@@ -383,7 +383,7 @@ class Engine:
                             "time limit."
                         )
                 else:
-                    text = parse_file(file_path) or ""
+                    text = parse_file(file_path, strip=False) or ""
             except PermissionError as exc:
                 raise ServiceError(
                     "file_unreadable", "The file is in the index but Locus has no access to it on disk now."
