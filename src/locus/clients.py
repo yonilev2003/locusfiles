@@ -92,6 +92,17 @@ def _everywhere(base: str, *rel: str) -> dict[str, Location]:
     return {name: Location(base, rel) for name in OS_NAMES}
 
 
+# Claude Desktop does not always call a tool by itself; this line, pasted once into Settings > Profile, tells it to try
+# Locus first for questions about the user's own material.
+DESKTOP_PROFILE_LINE = (
+    "When I ask about my own documents, notes, files or projects, search my computer's files with the Locus tools "
+    "first, then answer and cite the file paths."
+)
+
+
+PROFILE_WHERE = {"claude-desktop": "Claude Desktop, Settings > Profile"}
+
+
 @dataclass(frozen=True)
 class Client:
     name: str
@@ -106,6 +117,7 @@ class Client:
     snippet: str = ""  # "agents" for the AGENTS.md text; empty: derived from kind
     no_file: str = ""  # what the PATH column says when there is no file to write
     list_note: str = ""  # one line under the --list table
+    profile_line: str = ""  # a line to paste into the app's own profile or custom instructions, shown after setup
 
     @property
     def writes_files(self) -> bool:
@@ -163,6 +175,7 @@ REGISTRY: tuple[Client, ...] = (
         notes=("On Linux the folder is $XDG_CONFIG_HOME/Claude when that variable is set, else ~/.config/Claude.",),
         before=QUIT_DESKTOP,
         after="Start Claude Desktop again, open a new chat and look for the locus tools in the tools menu.",
+        profile_line=DESKTOP_PROFILE_LINE,
     ),
     Client(
         name="cursor",
@@ -910,6 +923,9 @@ def _print_client(
             "copied from your environment when writing and never printed).",
             out,
         )
+    if client.profile_line and not remove:
+        _say(out=out)
+        _say(f'One more step, once: paste this line into {PROFILE_WHERE[client.name]}:\n  "{client.profile_line}"', out)
     _say(out=out)
     if client.writes_files and os_name == here:
         flag = "--remove --write" if remove else "--write"
@@ -1044,6 +1060,8 @@ def run_client_setup(args: argparse.Namespace, out: TextIO | None = None, err: T
     if backup is not None:
         _say(f"Backup of the file as it was: {backup}", out)
     _say(client.after, out)
+    if client.profile_line and plan.action != "remove":
+        _say(f'One more step, once: paste this line into {PROFILE_WHERE[client.name]}:\n  "{client.profile_line}"', out)
     return EXIT_OK
 
 

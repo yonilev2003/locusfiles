@@ -469,12 +469,11 @@ async def locus_search(
     ] = "relevance",
     ctx: Context | None = None,  # filled in by the SDK: only to name the client in the audit log (restrictions.py)
 ) -> str:
-    """Search the user's own documents, notes and files on their computer, indexed by Locus: PDFs,
-    Word and Markdown files, plans, meeting notes, drafts, reports and code they wrote or saved.
-    Use this when a question could be answered from that material: it says my, our or we, names
-    one of their projects, clients, people or documents, or asks what they decided, wrote or
-    planned. Do not use it for general knowledge, current events or questions about the outside
-    world.
+    """Search the user's own files when they say my, our or we, or name their projects, people, documents or decisions.
+    These are the documents, notes and files on their computer that Locus indexed: PDFs, Word and
+    Markdown files, plans, meeting notes, drafts, reports and code they wrote or saved, and what
+    they decided, wrote or planned. Do not use it for general knowledge, current events or
+    questions about the outside world.
 
     Returns the best-matching chunks, each headed by its path, chunk index, score and modified
     time, with the chunk's full text. The result starts with today's date, timezone and filters.
