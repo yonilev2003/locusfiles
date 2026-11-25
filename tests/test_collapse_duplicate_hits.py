@@ -135,3 +135,20 @@ def test_the_audit_line_names_every_path_a_collapsed_row_showed(tmp_path, monkey
     paths = [p for line in audit.read_lines(tmp_path / "data" / "audit") for p in line["paths"]]
     for folder in ("project", "backup", "archive"):
         assert str(root / folder / "pricing.md") in paths
+
+
+def test_the_remote_audit_names_the_collapsed_paths_too():
+    from locus import remote_guard as rg
+
+    text = (
+        "## 1. /v/a.md  (chunk 0, score 0.9, 10 chars)\n"
+        "also in: /v/b.md (chunk 3), /v/c.md (chunk 0), and 2 more\nbody\n"
+        "## 2. /v/d.md  (chunk 1, score 0.8, 10 chars)\nbody\n"
+    )
+    answer = json.dumps({"result": {"content": [{"type": "text", "text": text}]}}).encode()
+    known = {"/v/a.md", "/v/b.md", "/v/c.md", "/v/d.md"}
+    info = rg.RequestInfo("tools/call", "locus_search")
+    assert rg.summarize_response(info, answer, "application/json", lambda: known) == (
+        2,
+        ["/v/a.md", "/v/d.md", "/v/b.md", "/v/c.md"],
+    )
