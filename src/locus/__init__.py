@@ -2,7 +2,7 @@
 
 import os
 
-__version__ = "0.2.0rc2"
+__version__ = "0.2.0rc3"
 
 # S-08. ONNX Runtime 1.31 and later (the engine behind the default on-device embedder) includes Microsoft's
 # usage-telemetry uploader in its macOS and Linux builds, on by default. It starts when `onnxruntime` is imported and

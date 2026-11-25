@@ -3,7 +3,7 @@
   "name": "io.github.yonilev2003/locusfiles",
   "title": "Locus",
   "description": "Search folders on your own computer from an MCP client; every result carries its file path.",
-  "version": "0.2.0rc2",
+  "version": "0.2.0rc3",
   "repository": {
     "url": "https://github.com/yonilev2003/locusfiles",
     "source": "github"
@@ -13,7 +13,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "locusfiles",
-      "version": "0.2.0rc2",
+      "version": "0.2.0rc3",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {
