@@ -882,6 +882,11 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     for label, passed, detail in restrictions.rule_checks(settings.data_dir):
         check(label, passed, detail)
 
+    if sys.platform == "darwin":  # where Claude Desktop writes what its MCP servers print: the first place to look
+        desktop_log = Path.home() / "Library" / "Logs" / "Claude" / "mcp-server-locus.log"
+        state = "exists" if desktop_log.exists() else "not written yet"
+        check("Claude Desktop log for Locus", True, f"~/Library/Logs/Claude/mcp-server-locus.log ({state})")
+
     if ok:
         legacy: str | None = None
         try:
