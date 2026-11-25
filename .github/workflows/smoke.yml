@@ -15,7 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14, windows-latest]
+        # `macos-14` was cancelled within a second on every run ("The configuration 'macos-14-arm64-us-default' is not
+        # supported"); `macos-latest` is what package.yml uses and it gets a runner.
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     timeout-minutes: 25
