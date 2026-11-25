@@ -57,7 +57,8 @@ by default, so the commands below name the version. Tested on one Mac (Apple sil
 
 4. **Check the install**: `locus doctor`. The first run downloads the embedding model (134 MB). On a slow
    connection this can take several minutes; if it stops or fails, run the same command again and it continues.
-   Every line should end in OK.
+   Every line should end in OK. The first time, it also asks one question about commercial use (see
+   [Licence](#licence)); answer it and it continues.
 5. **Choose one small folder** and index it: `locus estimate ~/Documents/notes` shows the size first, then
    `locus index ~/Documents/notes`.
 6. **Connect your assistant.** For Claude Code:
@@ -70,14 +71,15 @@ themselves, so naming it in the question helps.
 ### What Locus can and cannot see
 
 - **Only the folders you name.** Nothing is indexed until you run `locus index <folder>` on it.
-- **New files appear without asking.** Indexed folders are rescanned before each search, within a 2 second budget,
-  so a file you saved a minute ago is usually found. If the budget runs out the answer says so.
+- **New files appear without asking.** When your assistant searches through Locus with the on-device embedder (the
+  default), the indexed folders are rescanned first, within a 2 second budget, so a file you saved a minute ago is
+  usually found. If the budget runs out the answer says so.
 - **Downloads is closed** until you open it on purpose. Credentials, keys and browser profiles are left out by built-in folder rules.
 - **There is no list of recent files from your whole computer.** Locus only knows the modification times of files
   inside the folders you indexed, so "what did I work on yesterday?" is answered from those folders only.
 - **Scans and photos are not read.** There is no OCR: a scanned PDF or a picture of text has no searchable text.
-- **Very large spreadsheets and CSV files can crowd out other results**, because one big file produces many matching
-  pieces. If an answer is full of one table, ask for a different file by name.
+- **A very large spreadsheet or CSV file can dominate the results** for some questions, because one big file produces
+  many matching pieces. If an answer is mostly one table, ask about a different file by name.
 - **The index is readable text, not encrypted.** It sits on your computer in `~/.locus`.
 
 ## Why Locus
