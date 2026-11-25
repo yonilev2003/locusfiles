@@ -24,6 +24,7 @@ import itertools
 import json
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -527,6 +528,30 @@ def serve_roots_and_matcher(
     return roots, Matcher(policy, home)
 
 
+class _Flight:
+    """The state shared by every search of one collection in this process: one freshen at a time (L4)."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()  # held while a freshen runs
+        self.finished: float | None = None  # clock time the last freshen ended
+        self.cut_short = False  # that freshen used its whole budget (or stopped early)
+        self.note: str | None = None
+
+
+_FLIGHTS: dict[tuple[str, str], _Flight] = {}
+_FLIGHTS_LOCK = threading.Lock()
+BUSY_NOTE = (
+    "Freshness note: another search is bringing the index up to date right now; results above may miss the newest "
+    "changes. The next search continues."
+)
+
+
+def _flight_of(settings: Settings) -> _Flight:
+    key = (str(settings.data_dir), settings.collection)
+    with _FLIGHTS_LOCK:
+        return _FLIGHTS.setdefault(key, _Flight())
+
+
 def freshen_for_serve(
     embedder: Embedder,
     store: VectorStore,
@@ -535,24 +560,42 @@ def freshen_for_serve(
     clock: Clock = time.monotonic,
 ) -> str | None:
     """What `locus_search` calls: freshen, and return the note to append (None when there is nothing to say).
-    Never raises: a failure is logged to stderr and the search goes on with the index as it is."""
+    One freshen at a time per collection: a call that finds another running answers at once with BUSY_NOTE, and for one
+    budget's length after a run that used all of its budget, calls reuse that run's note (L4: eleven parallel searches
+    no longer each spend a full budget). Never raises: a failure is logged to stderr and the search goes on."""
     budget_s = budget_from_env(env)
     if settings is None or budget_s <= 0 or not hasattr(store, "file_mtimes"):
         return None
+    flight = _flight_of(settings)
+    if not flight.lock.acquire(blocking=False):
+        return BUSY_NOTE  # a search on another thread is freshening: wait for nothing, answer from the index
     try:
-        roots, matcher = serve_roots_and_matcher(store, settings)
-        if not roots:
+        # Parallel searches (an assistant that fires a dozen at once) must not each spend a full budget: the first
+        # one freshens, and for one budget's length after a run that used all of it the others reuse its note.
+        # The freshness window: budget_s (2 s by default) after a run that used its whole budget. A file added or
+        # changed inside that window is not picked up by a search that reuses the note; the first search after the
+        # window freshens again. After a run that finished within budget there is no window: every search freshens.
+        if flight.cut_short and flight.finished is not None and clock() - flight.finished < budget_s:
+            return flight.note
+        try:
+            roots, matcher = serve_roots_and_matcher(store, settings)
+            if not roots:
+                return None
+            report = freshen(roots, matcher, embedder, store, settings, budget_s, clock)
+            counts = None
+            if report.cut_short:  # say the number in the diagnostic's own terms, so the two tools agree
+                try:
+                    counts = count_pending(store)
+                except Exception:  # noqa: BLE001 - the extra count is a convenience
+                    counts = None
+        except PolicyError:
+            return "Freshness note: skipped, because the policy file has a problem (`locus index --dry-run` names it)."
+        except Exception as exc:  # noqa: BLE001 - freshness must never break a search
+            print(f"locus_mcp: freshness step failed: {type(exc).__name__}", file=sys.stderr)
             return None
-        report = freshen(roots, matcher, embedder, store, settings, budget_s, clock)
-        counts = None
-        if report.cut_short:  # say the number in the diagnostic's own terms, so the two tools agree
-            try:
-                counts = count_pending(store)
-            except Exception:  # noqa: BLE001 - the extra count is a convenience
-                counts = None
-    except PolicyError:
-        return "Freshness note: skipped, because the policy file has a problem (`locus index --dry-run` names it)."
-    except Exception as exc:  # noqa: BLE001 - freshness must never break a search
-        print(f"locus_mcp: freshness step failed: {type(exc).__name__}", file=sys.stderr)
-        return None
-    return render_freshness_note(report, budget_s, counts)
+        flight.note = render_freshness_note(report, budget_s, counts)
+        flight.cut_short = report.cut_short
+        flight.finished = clock()
+        return flight.note
+    finally:
+        flight.lock.release()
